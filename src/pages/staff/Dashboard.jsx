@@ -1,6 +1,6 @@
 const sDashboard = () => {
     return <>
-        <h1>Dashboard</h1>
+        <h1 className="text-[50px]">Dashboard</h1>
     </>;
 };
 

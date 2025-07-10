@@ -21,7 +21,6 @@ export default function App() {
         <Route path="/" element={<Nav />}>
           <Route index element={<Login />} />
 
-
           <Route path="sDash" element={<SDashboard />} />
           <Route path="sDevi" element={<SDeviations />} />
           <Route path="sSubm" element={<SSubmissions />} />
