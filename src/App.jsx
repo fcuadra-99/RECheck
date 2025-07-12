@@ -12,7 +12,8 @@ import RRevisions from "./pages/researcher/Revisions";
 import RSubmissions from "./pages/researcher/Submission";
 
 import NoPage from "./pages/NoPage";
-import Login from "./assets/components/Login"
+import Login from "./pages/Login"
+import Register from "./pages/Register"
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Nav />}>
           <Route index element={<Login />} />
+          <Route path="Register" element={<Register />} />
 
           <Route path="sDash" element={<SDashboard />} />
           <Route path="sDevi" element={<SDeviations />} />
