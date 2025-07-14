@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Styles from '../assets/components/style'
 
 function Login() {
     const [email, setEmail] = useState("");
@@ -10,30 +11,53 @@ function Login() {
     }
 
     return (
-        <form onSubmit={submit}>
+        <form onSubmit={submit} className="w-fill mx-auto m-5">
+    <div className={Styles("space1")}>
+        <input
+            type="email"
+            id="floating_email"
+            className={Styles("input1")}
+            placeholder=" "
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete='new-password'
+        />
+        <label
+            htmlFor="floating_email"
+            className={Styles("label1")}
+        >
+            Email
+        </label>
+    </div>
 
-            <label>Email:
-                <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                />
-            </label>
+    <div className={Styles("space1")}>
+        <input
+            type="password"
+            id="floating_password"
+            className={Styles("input1")}
+            placeholder=" "
+            value={pass}
+            onChange={(e) => setPass(e.target.value)}
+            minLength={8}
+            required
+            autoComplete='new-password'
+        />
+        <label
+            htmlFor="floating_password"
+            className={Styles("label1")}
+        >
+            Password
+        </label>
+    </div>
 
-            <label>Password:
-                <input
-                    type="password"
-                    value={pass}
-                    onChange={(e) => setPass(e.target.value)}
-                    minLength={8}
-                    required
-                />
-            </label>
-
-            <button type="submit">Submit</button>
-
-        </form>
+    <button
+        type="submit"
+        className={Styles("btn1")}
+    >
+        Submit
+    </button>
+</form>
     )
 }
 
