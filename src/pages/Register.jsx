@@ -16,6 +16,9 @@ function Register() {
 
     return (
         <form onSubmit={submit} className="w-fill mx-auto m-5">
+            <div className={Styles("space1")}>
+                <h1 className="text-[30px] font-medium">Register</h1>
+            </div>
 
             <div className="grid md:grid-cols-2 md:gap-6">
                 <div className={Styles("space1")}>
