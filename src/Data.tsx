@@ -77,7 +77,7 @@ export const data = {
   navSecondary: [
     {
       title: "Settings",
-      url: "",
+      url: "#",
       icon: Settings,
     },
   ],

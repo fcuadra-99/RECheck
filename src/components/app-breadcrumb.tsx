@@ -20,10 +20,6 @@ export function AppBreadcrumb({
     items?: {
       title: string
       url: string
-      items?: {
-        title: string
-        url: string
-      }
     }[]
   }[]
 }) {
