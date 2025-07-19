@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Link } from "react-router"
+import { RippleButton } from "./animate-ui/buttons/ripple"
 
 const handleSubmit = (event:any) => {
     event.preventDefault();
@@ -73,13 +75,13 @@ export function SignupForm({
                         </div>
                         <div className="text-center text-sm">
                             Already have an account?{" "}
-                            <a href="/login" className="underline underline-offset-4">
-                                Log-in
-                            </a>
+                            <Link to="/login">
+                                <u>Log-In</u>
+                            </Link>
                         </div>
-                        <Button type="submit" className="w-full bg-muted hover:bg-sidebar">
+                        <RippleButton type="submit" className="w-full bg-muted hover:bg-accent">
                             Sign-Up
-                        </Button>
+                        </RippleButton>
                     </div>
 
                 </div>

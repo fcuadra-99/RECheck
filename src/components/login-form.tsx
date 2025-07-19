@@ -4,8 +4,10 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Link } from "react-router"
+import { RippleButton } from "./animate-ui/buttons/ripple"
 
-const handleSubmit = (event:any) => {
+const handleSubmit = (event: any) => {
     event.preventDefault();
     alert(`yoyoyoyoyoyooyoyoyoy`)
 }
@@ -48,13 +50,13 @@ export function LoginForm({
                         </div>
                         <div className="text-center text-sm">
                             Don&apos;t have an account?{" "}
-                            <a href="/signu" className="underline underline-offset-4">
-                                Sign up
-                            </a>
+                            <Link to="/signu">
+                                <u>Sign up</u>
+                            </Link>
                         </div>
-                        <Button type="submit" className="w-full bg-muted hover:bg-sidebar">
-                            Log-in
-                        </Button>
+                        <RippleButton type="submit" className="w-full bg-muted hover:bg-accent">
+                            Log-In
+                        </RippleButton>
                     </div>
 
                 </div>

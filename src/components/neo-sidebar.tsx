@@ -1,7 +1,8 @@
 'use client';
- 
+
 import * as React from 'react';
- 
+import { data as DATA } from "@/Data"
+
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -75,174 +76,43 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
- 
-const DATA = {
-  user: {
-    name: 'Skyleen',
-    email: 'skyleen@example.com',
-    avatar:
-      'https://pbs.twimg.com/profile_images/1909615404789506048/MTqvRsjo_400x400.jpg',
-  },
-  teams: [
-    {
-      name: 'Acme Inc',
-      logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    },
-    {
-      name: 'Acme Corp.',
-      logo: AudioWaveform,
-      plan: 'Startup',
-    },
-    {
-      name: 'Evil Corp.',
-      logo: Command,
-      plan: 'Free',
-    },
-  ],
-  navMain: [
-    {
-      title: 'Playground',
-      url: '/sdash',
-      icon: SquareTerminal,
-      isActive: true,
-      items: [
-        {
-          title: 'History',
-          url: '/sdash/sdash1',
-        },
-        {
-          title: 'Starred',
-          url: '#',
-        },
-        {
-          title: 'Settings',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Models',
-      url: '/sdevi',
-      icon: Bot,
-      items: [
-        {
-          title: 'Genesis',
-          url: '#',
-        },
-        {
-          title: 'Explorer',
-          url: '#',
-        },
-        {
-          title: 'Quantum',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Documentation',
-      url: '#',
-      icon: BookOpen,
-      items: [
-        {
-          title: 'Introduction',
-          url: '#',
-        },
-        {
-          title: 'Get Started',
-          url: '#',
-        },
-        {
-          title: 'Tutorials',
-          url: '#',
-        },
-        {
-          title: 'Changelog',
-          url: '#',
-        },
-      ],
-    },
-    {
-      title: 'Settings',
-      url: '#',
-      icon: Settings2,
-      items: [
-        {
-          title: 'General',
-          url: '#',
-        },
-        {
-          title: 'Team',
-          url: '#',
-        },
-        {
-          title: 'Billing',
-          url: '#',
-        },
-        {
-          title: 'Limits',
-          url: '#',
-        },
-      ],
-    },
-  ],
-  projects: [
-    {
-      name: 'Design Engineering',
-      url: '#',
-      icon: Frame,
-    },
-    {
-      name: 'Sales & Marketing',
-      url: '#',
-      icon: PieChart,
-    },
-    {
-      name: 'Travel',
-      url: '#',
-      icon: Map,
-    },
-  ],
-};
- 
-export const RadixSidebarDemo = () => {
+import { Link } from 'react-router';
+
+
+export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();
-  const [activeTeam, setActiveTeam] = React.useState(DATA.teams[0]);
- 
-  if (!activeTeam) return null;
- 
+  const main = DATA.main[0];
+
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon">
+      <Sidebar collapsible="icon" {...props}>
         <SidebarHeader>
           {/* Team Switcher */}
           <SidebarMenu>
             <SidebarMenuItem>
               <DropdownMenu>
-                  <SidebarMenuButton
-                    size="lg"
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  >
-                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                      <activeTeam.logo className="size-4" />
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        {activeTeam.name}
-                      </span>
-                      <span className="truncate text-xs">
-                        {activeTeam.plan}
-                      </span>
-                    </div>
-                    <ChevronsUpDown className="ml-auto" />
-                  </SidebarMenuButton>
+                <SidebarMenuButton
+                  size="lg"
+                  className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                >
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <main.logo className="size-4" />
+                  </div>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">
+                      RECheck
+                    </span>
+                    <span className="truncate text-xs">
+                      UIC REC
+                    </span>
+                  </div>
+                </SidebarMenuButton>
               </DropdownMenu>
             </SidebarMenuItem>
           </SidebarMenu>
           {/* Team Switcher */}
         </SidebarHeader>
- 
+
         <SidebarContent>
           {/* Nav Main */}
           <SidebarGroup>
@@ -251,21 +121,24 @@ export const RadixSidebarDemo = () => {
               {DATA.navMain.map((item) => (
                 <Collapsible>
                   <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton tooltip={item.title}>
-                        {item.icon && <item.icon />}
-                        <span>{item.title}</span>
-                        <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
+                    <Link to={item.url}>
+                      <CollapsibleTrigger asChild>
+
+                        <SidebarMenuButton tooltip={item.title}>
+                          {item.icon && <item.icon />}
+                          <span>{item.title}</span>
+                          <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+                    </Link>
                     <CollapsibleContent>
                       <SidebarMenuSub>
                         {item.items?.map((subItem) => (
                           <SidebarMenuSubItem key={subItem.title}>
                             <SidebarMenuSubButton asChild>
-                              <a href={subItem.url}>
+                              <Link to={subItem.url}>
                                 <span>{subItem.title}</span>
-                              </a>
+                              </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         ))}
@@ -277,7 +150,7 @@ export const RadixSidebarDemo = () => {
             </SidebarMenu>
           </SidebarGroup>
           {/* Nav Main */}
- 
+
         </SidebarContent>
         <SidebarFooter>
           {/* Nav User */}
@@ -294,7 +167,7 @@ export const RadixSidebarDemo = () => {
                         src={DATA.user.avatar}
                         alt={DATA.user.name}
                       />
-                      <AvatarFallback className="rounded-lg">CN</AvatarFallback>
+                      <AvatarFallback className="rounded-lg">{DATA.user.name[0].toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">
@@ -321,7 +194,7 @@ export const RadixSidebarDemo = () => {
                           alt={DATA.user.name}
                         />
                         <AvatarFallback className="rounded-lg">
-                          CN
+                          {DATA.user.name[0].toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       <div className="grid flex-1 text-left text-sm leading-tight">
@@ -338,13 +211,23 @@ export const RadixSidebarDemo = () => {
                   <DropdownMenuGroup>
                     <DropdownMenuItem>
                       <BadgeCheck />
-                      Account
+                      <Link to="/profile">
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <BadgeCheck />
+                      <Link to="/settings">
+                        Settings
+                      </Link>
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
-                    <LogOut />
-                    Log out
+                    <BadgeCheck />
+                    <Link to="/login">
+                      Logout
+                    </Link>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -354,8 +237,6 @@ export const RadixSidebarDemo = () => {
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
- 
-
-    </SidebarProvider>
+    </SidebarProvider >
   );
 };
