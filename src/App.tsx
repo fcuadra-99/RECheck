@@ -14,6 +14,7 @@ import { Button } from './components/ui/button';
 import { ChevronRightIcon, MessageCircle } from 'lucide-react';
 import { RadixSidebarDemo as AppSidebar } from './components/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
+import { Separator } from '@radix-ui/react-separator';
 
 
 
@@ -27,7 +28,7 @@ function App() {
               <AppSidebar />
             </div>
             <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'> 
-              <div className='mt-3 ml-4'>
+              <div className='my-3 mx-4 pb-3 border-b-2'>
                 <AppBreadcrumb items={data.navMain} />
               </div>
               <div className='px-10 py-6'>

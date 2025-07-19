@@ -85,7 +85,7 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" {...props}>
+      <Sidebar collapsible='none' {...props}>
         <SidebarHeader>
           {/* Team Switcher */}
           <SidebarMenu>
