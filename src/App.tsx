@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import { AppBreadcrumb } from './components/app-breadcrumb';
 import { SidebarProvider, SidebarTrigger } from './components/ui/sidebar';
 
@@ -10,44 +10,48 @@ import SSubmissions from './pages/staff/Submissions';
 import SDeviations from './pages/staff/Deviations';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
-import { Button } from './components/ui/button';
-import { ChevronRightIcon, MessageCircle } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { RadixSidebarDemo as AppSidebar } from './components/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
-import { Separator } from '@radix-ui/react-separator';
-
 
 
 function App() {
   return (
     <>
       <Router>
-        <SidebarProvider>
-          <div className='flex'>
-            <div className='w-64 fixed h-screen'>
-              <AppSidebar />
-            </div>
-            <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'> 
-              <div className='my-3 mx-4 pb-3 border-b-2'>
-                <AppBreadcrumb items={data.navMain} />
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signu" element={<SignupPage />} />
+
+          <Route element={
+            <SidebarProvider className='overflow-x-hidden'>
+              <div className='w-64 fixed h-screen overflow-x-clip'>
+                <AppSidebar />
               </div>
-              <div className='px-10 py-6'>
-                <Routes>
-                  <Route path="/" element={<SDashboard />} />
-                  <Route path="/sdash" element={<SDashboard />} />
-                  <Route path="/sdevi" element={<SDeviations />} />
-                  <Route path="/ssubm" element={<SSubmissions />} />
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/signu" element={<SignupPage />} />
-                </Routes>
+              <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
+                <div className='py-3 px-5 pb-3 border-b-2 fixed w-full z-10 pointer-events-none'>
+                  <AppBreadcrumb items={data.navMain} />
+                </div>
+                <div className='pl-7 pr-7 py-12 min-w-full scroll-mx-0'>
+                  <Outlet />
+                </div>
               </div>
-            </div>
-          </div>
-        </SidebarProvider>
+
+              <RippleButton variant="secondary" size="icon" className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5">
+                <MessageCircle />
+              </RippleButton>
+            </SidebarProvider>
+
+          }>
+            <Route path="/" element={<SDashboard />} />
+            <Route path="/sdash" element={<SDashboard />} />
+            <Route path="/sdevi" element={<SDeviations />} />
+            <Route path="/ssubm" element={<SSubmissions />} />
+            <Route path="*" element={<SDashboard />} />
+          </Route>
+        </Routes>
       </Router>
-      <RippleButton variant="secondary" size="icon" className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5">
-        <MessageCircle/>
-      </RippleButton>
+
     </>
   );
 }

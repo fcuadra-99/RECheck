@@ -7,7 +7,14 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-// Type for user object
+export type {
+  User,
+  Organization,
+  NavItem,
+  Submissions,
+  AppData
+};
+
 type User = {
   name: string;
   role: string;
@@ -15,32 +22,46 @@ type User = {
   avatar: string;
 };
 
-// Type for main organization info
 type Organization = {
   name: string;
-  logo: LucideIcon; // Using LucideIcon type for the icon component
+  logo: LucideIcon;
   plan: string;
 };
 
-// Type for navigation items (both main and secondary)
 type NavItem = {
   title: string;
   url: string;
   icon: LucideIcon;
-  isActive?: boolean; // Optional as it's not present in secondary nav
+  isActive?: boolean;
   items?: {
     title: string;
     url: string;
-  }[]; // Optional as secondary nav doesn't have sub-items
+  }[];
 };
 
-// Type for the complete data structure
+type Submissions = {
+  month: string;
+  desktop: number;
+  mobile: number;
+};
+type SubmConf = {
+    desktop: {
+        label: "Desktop",
+        color: "var(--chart-1)",
+    },
+    mobile: {
+        label: "Mobile",
+        color: "var(--chart-2)",
+    },
+} 
+
 type AppData = {
   user: User;
   main: Organization[];
   navMain: NavItem[];
   navSecondary: NavItem[];
-  projects: any[]; // You might want to define a proper type for projects
+  subm: Submissions[]
+  projects: any[];
 };
 
 export const data: AppData = {
@@ -125,6 +146,14 @@ export const data: AppData = {
       url: "#",
       icon: Settings,
     },
+  ],
+  subm: [
+    { month: "January", desktop: 186, mobile: 80 },
+    { month: "February", desktop: 305, mobile: 200 },
+    { month: "March", desktop: 237, mobile: 120 },
+    { month: "April", desktop: 73, mobile: 190 },
+    { month: "May", desktop: 209, mobile: 130 },
+    { month: "June", desktop: 214, mobile: 140 },
   ],
   projects: [],
 };

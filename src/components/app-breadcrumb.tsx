@@ -9,7 +9,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
-import { SidebarTrigger } from "./ui/sidebar"
 
 export function AppBreadcrumb({
   items,
@@ -83,8 +82,7 @@ export function AppBreadcrumb({
 
   return (
     <Breadcrumb className="flex space-1">
-      <SidebarTrigger className="mr-2" />
-      <BreadcrumbList>
+      <BreadcrumbList className="ml-9 md:ml-0 transition-all duration-150 ease-out" >
         {Pathingy()}
       </BreadcrumbList>
     </Breadcrumb>
