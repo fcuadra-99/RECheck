@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Link } from "react-router"
 import { RippleButton } from "../animate-ui/buttons/ripple"
+import { Diademo } from "./dialogue"
 
-const handleSubmit = (event:any) => {
+const handleSubmit = (event: any) => {
     event.preventDefault();
     alert(`yoyoyoyoyoyooyoyoyoy`)
 }
@@ -87,8 +88,44 @@ export function SignupForm({
                 </div>
             </form>
             <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-                By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-                and <a href="#">Privacy Policy</a>.
+                By clicking continue, you agree to our
+                <div className="flex text-center justify-center">
+                    <Diademo
+                        title="Terms of Service"
+                        desc="Please read the terms of service carefully"
+                        cont="Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos."
+                    />
+                    <p className="px-1"> and </p>
+                    <Diademo
+                        title="Privacy Policy"
+                        desc="Please read the privacy policy carefully"
+                        cont="Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos.Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
+                            quos. Lorem ipsum dolor sit amet consectetur adipisicing elit.
+                            Quisquam, quos."
+                    />
+                </div>
             </div>
         </div>
     )

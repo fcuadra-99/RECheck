@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
-import { AppBreadcrumb } from './components/app/app-breadcrumb';
-import { SidebarProvider, SidebarTrigger } from './components/ui/sidebar';
+import { AppBreadcrumb } from './components/parts/app-breadcrumb';
+import { SidebarProvider } from './components/ui/sidebar';
 
 import './App.css';
 import { data } from "@/Data"
@@ -11,7 +11,7 @@ import SDeviations from './pages/staff/Deviations';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
 import { MessageCircle } from 'lucide-react';
-import { RadixSidebarDemo as AppSidebar } from './components/app/neo-sidebar';
+import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
 import STrends from './pages/staff/Trends';
 

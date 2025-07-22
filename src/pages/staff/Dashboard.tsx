@@ -1,6 +1,6 @@
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
 import { ScrollProgress } from "@/components/animate-ui/components/scroll-progress";
-import { ChartLineMultiple } from "@/components/app/chart-line-multi";
+import { ChartLineMultiple } from "@/components/parts/chart-line-multi";
 import { data as Data } from "@/Data"
 
 const SDashboard = () => {
