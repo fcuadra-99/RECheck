@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
-import { AppBreadcrumb } from './components/app-breadcrumb';
+import { AppBreadcrumb } from './components/app/app-breadcrumb';
 import { SidebarProvider, SidebarTrigger } from './components/ui/sidebar';
 
 import './App.css';
@@ -11,8 +11,9 @@ import SDeviations from './pages/staff/Deviations';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
 import { MessageCircle } from 'lucide-react';
-import { RadixSidebarDemo as AppSidebar } from './components/neo-sidebar';
+import { RadixSidebarDemo as AppSidebar } from './components/app/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
+import STrends from './pages/staff/Trends';
 
 
 function App() {
@@ -45,8 +46,10 @@ function App() {
           }>
             <Route path="/" element={<SDashboard />} />
             <Route path="/sdash" element={<SDashboard />} />
+            <Route path="/sdash/sub1" element={<STrends />} />
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/ssubm" element={<SSubmissions />} />
+            <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="*" element={<SDashboard />} />
           </Route>
         </Routes>

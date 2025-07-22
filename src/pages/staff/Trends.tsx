@@ -1,13 +1,11 @@
-import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-import { ScrollProgress } from "@/components/animate-ui/components/scroll-progress";
 import { ChartLineMultiple } from "@/components/app/chart-line-multi";
 import { data as Data } from "@/Data"
 
-const SDashboard = () => {
+const STrends = () => {
     return (
         <>
             <div className="flex-1 [&>*]:my-3">
-                <h1 className="text-[30px] font-medium">Dashboard</h1>
+                <h1 className="text-[30px] font-medium">Trends</h1>
                 <ChartLineMultiple
                     title="Applications" desc="..." data={Data.subm} />
                 <ChartLineMultiple
@@ -19,4 +17,4 @@ const SDashboard = () => {
     );
 };
 
-export default SDashboard;
+export default STrends;
