@@ -1,85 +1,136 @@
-"use client"
-
 import { type ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal } from "lucide-react"
 import { ArrowUpDown } from "lucide-react"
-import { Checkbox } from "@/components/ui/checkbox"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import type { SubmTable } from "@/Data"
+import { RippleButton } from "@/components/animate-ui/buttons/ripple"
+import { useNavigate } from "react-router"
+import { data } from "@/Data"
+import { handleCheck } from "@/pages/staff/Submissions/Review"
 
-export type Payment = {
-  id: string
-  amount: number
-  status: "Pending Result" | "Manuscript Checking" | "Pending Review" | "In Queue"
-  email: string
+function stat(params: "Manuscript Check" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
+  let awa = {
+    "Manuscript Check": "Pending",
+    "Risk Assessment": "Pending",
+    "Forms Check": "Pending",
+    "Deploy Queue": "Pending"
+  }
+
+  if (data.user.role == "Admin Assistant") {
+    awa = {
+      "Manuscript Check": "Check",
+      "Risk Assessment": "Pending",
+      "Forms Check": "Check",
+      "Deploy Queue": "View"
+    }
+  }
+
+  if (data.user.role == "Chairperson") {
+    awa = {
+      "Manuscript Check": "Pending",
+      "Risk Assessment": "Assess",
+      "Forms Check": "Pending",
+      "Deploy Queue": "View"
+    }
+  }
+
+  return awa[params]
 }
 
-export const columns: ColumnDef<Payment>[] = [
+function formatDate(unformatted: string) {
+  const dateString = unformatted
+  const date = new Date(dateString);
+
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  };
+
+  const formattedDate = new Intl.DateTimeFormat("en-US", options).format(date);
+  return formattedDate
+}
+
+export const columns: ColumnDef<SubmTable>[] = [
   {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
+    id: "actions",
+    header: ({ }) => {
+      return (
+        <div className="p-2 w-[100%] text-center">
+          Actions
+        </div>
+      )
+    },
+    cell: ({ row }) => {
+      const navigate = useNavigate()
+      return (
+        <div className="flex justify-center">
+          <RippleButton
+            className="h-9 w-17 hover:bg-muted rounded-sm text-xs"
+            onClick={() => {
+              handleCheck(
+                row.getValue("proposal_title"),
+                row.getValue("researcher"),
+                row.getValue("email"),
+                formatDate(row.getValue("date")),
+                "",
+                row.getValue("status"),
+                stat(row.getValue("status"))
+              )
+              navigate("/ssubm/sub1/sreview")
+            }}
+            disabled={stat(row.getValue("status")) === "Pending"}
+          >
+            {stat(row.getValue("status"))}
+          </RippleButton>
+        </div>
+      )
+    },
+    size: 90
   },
   {
-    accessorKey: "title",
+    accessorKey: "proposal_title",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Proposal Title
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
+    size: 200
   },
   {
-    accessorKey: "submDate",
+    accessorKey: "date",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Date Submitted
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
+    cell: ({ row }: { row: { getValue: (key: string) => string } }) => {
+      return <div className="text-left">{formatDate(row.getValue("date"))}</div>
+    },
+    size: 200
   },
-    {
+  {
     accessorKey: "researcher",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Researcher
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -94,12 +145,14 @@ export const columns: ColumnDef<Payment>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Review Type
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       )
     },
+    size: 200
   },
   {
     accessorKey: "status",
@@ -108,6 +161,7 @@ export const columns: ColumnDef<Payment>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Status
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -122,6 +176,7 @@ export const columns: ColumnDef<Payment>[] = [
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          className="w-[100%] hover:bg-white"
         >
           Email
           <ArrowUpDown className="ml-2 h-4 w-4" />
@@ -131,7 +186,7 @@ export const columns: ColumnDef<Payment>[] = [
   },
   // {
   //   accessorKey: "amount",
-  //   header: ({ column }) => {
+  //   header: ({column}) => {
   //     return (
   //       <Button
   //         variant="ghost"
@@ -139,7 +194,7 @@ export const columns: ColumnDef<Payment>[] = [
   //       >
   //         Amount
   //         <ArrowUpDown className="ml-2 h-4 w-4" />
-  //       </Button>
+  //       </Button >
   //     )
   //   },
   //   cell: ({ row }) => {
@@ -152,32 +207,5 @@ export const columns: ColumnDef<Payment>[] = [
   //     return <div className="text-right font-medium">{formatted}</div>
   //   },
   // },
-  {
-    id: "actions",
-    cell: ({ row }) => {
-      const payment = row.original
 
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(payment.id)}
-            >
-              Copy payment ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>View customer</DropdownMenuItem>
-            <DropdownMenuItem>View payment details</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
-  },
 ]

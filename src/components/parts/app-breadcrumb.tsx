@@ -10,37 +10,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 
-export function AppBreadcrumb({
-  items,
-}: {
-  items: {
-    title: string
-    url: string
-    items?: {
-      title: string
-      url: string
-    }[]
-  }[]
-}) {
-
-
-  function FTWU(items: any[], targetUrl: string): string | null {
-    for (const item of items) {
-      if (item.url === targetUrl) {
-        return item.title;
-      }
-
-      if (item.items) {
-        const foundInChildren = FTWU(item.items, targetUrl);
-        if (foundInChildren) {
-          return foundInChildren;
-        }
-      }
-    }
-    return null;
-  }
-
-
+export function AppBreadcrumb() {
   function Pathingy() {
     const path = useLocation().pathname
     const paths = path.split("/")
@@ -54,7 +24,7 @@ export function AppBreadcrumb({
       if (root == path) {
         pathc.push(
           <BreadcrumbItem>
-            <BreadcrumbPage>{FTWU(items, path)}</BreadcrumbPage>
+            <BreadcrumbPage>{paths[p]}</BreadcrumbPage>
           </BreadcrumbItem>
         )
       }
@@ -63,7 +33,7 @@ export function AppBreadcrumb({
           <>
             <BreadcrumbItem>
               <BreadcrumbLink href={root}>
-                {FTWU(items, root)}
+                {paths[p]}
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator>
@@ -73,12 +43,9 @@ export function AppBreadcrumb({
         )
       }
     }
-
-
+    
     return pathc
   }
-
-  //console.log(path.split("/").length - 1)
 
   return (
     <Breadcrumb className="flex space-1">

@@ -2,7 +2,7 @@ import ProposalsTable from "@/components/parts/proposals/comp";
 
 const SSubmissions = () => {
     return <>
-        <ProposalsTable/>
+        <ProposalsTable />
     </>;
 };
 

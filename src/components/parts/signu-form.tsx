@@ -1,22 +1,70 @@
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
 import { RippleButton } from "../animate-ui/buttons/ripple"
 import { Diademo } from "./dialogue"
+import { toast } from "sonner"
+import { useState } from "react"
+import { supabase } from "@/DB"
 
-const handleSubmit = (event: any) => {
-    event.preventDefault();
-    alert(`yoyoyoyoyoyooyoyoyoy`)
-}
 
 export function SignupForm({
     className,
     ...props
 }: React.ComponentProps<"div">) {
+    const [formData, setFormData] = useState({
+        fname: '',
+        lname: '',
+        email: '',
+        org: '',
+        password: '',
+        rpassword: ''
+    });
+
+    const navigate = useNavigate();
+
+    const handleSubmit = async (event: any) => {
+        event.preventDefault();
+        const loading = toast.loading("Signing Up")
+
+
+        console.log(formData)
+        try {
+            const { error } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        fname: formData.fname,
+                        lname: formData.lname,
+                        org: formData.org,
+                    }
+                }
+            });
+
+            if (error) {
+                toast.error(error.message);
+            } else {
+                toast.success(`User logged in: ${formData.lname}`);
+                navigate("/sdash")
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            toast.dismiss(loading)
+        }
+
+    }
+
+    const handleChange = (e: any) => {
+        setFormData({
+            ...formData,
+            [e.target.id]: e.target.value
+        });
+    };
 
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -40,18 +88,24 @@ export function SignupForm({
                             <Input
                                 id="fname"
                                 type="text"
+                                value={formData.fname}
+                                onChange={handleChange}
                                 required
                             />
                             <Label htmlFor="lname">Last Name</Label>
                             <Input
                                 id="lname"
                                 type="text"
+                                value={formData.lname}
+                                onChange={handleChange}
                                 required
                             />
                             <Label htmlFor="email">Email</Label>
                             <Input
                                 id="email"
                                 type="email"
+                                value={formData.email}
+                                onChange={handleChange}
                                 placeholder="m@example.com"
                                 required
                             />
@@ -59,18 +113,24 @@ export function SignupForm({
                             <Input
                                 id="org"
                                 type="text"
+                                value={formData.org}
+                                onChange={handleChange}
                                 required
                             />
                             <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"
                                 type="password"
+                                value={formData.password}
+                                onChange={handleChange}
                                 required
                             />
-                            <Label htmlFor="password">Confirm Password</Label>
+                            <Label htmlFor="rpassword">Confirm Password</Label>
                             <Input
-                                id="password"
+                                id="rpassword"
                                 type="password"
+                                value={formData.rpassword}
+                                onChange={handleChange}
                                 required
                             />
                         </div>

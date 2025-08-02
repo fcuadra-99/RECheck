@@ -3,6 +3,11 @@
 import * as React from "react"
 
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
+
+import {
   type ColumnDef,
   type ColumnFiltersState,
   type SortingState,
@@ -33,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DataTablePagination } from "../pagination"
+import { ChevronDown } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -71,21 +77,34 @@ export function DataTable<TData, TValue>({
     },
   })
 
+  const handleStatusFilter = (status: string) => {
+    if (table.getColumn("status")?.getFilterValue() === status) {
+    } else {
+      table.getColumn("status")?.setFilterValue(status);
+    }
+  };
+
+  React.useEffect(() => { handleStatusFilter(statuses[0]) }, [])
+
+  const statuses = ["Manuscript Check", "Risk Assessment", "Forms Check", "Deploy Queue"]
+
   return (
-    <div>
-      <div className="flex items-center py-4">
+    <div className="z-50">
+      <div className="flex items-center pb-4">
         <Input
-          placeholder="Filter emails..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
+          placeholder="Search by proposal title"
+          value={(table.getColumn("proposal_title")?.getFilterValue() as string) ?? ""}
+          onChange={(event) => 
+            table.getColumn("proposal_title")?.setFilterValue(event.target.value)
           }
-          className="max-w-sm"
+          className="max-w-sm mr-5 text-sm z-50"
         />
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="ml-auto">
+            <Button variant="outline" className="ml-auto ">
               Columns
+              <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -111,14 +130,40 @@ export function DataTable<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ToggleGroup variant="outline" defaultValue={statuses[0]} type="single" className="flex items-center justify-between overflow-x-auto self-center w-auto">
+        {statuses.map((status) => (
+          <ToggleGroupItem
+            key={status}
+            variant={
+              table.getColumn("status")?.getFilterValue() === status
+                ? "default"
+                : "outline"
+            }
+
+            value={status}
+            onClick={() => handleStatusFilter(status)}
+            className="text-xs grow mb-4 z-50 outline round w-full active:bg-sidebar truncate"
+          >
+            {status}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+
       <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+        <Table className="z-50">
+          <TableHeader className="">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead key={header.id}
+                      style={{
+                        minWidth: header.column.columnDef.size,
+                        maxWidth: header.column.columnDef.size,
+                      }}
+                      className="truncate border-x-1"
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -139,7 +184,11 @@ export function DataTable<TData, TValue>({
                   data-state={row.getIsSelected() && "selected"}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} className="truncate border-x-1"
+                      style={{
+                        minWidth: cell.column.columnDef.size,
+                        maxWidth: cell.column.columnDef.size,
+                      }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
@@ -147,7 +196,7 @@ export function DataTable<TData, TValue>({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell colSpan={columns.length} className="px-4">
                   No results.
                 </TableCell>
               </TableRow>

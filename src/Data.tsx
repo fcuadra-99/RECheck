@@ -8,11 +8,11 @@ import {
 } from "lucide-react"
 
 export type {
-  User,
-  Organization,
-  NavItem,
-  Submissions,
-  AppData
+    User,
+    Organization,
+    NavItem,
+    Submissions,
+    AppData, SubmTable
 };
 
 type User = {
@@ -39,21 +39,17 @@ type NavItem = {
   }[];
 };
 
+type SubmTable = {
+  proposal_id: string;
+  proposal_title: string;
+  status: string;
+};
+
 type Submissions = {
   month: string;
   desktop: number;
   mobile: number;
 };
-type SubmConf = {
-    desktop: {
-        label: "Desktop",
-        color: "var(--chart-1)",
-    },
-    mobile: {
-        label: "Mobile",
-        color: "var(--chart-2)",
-    },
-} 
 
 type AppData = {
   user: User;
@@ -67,7 +63,7 @@ type AppData = {
 export const data: AppData = {
   user: {
     name: "shadcn",
-    role: "Researcher",
+    role: "Chairperson",
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
   },

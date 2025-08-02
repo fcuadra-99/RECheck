@@ -1,22 +1,60 @@
 import { GalleryVerticalEnd } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Link } from "react-router"
+import { useNavigate } from "react-router-dom"
 import { RippleButton } from "../animate-ui/buttons/ripple"
 import { Diademo } from "./dialogue"
+import { toast } from "sonner"
+import { supabase } from "@/DB"
+import { useState } from "react"
 
-const handleSubmit = (event: any) => {
-    event.preventDefault();
-    alert(`yoyoyoyoyoyooyoyoyoy`)
-}
 
 export function LoginForm({
     className,
     ...props
 }: React.ComponentProps<"div">) {
+    const navigate = useNavigate();
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+    });
+
+    const handleSubmit = async (event: any) => {
+        event.preventDefault();
+        const loading = toast.loading("Logging In...")
+
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password
+            });
+
+            if (error) {
+                toast.error(error.message);
+            } else {
+                const lname = data.user.user_metadata?.lname;
+                toast.success(`User logged in: ${lname}`);
+                navigate("/sdash")
+            }
+        } catch (err) {
+            console.error(err);
+        }
+        finally {
+            toast.dismiss(loading)
+        }
+    }
+
+    const handleChange = (e: any) => {
+        setFormData({
+            ...formData,
+            [e.target.id]: e.target.value
+        });
+    };
+
+
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
             <form onSubmit={handleSubmit}>
@@ -40,12 +78,16 @@ export function LoginForm({
                                 id="email"
                                 type="email"
                                 placeholder="m@example.com"
+                                value={formData.email}
+                                onChange={handleChange}
                                 required
                             />
                             <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"
                                 type="password"
+                                value={formData.password}
+                                onChange={handleChange}
                                 required
                             />
                         </div>

@@ -1,84 +1,39 @@
-import { DataTablePagination } from "../pagination"
-import { columns, type Payment } from "./columns"
+'use-client'
+
+import type { SubmTable } from "@/Data"
+import { columns } from "./columns"
 import { DataTable } from "./data-table"
+import { useState } from "react"
+import React from "react"
+import { supabase } from "@/DB"
 
-async function getData(): Promise<Payment[]> {
-  return [
-    {
-      id: "728ed52f",
-      amount: 100,
-      status: "Pending Result",
-      email: "m@example.com",
-    },
-    {
-      id: "as",
-      amount: 100,
-      status: "Pending Result",
-      email: "a@example.com",
-    },
-    {
-      id: "adssa",
-      amount: 100,
-      status: "Pending Result",
-      email: "q@example.com",
-    },
-    {
-      id: "asdasdasd",
-      amount: 100,
-      status: "Pending Result",
-      email: "x@example.com",
-    },
-    {
-      id: "728ed52f",
-      amount: 100,
-      status: "Pending Result",
-      email: "m@example.com",
-    },
-    {
-      id: "as",
-      amount: 100,
-      status: "Pending Result",
-      email: "a@example.com",
-    },
-    {
-      id: "adssa",
-      amount: 100,
-      status: "Pending Result",
-      email: "q@example.com",
-    },
-    {
-      id: "asdasdasd",
-      amount: 100,
-      status: "Pending Result",
-      email: "x@example.com",
-    },
-    {
-      id: "728ed52f",
-      amount: 100,
-      status: "Pending Result",
-      email: "m@example.com",
-    },
-    {
-      id: "as",
-      amount: 100,
-      status: "Pending Result",
-      email: "a@example.com",
-    },
-    {
-      id: "adssa",
-      amount: 100,
-      status: "Pending Result",
-      email: "q@example.com",
-    },
-  ]
-}
+export default function ProposalsTable() {
+    const [data, setData] = useState<SubmTable[]>([])
 
-export default async function ProposalsTable() {
-  const data = await getData()
+    React.useEffect(() => {
+        getSubm();
+    }, [])
 
-  return (
-    <div className="container mx-auto py-10">
-      <DataTable columns={columns} data={data} />
-    </div>
-  )
+    async function getSubm() {
+        try {
+            const { data, error } = await supabase.from('proposals').select('*')
+
+            if (error) {
+                console.log(error);
+                return null;
+            }
+
+            if (data) { await setData(data as SubmTable[]) }
+
+            
+        } catch (err) {
+            console.log(err)
+        }
+    }
+
+    return (
+        <div className="container mx-auto py-10 z-50">
+            <DataTable columns={columns} data={data} />
+        </div>
+    )
 }
