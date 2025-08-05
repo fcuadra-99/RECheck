@@ -8,18 +8,20 @@ import {
 } from "lucide-react"
 
 export type {
-    User,
-    Organization,
-    NavItem,
-    Submissions,
-    AppData, SubmTable
+  User,
+  Organization,
+  NavItem,
+  Submissions,
+  AppData, SubmTable
 };
 
 type User = {
-  name: string;
+  fname: string;
+  lname: string;
   role: string;
   email: string;
   avatar: string;
+  org: string;
 };
 
 type Organization = {
@@ -62,10 +64,13 @@ type AppData = {
 
 export const data: AppData = {
   user: {
-    name: "shadcn",
+    fname: "shad",
+    lname: "cn",
+    //role: "Admin Assistant",
     role: "Chairperson",
     email: "m@example.com",
     avatar: "/avatars/shadcn.jpg",
+    org: "",
   },
   main: [
     {

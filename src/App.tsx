@@ -18,20 +18,69 @@ import SReview from './pages/staff/Submissions/Review';
 import { useEffect, useState } from 'react';
 import { supabase } from './DB';
 import { type User } from '@supabase/supabase-js';
+import Profile from './pages/Profile';
 
-function App() {
+export default function App() {
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [sesh, setSesh] = useState({
+    fname: '',
+    lname: '',
+    email: '',
+    org: '',
+    avatar: '',
+    role: '',
+  });
 
   useEffect(() => {
     const getUserSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } finally {
+        setLoading(false);
+      }
     };
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
     getUserSession();
+    return () => subscription?.unsubscribe();
   }, []);
 
-  //fix sesh stuff
+  useEffect(() => {
+    if (user) {
+      setSesh({
+        fname: user?.user_metadata?.fname || '',
+        lname: user?.user_metadata?.lname || '',
+        email: user?.user_metadata?.email || '',
+        org: user?.user_metadata?.org || '',
+        avatar: user?.user_metadata?.avatar || '',
+        role: user?.user_metadata?.role || '',
+      });
+    } else {
+      setSesh({
+        fname: '',
+        lname: '',
+        email: '',
+        org: '',
+        avatar: '',
+        role: '',
+      });
+    }
+  }, [user]);
+
+  const seshempty = !loading && (!user || (!sesh.fname && !sesh.lname && !sesh.email));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -39,10 +88,19 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signu" element={<SignupPage />} />
-          <Route element={
+          <Route element={seshempty ? (
+            <Navigate to="/login" replace />
+          ) : (
             <SidebarProvider className='overflow-x-clip'>
               <div className='w-64 fixed h-screen'>
-                <AppSidebar />
+                <AppSidebar
+                  fname={sesh.fname}
+                  lname={sesh.lname}
+                  email={sesh.email}
+                  org={sesh.org}
+                  avatar={sesh.avatar}
+                  role={sesh.role}
+                />
               </div>
               <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
                 <div className='py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none'>
@@ -58,11 +116,19 @@ function App() {
                 <MessageCircle />
               </RippleButton>
             </SidebarProvider>
-          }>
-
+          )}>
             <Route path="/" element={<SDashboard />} />
             <Route path="/sdash" element={<SDashboard />} />
             <Route path="/sdash/sub1" element={<STrends />} />
+            <Route path="/profile" element={
+              <Profile
+                fname={sesh.fname}
+                lname={sesh.lname}
+                email={sesh.email}
+                org={sesh.org}
+                avatar={sesh.avatar}
+                role={sesh.role}
+              />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/ssubm" element={<SSubmissions />} />
@@ -74,34 +140,3 @@ function App() {
     </>
   );
 }
-
-// function App() {
-//   return (
-//     <>
-//       <Router>
-//         <SidebarProvider>
-//           <RadixSidebarDemo/>
-//           <div className='bg-background w-screen'>
-//             <div className='mt-3 ml-4'>
-//             </div>
-//             <div className='px-10 py-3'>
-//               <Routes>
-//                   <Route path="/" element={<SDashboard />} />
-//                   <Route path="/sdash" element={<SDashboard />} />
-//                   <Route path="/sdevi" element={<SDeviations />} />
-//                   <Route path="/ssubm" element={<SSubmissions />} />
-//                   <Route path="/login" element={<LoginPage />} />
-//                   <Route path="/signu" element={<SignupPage />} />
-//               </Routes>
-//             </div>
-//           </div>
-//         </SidebarProvider>
-//       </Router>
-//       <Button variant="secondary" size="icon" className="size-8 fixed bg-muted hover:bg-sidebar bottom-0 right-0 m-5">
-//         <ChevronRightIcon />
-//       </Button>
-//     </>
-//   );
-// }
-
-export default App;

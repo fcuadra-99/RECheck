@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import { data as DATA } from "@/Data"
-
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -34,9 +33,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/animate-ui/radix/dropdown-menu';
 import {
-  BadgeCheck,
   ChevronRight,
   ChevronsUpDown,
+  CircleUserRound,
+  LogOut,
+  Settings,
 } from 'lucide-react';
 import {
   Avatar,
@@ -45,11 +46,50 @@ import {
 } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Link } from 'react-router';
+import { supabase } from '@/DB';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 
+interface RadixSidebarDemoProps {
+  fname: string,
+  lname: string,
+  email: string,
+  org: string,
+  avatar: string,
+  role: string,
+}
 
-export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function RadixSidebarDemo({
+  fname,
+  lname,
+  email,
+  org,
+  avatar,
+  role,
+  ...props
+}: RadixSidebarDemoProps & React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();
   const main = DATA.main[0];
+  const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    const loading = toast.loading("Logging Out...")
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Logged out successfully!");
+        navigate('/login');
+      }
+    } catch (err) {
+      console.error('Logout error:', err);
+      toast.error('An unexpected error occurred during logout.');
+    }
+    finally {
+      toast.dismiss(loading)
+    }
+  };
 
   return (
     <>
@@ -130,45 +170,43 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
                     >
                       <Avatar className="h-8 w-8 rounded-lg">
                         <AvatarImage
-                          src={DATA.user.avatar}
-                          alt={DATA.user.name}
+                          src={avatar}
                         />
-                        <AvatarFallback className="rounded-lg">{DATA.user.name[0].toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="rounded-lg">{lname[0].toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="grid flex-1 text-left text-sm leading-tight">
                         <span className="truncate font-semibold">
-                          {DATA.user.name}
+                          {`${lname}, ${fname}`}
                         </span>
                         <span className="truncate text-xs">
-                          {DATA.user.email}
+                          {email}
                         </span>
                       </div>
                       <ChevronsUpDown className="ml-auto size-4" />
                     </SidebarMenuButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                    side={isMobile ? 'bottom' : 'right'}
-                    align="end"
-                    sideOffset={4}
+                    className="w-[--radix-dropdown-menu-trigger-width] min-w-67 md:min-w-60 rounded-md"
+                    side={isMobile ? 'bottom' : 'bottom'}
+                    align="center"
+                    sideOffset={10}
                   >
                     <DropdownMenuLabel className="p-0 font-normal">
                       <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                         <Avatar className="h-8 w-8 rounded-lg">
                           <AvatarImage
-                            src={DATA.user.avatar}
-                            alt={DATA.user.name}
+                            src={avatar}
                           />
                           <AvatarFallback className="rounded-lg">
-                            {DATA.user.name[0].toUpperCase()}
+                            {lname[0].toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div className="grid flex-1 text-left text-sm leading-tight">
                           <span className="truncate font-semibold">
-                            {DATA.user.name}
+                            {`${lname}, ${fname}`}
                           </span>
                           <span className="truncate text-xs">
-                            {DATA.user.email}
+                            {email}
                           </span>
                         </div>
                       </div>
@@ -177,24 +215,24 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
                     <DropdownMenuGroup>
                       <Link to="/profile">
                         <DropdownMenuItem>
-                          <BadgeCheck />
+                          <CircleUserRound />
                           Profile
                         </DropdownMenuItem>
                       </Link>
                       <Link to="/settings">
                         <DropdownMenuItem>
-                          <BadgeCheck />
+                          <Settings />
                           Settings
                         </DropdownMenuItem>
                       </Link>
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
-                    <a href="/login">
-                      <DropdownMenuItem>
-                        <BadgeCheck />
-                        Logout
-                      </DropdownMenuItem>
-                    </a>
+                    <DropdownMenuItem
+                      onClick={handleLogout}
+                    >
+                      <LogOut />
+                      Logout
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </SidebarMenuItem>
@@ -202,7 +240,10 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
             {/* Nav User */}
           </SidebarFooter>
         </Sidebar>
-        <SidebarTrigger className="mx-4 my-2 min-md:invisible md:transition-none z-50 fixed" onClick={() => console.log("ww")} />
+        <SidebarTrigger
+          className="mx-4 my-2 min-md:invisible md:transition-none z-50 fixed"
+          onClick={() => console.log("ww")}
+        />
       </SidebarProvider >
     </>
   );

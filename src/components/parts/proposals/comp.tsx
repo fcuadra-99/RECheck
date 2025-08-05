@@ -6,28 +6,34 @@ import { DataTable } from "./data-table"
 import { useState } from "react"
 import React from "react"
 import { supabase } from "@/DB"
+import { toast } from "sonner"
 
 export default function ProposalsTable() {
     const [data, setData] = useState<SubmTable[]>([])
+    const hasFetched = React.useRef(false);
 
     React.useEffect(() => {
-        getSubm();
+        if (!hasFetched.current) {
+            hasFetched.current = true;
+            getSubm();
+        }
     }, [])
 
     async function getSubm() {
+        const loading = toast.loading("Loading Table...")
+
         try {
             const { data, error } = await supabase.from('proposals').select('*')
-
-            if (error) {
-                console.log(error);
-                return null;
+            if (data) {
+                setData(data as SubmTable[])
+                toast.success("Table Loaded")
             }
+            if (error)
+                toast.error(`${error}`)
 
-            if (data) { await setData(data as SubmTable[]) }
-
-            
+            toast.dismiss(loading)
         } catch (err) {
-            console.log(err)
+            toast.error(`${err}`)
         }
     }
 

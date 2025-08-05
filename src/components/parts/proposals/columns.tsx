@@ -13,7 +13,7 @@ function stat(params: "Manuscript Check" | "Risk Assessment" | "Forms Check" | "
     "Manuscript Check": "Pending",
     "Risk Assessment": "Pending",
     "Forms Check": "Pending",
-    "Deploy Queue": "Pending"
+    "Deploy Queue": "Pending",
   }
 
   if (data.user.role == "Admin Assistant") {
@@ -21,16 +21,16 @@ function stat(params: "Manuscript Check" | "Risk Assessment" | "Forms Check" | "
       "Manuscript Check": "Check",
       "Risk Assessment": "Pending",
       "Forms Check": "Check",
-      "Deploy Queue": "View"
+      "Deploy Queue": "View",
     }
   }
 
   if (data.user.role == "Chairperson") {
     awa = {
-      "Manuscript Check": "Pending",
+      "Manuscript Check": "Check",
       "Risk Assessment": "Assess",
-      "Forms Check": "Pending",
-      "Deploy Queue": "View"
+      "Forms Check": "Check",
+      "Deploy Queue": "Check",
     }
   }
 
@@ -69,6 +69,7 @@ export const columns: ColumnDef<SubmTable>[] = [
             className="h-9 w-17 hover:bg-muted rounded-sm text-xs"
             onClick={() => {
               handleCheck(
+                row.getValue("proposal_id"),
                 row.getValue("proposal_title"),
                 row.getValue("researcher"),
                 row.getValue("email"),
@@ -87,6 +88,19 @@ export const columns: ColumnDef<SubmTable>[] = [
       )
     },
     size: 90
+  },
+
+  {
+    accessorKey: "proposal_id",
+    enableHiding: false,
+    size: 100,
+    header: () => {
+      return (
+        <div className="text-center">
+          ID
+        </div>
+      )
+    },
   },
   {
     accessorKey: "proposal_title",

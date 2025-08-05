@@ -21,7 +21,9 @@ export function SignupForm({
         email: '',
         org: '',
         password: '',
-        rpassword: ''
+        rpassword: '',
+        avatar: '',
+        role: 'researcher',
     });
 
     const navigate = useNavigate();
@@ -29,7 +31,6 @@ export function SignupForm({
     const handleSubmit = async (event: any) => {
         event.preventDefault();
         const loading = toast.loading("Signing Up")
-
 
         console.log(formData)
         try {
@@ -41,14 +42,15 @@ export function SignupForm({
                         fname: formData.fname,
                         lname: formData.lname,
                         org: formData.org,
-                    }
+                        avatar: formData.avatar,
+                        role: formData.role
+                    },
                 }
             });
 
             if (error) {
                 toast.error(error.message);
             } else {
-                toast.success(`User logged in: ${formData.lname}`);
                 navigate("/sdash")
             }
         } catch (err) {

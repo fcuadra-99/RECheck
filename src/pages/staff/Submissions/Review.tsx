@@ -11,19 +11,32 @@ import {
     DialogTitle,
     DialogDescription,
     DialogHeader,
-    DialogFooter,
 } from '@/components/animate-ui/headless/dialog';
 import React from "react";
+import { supabase } from "@/DB";
+import { toast } from "sonner";
 
+type Status = "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue";
+
+let ide = ""
 let titlee = ""
 let researchere = ""
 let emaile = ""
-let statuse = ""
+let statuse: Status
 let submDatee = ""
 let reviewere = ""
 let typee = ""
 
-export function handleCheck(_title: string, _researcher: string, _email: string, _submDate: string, _reviewer: string, _status: string, _type: string) {
+export function handleCheck(
+    _id: string,
+    _title: string,
+    _researcher: string,
+    _email: string,
+    _submDate: string,
+    _reviewer: string,
+    _status: Status,
+    _type: string) {
+    ide = _id
     titlee = _title
     researchere = _researcher
     emaile = _email
@@ -33,14 +46,40 @@ export function handleCheck(_title: string, _researcher: string, _email: string,
     typee = _type
 }
 
+function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
+    let awa = {
+        "Resend Manuscript": "Manuscript Check",
+        "Manuscript Check": "Risk Assessment",
+        "Risk Assessment": "Forms Check",
+        "Resend Forms": "Forms Check",
+        "Forms Check": "Deploy Queue",
+        "Deploy Queue": "Manuscript Check",
+    }
+    console.log(awa[params])
+    return awa[params]
+}
+
+function statm(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
+    let awa = {
+        "Resend Manuscript": "Manuscript Check",
+        "Manuscript Check": "Resend Manuscript",
+        "Risk Assessment": "Manuscript Check",
+        "Resend Forms": "Risk Assessment",
+        "Forms Check": "Resend Forms",
+        "Deploy Queue": "Forms Check",
+    }
+    console.log(awa[params])
+    return awa[params]
+}
 
 export const SReview = () => {
     const [manuOpen, setmanuOpen] = React.useState(false);
     const [payOpen, setpayOpen] = React.useState(false);
     const [formOpen, setformOpen] = React.useState(false);
     const navigate = useNavigate();
-    const [tog, setTog] = useState("approve")
+    const [tog, setTog] = useState("")
     const [msg, setMsg] = useState("")
+    const [id] = useState(ide.toString())
     const [title] = useState(titlee)
     const [researcher] = useState(researchere)
     const [email] = useState(emaile)
@@ -49,15 +88,37 @@ export const SReview = () => {
     const [reviewer] = useState(reviewere)
     const [type] = useState(typee)
 
+    console.log(id)
     useEffect(() => {
         if (title == "")
             navigate("/ssubm/sub1")
     }, [])
 
-    function handleSubmit() {
-        navigate("/ssubm/sub1")
-    }
+    async function handleSubmit() {
+        if (tog == "deny") {
+            const { data, error } = await supabase
+                .from('proposals')
+                .update({ status: statm(status) })
+                .eq('proposal_id', id)
+            if (data) toast.success(`${data}`)
+            if (error) toast.error(`${error}`)
+        }
 
+        try {
+            const { data, error } = await supabase
+                .from('proposals')
+                .update({ status: stat(status) })
+                .eq('proposal_id', id)
+            if (data) toast.success(`${data}`)
+            if (error) toast.error(`${error}`)
+
+        } catch (error) {
+            toast.error(`${error}`)
+        } finally {
+            navigate("/ssubm/sub1")
+        }
+
+    }
 
     return <>
         <main className="m-12">
@@ -66,15 +127,15 @@ export const SReview = () => {
                     <div className="flex gap-2 my-3">
                         <span className="flex-1">
                             <div className="text-muted-foreground">
-                                Review Status
+                                Proposal ID
                             </div>
                             <div>
-                                {status}
+                                {id}
                             </div>
                         </span>
                         <span className="flex-1">
                             <div className="text-muted-foreground">
-                                Project Title
+                                Proposal Title
                             </div>
                             <div>
                                 {title}
@@ -102,6 +163,14 @@ export const SReview = () => {
                     </div>
                     <hr />
                     <div className="flex gap-2 my-3">
+                        <span className="flex-1">
+                            <div className="text-muted-foreground">
+                                Proposal Status
+                            </div>
+                            <div>
+                                {status}
+                            </div>
+                        </span>
                         <span className="flex-1">
                             <div className="text-muted-foreground">
                                 Submission Date
@@ -212,12 +281,11 @@ export const SReview = () => {
                         </div>
                     </span>
                 </section>
-                <section>
+                <section hidden={type != "Check"}>
                     <h1 className="text-2xl my-5">
                         <b>Status Management</b>
                     </h1>
                     <span>
-
                         <RadioGroup
                             defaultValue="approve"
                             value={tog}
@@ -252,12 +320,52 @@ export const SReview = () => {
                                 />
                             </div>
                         </RadioGroup>
-
                     </span>
                 </section>
-
+                <section hidden={type != "Assess"}>
+                    <h1 className="text-2xl my-5">
+                        <b>Risk Assessment</b>
+                    </h1>
+                    <span>
+                        <RadioGroup
+                            defaultValue="fboard"
+                            value={tog}
+                            onValueChange={setTog}
+                            onChange={() => { console.log(tog) }}
+                            required
+                        >
+                            <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                                <RadioGroupItem value="fboard" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <div>
+                                    <div className="font-medium">Full Board</div>
+                                    <div className="text-muted-foreground text-xs">
+                                        ...
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                                <RadioGroupItem value="exped" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <div>
+                                    <div className="font-medium">Expedited</div>
+                                    <div className="text-muted-foreground text-xs">
+                                        ...
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                                <RadioGroupItem value="exempt" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <div>
+                                    <div className="font-medium">Exempt</div>
+                                    <div className="text-muted-foreground text-xs">
+                                        ...
+                                    </div>
+                                </div>
+                            </div>
+                        </RadioGroup>
+                    </span>
+                </section>
                 <section className="absolute my-10 h-20 flex gap-5">
-                    <RippleButton type="submit" className="w-20 z-50" hidden={type == "Pending" || type == "View"}>
+                    <RippleButton type="button" className="w-20 z-50" hidden={type == "Pending" || type == "View"} disabled={tog == ""} onClick={handleSubmit}>
                         Submit
                     </RippleButton>
                     <RippleButton type="button" variant="outline" className="w-20 z-50" onClick={() => { navigate("/ssubm/sub1") }}>
