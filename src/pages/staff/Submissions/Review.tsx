@@ -48,27 +48,25 @@ export function handleCheck(
 
 function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
     let awa = {
-        "Resend Manuscript": "Manuscript Check",
+        "Resend Manuscript": "Risk Assessment",
         "Manuscript Check": "Risk Assessment",
         "Risk Assessment": "Forms Check",
-        "Resend Forms": "Forms Check",
+        "Resend Forms": "Deploy Queue",
         "Forms Check": "Deploy Queue",
         "Deploy Queue": "Manuscript Check",
     }
-    console.log(awa[params])
     return awa[params]
 }
 
 function statm(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
     let awa = {
-        "Resend Manuscript": "Manuscript Check",
+        "Resend Manuscript": "Resend Manuscript",
         "Manuscript Check": "Resend Manuscript",
         "Risk Assessment": "Manuscript Check",
-        "Resend Forms": "Risk Assessment",
+        "Resend Forms": "Resend Forms",
         "Forms Check": "Resend Forms",
         "Deploy Queue": "Forms Check",
     }
-    console.log(awa[params])
     return awa[params]
 }
 
@@ -88,35 +86,45 @@ export const SReview = () => {
     const [reviewer] = useState(reviewere)
     const [type] = useState(typee)
 
-    console.log(id)
     useEffect(() => {
         if (title == "")
             navigate("/ssubm/sub1")
     }, [])
 
     async function handleSubmit() {
+        const loading = toast.loading("Loading...")
         if (tog == "deny") {
-            const { data, error } = await supabase
-                .from('proposals')
-                .update({ status: statm(status) })
-                .eq('proposal_id', id)
-            if (data) toast.success(`${data}`)
-            if (error) toast.error(`${error}`)
+            try {
+                const { data, error } = await supabase
+                    .from('proposals')
+                    .update({ status: statm(status) })
+                    .eq('proposal_id', id)
+                if (data) toast.success(`${data}`)
+                if (error) toast.error(`${error}`)
+            } catch (error) {
+                toast.error(`${error}`)
+            } finally {
+                toast.dismiss(loading)
+                navigate("/ssubm/sub1")
+            }
+        } else {
+            try {
+                const { data, error } = await supabase
+                    .from('proposals')
+                    .update({ status: stat(status) })
+                    .eq('proposal_id', id)
+                if (data) toast.success(`${data}`)
+                if (error) toast.error(`${error}`)
+
+            } catch (error) {
+                toast.error(`${error}`)
+            } finally {
+                toast.dismiss(loading)
+                navigate("/ssubm/sub1")
+            }
         }
 
-        try {
-            const { data, error } = await supabase
-                .from('proposals')
-                .update({ status: stat(status) })
-                .eq('proposal_id', id)
-            if (data) toast.success(`${data}`)
-            if (error) toast.error(`${error}`)
 
-        } catch (error) {
-            toast.error(`${error}`)
-        } finally {
-            navigate("/ssubm/sub1")
-        }
 
     }
 

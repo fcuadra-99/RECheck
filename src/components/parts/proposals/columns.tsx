@@ -8,29 +8,35 @@ import { useNavigate } from "react-router"
 import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
 
-function stat(params: "Manuscript Check" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
+function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Manuscript" | "Forms Check" | "Deploy Queue") {
   let awa = {
+    "Resend Manuscript": "Pending",
     "Manuscript Check": "Pending",
     "Risk Assessment": "Pending",
+    "Resend Forms": "Pending",
     "Forms Check": "Pending",
     "Deploy Queue": "Pending",
   }
 
   if (data.user.role == "Admin Assistant") {
     awa = {
-      "Manuscript Check": "Check",
-      "Risk Assessment": "Pending",
-      "Forms Check": "Check",
-      "Deploy Queue": "View",
+    "Resend Manuscript": "Check",
+    "Manuscript Check": "Check",
+    "Risk Assessment": "Pending",
+    "Resend Forms": "Check",
+    "Forms Check": "Check",
+    "Deploy Queue": "View",
     }
   }
 
   if (data.user.role == "Chairperson") {
     awa = {
-      "Manuscript Check": "Check",
-      "Risk Assessment": "Assess",
-      "Forms Check": "Check",
-      "Deploy Queue": "Check",
+    "Resend Manuscript": "Check",
+    "Manuscript Check": "Check",
+    "Risk Assessment": "Check",
+    "Resend Forms": "Check",
+    "Forms Check": "Check",
+    "Deploy Queue": "Check",
     }
   }
 

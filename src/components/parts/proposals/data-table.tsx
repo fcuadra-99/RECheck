@@ -86,7 +86,7 @@ export function DataTable<TData, TValue>({
 
   React.useEffect(() => { handleStatusFilter(statuses[0]) }, [])
 
-  const statuses = ["Manuscript Check", "Risk Assessment", "Forms Check", "Deploy Queue"]
+  const statuses = ["Resend Manuscript", "Manuscript Check", "Risk Assessment", "Resend Forms", "Forms Check", "Deploy Queue"]
 
   return (
     <div className="z-50">
@@ -94,7 +94,7 @@ export function DataTable<TData, TValue>({
         <Input
           placeholder="Search by proposal title"
           value={(table.getColumn("proposal_title")?.getFilterValue() as string) ?? ""}
-          onChange={(event) => 
+          onChange={(event) =>
             table.getColumn("proposal_title")?.setFilterValue(event.target.value)
           }
           className="max-w-sm mr-5 text-sm z-50"
@@ -131,7 +131,7 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
       </div>
 
-      <ToggleGroup variant="outline" defaultValue={statuses[0]} type="single" className="flex items-center justify-between overflow-x-auto self-center w-auto">
+      <ToggleGroup variant="outline" defaultValue={statuses[1]} type="single"className="flex items-center justify-between overflow-x-auto self-center w-auto">
         {statuses.map((status) => (
           <ToggleGroupItem
             key={status}
@@ -140,7 +140,7 @@ export function DataTable<TData, TValue>({
                 ? "default"
                 : "outline"
             }
-
+            
             value={status}
             onClick={() => handleStatusFilter(status)}
             className="text-xs grow mb-4 z-50 outline round w-full active:bg-sidebar truncate"
