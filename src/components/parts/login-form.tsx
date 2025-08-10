@@ -3,13 +3,12 @@ import { GalleryVerticalEnd } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Link } from "react-router"
-import { useNavigate } from "react-router-dom"
-import { RippleButton } from "../animate-ui/buttons/ripple"
-import { Diademo } from "./dialogue"
+import { Link, useNavigate } from "react-router"
+import { RippleButton } from "@/components/animate-ui/buttons/ripple"
+import { Dialogue } from "./dialogue"
 import { toast } from "sonner"
-import { supabase } from "@/DB"
 import { useState } from "react"
+import { supabase } from "@/DB"
 
 
 export function LoginForm({
@@ -22,7 +21,7 @@ export function LoginForm({
         password: '',
     });
 
-    const handleSubmit = async (event: any) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const loading = toast.loading("Logging In...")
 
@@ -47,7 +46,7 @@ export function LoginForm({
         }
     }
 
-    const handleChange = (e: any) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
             ...formData,
             [e.target.id]: e.target.value
@@ -107,7 +106,7 @@ export function LoginForm({
             <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
                 By clicking continue, you agree to our
                 <div className="flex text-center justify-center">
-                    <Diademo
+                    <Dialogue
                         title="Terms of Service"
                         desc="Please read the terms of service carefully"
                         cont="Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,
@@ -115,7 +114,7 @@ export function LoginForm({
                             Quisquam, quos."
                     />
                     <p className="px-1"> and </p>
-                    <Diademo
+                    <Dialogue
                         title="Privacy Policy"
                         desc="Please read the privacy policy carefully"
                         cont="Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam,

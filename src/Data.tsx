@@ -59,7 +59,7 @@ type AppData = {
   navMain: NavItem[];
   navSecondary: NavItem[];
   subm: Submissions[]
-  projects: any[];
+  projects: unknown[];
 };
 
 export const data: AppData = {

@@ -4,7 +4,6 @@ import { ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { SubmTable } from "@/Data"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
-import { useNavigate } from "react-router"
 import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
 
@@ -60,7 +59,7 @@ function formatDate(unformatted: string) {
 export const columns: ColumnDef<SubmTable>[] = [
   {
     id: "actions",
-    header: ({ }) => {
+    header: () => {
       return (
         <div className="p-2 w-[100%] text-center">
           Actions
@@ -68,7 +67,6 @@ export const columns: ColumnDef<SubmTable>[] = [
       )
     },
     cell: ({ row }) => {
-      const navigate = useNavigate()
       return (
         <div className="flex justify-center">
           <RippleButton
@@ -84,7 +82,7 @@ export const columns: ColumnDef<SubmTable>[] = [
                 row.getValue("status"),
                 stat(row.getValue("status"))
               )
-              navigate("/ssubm/sub1/sreview")
+              window.location.href = "/ssubm/sub1/sreview"
             }}
             disabled={stat(row.getValue("status")) === "Pending"}
           >
