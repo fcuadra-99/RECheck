@@ -125,7 +125,7 @@ The application will be available at `http://localhost:5173` (or another port if
 - `npm run preview` - Preview production build
 - `npm run lint` - Run ESLint
 
-## Expanding the ESLint configuration
+## Expanding the ESLint configurationaa
 
 If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
