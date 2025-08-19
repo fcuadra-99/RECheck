@@ -87,15 +87,15 @@ export const data: AppData = {
       isActive: true,
       items: [
         {
-          title: "Dash Sub1",
+          title: "Dashboard Staff",
           url: "/sdash/sub1",
         },
         {
-          title: "Dash Sub2",
+          title: "Dashboard Researcher",
           url: "/sdash/sub2",
         },
         {
-          title: "Dash Sub3",
+          title: "Dash Reviewer",
           url: "/sdash/sub3",
         },
       ],
@@ -107,15 +107,15 @@ export const data: AppData = {
       isActive: true,
       items: [
         {
-          title: "Subm Sub1",
+          title: "Submissons Staff",
           url: "/ssubm/sub1",
         },
         {
-          title: "Subm Sub2",
+          title: "Submissions Researcher",
           url: "/ssubm/sub2",
         },
         {
-          title: "Subm Sub3",
+          title: "Submissions Reviewer",
           url: "/ssubm/sub3",
         },
       ],

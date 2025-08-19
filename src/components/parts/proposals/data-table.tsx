@@ -82,7 +82,7 @@ export function DataTable<TData, TValue>({
 
   React.useEffect(() => { handleStatusFilter(statuses[0]) }, [])
 
-  const statuses = ["Resend Manuscript", "Manuscript Check", "Risk Assessment", "Resend Forms", "Forms Check", "Deploy Queue"]
+  const statuses = ["Manuscript Check", "Risk Assessment", "Forms Check", "Deploy Queue"]
 
   return (
     <div className="z-50">
@@ -127,7 +127,7 @@ export function DataTable<TData, TValue>({
         </DropdownMenu>
       </div>
 
-      <ToggleGroup variant="outline" defaultValue={statuses[1]} type="single"className="flex items-center justify-between overflow-x-auto self-center w-auto">
+      <ToggleGroup variant="outline" defaultValue={statuses[0]} type="single"className="flex items-center justify-between overflow-x-auto self-center w-auto">
         {statuses.map((status) => (
           <ToggleGroupItem
             key={status}

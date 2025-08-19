@@ -6,6 +6,7 @@ import type { SubmTable } from "@/Data"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
+import { useNavigate } from "react-router"
 
 function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Manuscript" | "Forms Check" | "Deploy Queue") {
   let awa = {
@@ -67,6 +68,7 @@ export const columns: ColumnDef<SubmTable>[] = [
       )
     },
     cell: ({ row }) => {
+      const navigate = useNavigate()
       return (
         <div className="flex justify-center">
           <RippleButton
@@ -82,7 +84,7 @@ export const columns: ColumnDef<SubmTable>[] = [
                 row.getValue("status"),
                 stat(row.getValue("status"))
               )
-              window.location.href = "/ssubm/sub1/sreview"
+              navigate("/ssubm/sub1/sreview")
             }}
             disabled={stat(row.getValue("status")) === "Pending"}
           >

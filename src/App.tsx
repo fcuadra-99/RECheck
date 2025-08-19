@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { AppBreadcrumb } from './components/parts/app-breadcrumb';
 import { SidebarProvider } from './components/ui/sidebar';
 
@@ -19,6 +19,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from './DB';
 import { type User } from '@supabase/supabase-js';
 import Profile from './pages/Profile';
+import RSubmissions from './pages/researcher/Submissions';
+import SubmissionView from './pages/researcher/View';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -129,10 +131,15 @@ export default function App() {
                 avatar={sesh.avatar}
                 role={sesh.role}
               />} />
-            <Route path="/ssubm/sub1/sreview" element={<SReview />} />
+
             <Route path="/sdevi" element={<SDeviations />} />
+
             <Route path="/ssubm" element={<SSubmissions />} />
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
+            <Route path="/ssubm/sub2" element={<RSubmissions />} />
+            <Route path="/ssubm/sub2/view" element={<SubmissionView />} />
+            <Route path="/ssubm/sub1/sreview" element={<SReview />} />
+
             <Route path="*" element={<SDashboard />} />
           </Route>
         </Routes>
