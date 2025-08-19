@@ -1,12 +1,6 @@
 "use client"
 
 import * as React from "react"
-
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
-
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -14,8 +8,8 @@ import {
   type VisibilityState,
   flexRender,
   getCoreRowModel,
-  getPaginationRowModel,
   getFilteredRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table"
@@ -28,7 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -37,7 +30,11 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { DataTablePagination } from "../pagination"
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group"
+import { DataTablePagination } from "@/components/parts/pagination"
 import { ChevronDown } from "lucide-react"
 
 interface DataTableProps<TData, TValue> {
@@ -78,8 +75,7 @@ export function DataTable<TData, TValue>({
   })
 
   const handleStatusFilter = (status: string) => {
-    if (table.getColumn("status")?.getFilterValue() === status) {
-    } else {
+    if (table.getColumn("status")?.getFilterValue() !== status) {
       table.getColumn("status")?.setFilterValue(status);
     }
   };

@@ -4,7 +4,7 @@ import type { SubmTable } from "@/Data"
 import { columns } from "./columns"
 import { DataTable } from "./data-table"
 import { useState } from "react"
-import React from "react"
+import * as React from "react"
 import { supabase } from "@/DB"
 import { toast } from "sonner"
 

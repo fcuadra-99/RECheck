@@ -63,9 +63,7 @@ export function RadixSidebarDemo({
   fname,
   lname,
   email,
-  org,
   avatar,
-  role,
   ...props
 }: RadixSidebarDemoProps & React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();

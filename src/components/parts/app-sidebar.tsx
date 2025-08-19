@@ -125,13 +125,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Avatar className="h-8 w-8 rounded-lg">
                     <AvatarImage
                       src={DATA.user.avatar}
-                      alt={DATA.user.name}
+                      alt={`${DATA.user.fname} ${DATA.user.lname}`}
                     />
-                    <AvatarFallback className="rounded-lg">{DATA.user.name[0].toUpperCase()}</AvatarFallback>
+                    <AvatarFallback className="rounded-lg">{DATA.user.fname[0].toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
                     <span className="truncate font-semibold">
-                      {DATA.user.name}
+                      {`${DATA.user.fname} ${DATA.user.lname}`}
                     </span>
                     <span className="truncate text-xs">
                       {DATA.user.email}
@@ -151,15 +151,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Avatar className="h-8 w-8 rounded-lg">
                       <AvatarImage
                         src={DATA.user.avatar}
-                        alt={DATA.user.name}
+                        alt={`${DATA.user.fname} ${DATA.user.lname}`}
                       />
                       <AvatarFallback className="rounded-lg">
-                        {DATA.user.name[0].toUpperCase()}
+                        {DATA.user.fname[0].toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">
-                        {DATA.user.name}
+                        {`${DATA.user.fname} ${DATA.user.lname}`}
                       </span>
                       <span className="truncate text-xs">
                         {DATA.user.email}

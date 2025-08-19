@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { AppBreadcrumb } from './components/parts/app-breadcrumb';
 import { SidebarProvider } from './components/ui/sidebar';
 
@@ -42,7 +42,7 @@ export default function App() {
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 

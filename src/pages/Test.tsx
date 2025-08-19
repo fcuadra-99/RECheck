@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 const supabase = createClient(
     import.meta.env.VITE_SUPABASE_URL,
@@ -7,7 +6,7 @@ const supabase = createClient(
 
 export default function Test() {
     async function getData() {
-        const { data, error } = await supabase
+        const { data } = await supabase
             .from('documents')
             .select()
         return data

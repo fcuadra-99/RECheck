@@ -1,9 +1,9 @@
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
 import { Textarea } from "@/components/ui/textarea"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
 import { Button } from '@/components/ui/button';
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Dialog,
     DialogBackdrop,
@@ -12,7 +12,6 @@ import {
     DialogDescription,
     DialogHeader,
 } from '@/components/animate-ui/headless/dialog';
-import React from "react";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 
@@ -24,7 +23,6 @@ let researchere = ""
 let emaile = ""
 let statuse: Status
 let submDatee = ""
-let reviewere = ""
 let typee = ""
 
 export function handleCheck(
@@ -42,12 +40,11 @@ export function handleCheck(
     emaile = _email
     statuse = _status
     submDatee = _submDate
-    reviewere = _reviewer
     typee = _type
 }
 
 function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
-    let awa = {
+    const awa = {
         "Resend Manuscript": "Risk Assessment",
         "Manuscript Check": "Risk Assessment",
         "Risk Assessment": "Forms Check",
@@ -59,7 +56,7 @@ function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessmen
 }
 
 function statm(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Forms" | "Forms Check" | "Deploy Queue") {
-    let awa = {
+    const awa = {
         "Resend Manuscript": "Resend Manuscript",
         "Manuscript Check": "Resend Manuscript",
         "Risk Assessment": "Manuscript Check",
@@ -75,21 +72,20 @@ export const SReview = () => {
     const [payOpen, setpayOpen] = React.useState(false);
     const [formOpen, setformOpen] = React.useState(false);
     const navigate = useNavigate();
-    const [tog, setTog] = useState("")
-    const [msg, setMsg] = useState("")
-    const [id] = useState(ide.toString())
-    const [title] = useState(titlee)
-    const [researcher] = useState(researchere)
-    const [email] = useState(emaile)
-    const [submDate] = useState(submDatee)
-    const [status] = useState(statuse)
-    const [reviewer] = useState(reviewere)
-    const [type] = useState(typee)
+    const [tog, setTog] = React.useState("")
+    const [msg, setMsg] = React.useState("")
+    const [id] = React.useState(ide.toString())
+    const [title] = React.useState(titlee)
+    const [researcher] = React.useState(researchere)
+    const [email] = React.useState(emaile)
+    const [submDate] = React.useState(submDatee)
+    const [status] = React.useState(statuse)
+    const [type] = React.useState(typee)
 
-    useEffect(() => {
+    React.useEffect(() => {
         if (title == "")
             navigate("/ssubm/sub1")
-    }, [])
+    }, [navigate, title])
 
     async function handleSubmit() {
         const loading = toast.loading("Loading...")
