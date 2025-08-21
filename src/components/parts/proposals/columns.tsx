@@ -36,7 +36,7 @@ function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessmen
     "Risk Assessment": "Check",
     "Resend Forms": "Check",
     "Forms Check": "Check",
-    "Deploy Queue": "Check",
+    "Deploy Queue": "View",
     }
   }
 

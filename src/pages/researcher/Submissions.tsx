@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Plus } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/DB";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import React from "react";
 
@@ -31,6 +32,7 @@ const RSubmissions = () => {
 
     React.useEffect(() => {
         if (!hasFetched.current) {
+            setIsLoading(false);
             hasFetched.current = true;
             fetchSubmissions();
         }
@@ -54,7 +56,6 @@ const RSubmissions = () => {
         } catch (error) {
             toast.error("Failed to load table");
         } finally {
-            setIsLoading(false);
             toast.dismiss(loadingToast);
         }
     };
@@ -68,7 +69,15 @@ const RSubmissions = () => {
 
     return <>
         <div className="p-8">
-            <h1 className="text-[30px] font-medium mb-6">My Submissions</h1>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-[30px] font-medium">My Submissions</h1>
+                <Button
+                    onClick={() => navigate("/ssubm/sub2/prop")}
+                    className="flex items-center gap-2"
+                >
+                    <Plus className="h-4 w-4" /> New Proposal
+                </Button>
+            </div>
 
             <div className="rounded-md border">
                 <Table>

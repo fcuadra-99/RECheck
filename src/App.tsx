@@ -21,6 +21,7 @@ import { type User } from '@supabase/supabase-js';
 import Profile from './pages/Profile';
 import RSubmissions from './pages/researcher/Submissions';
 import SubmissionView from './pages/researcher/View';
+import NewProposal from './pages/researcher/Proposal';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -135,8 +136,10 @@ export default function App() {
             <Route path="/sdevi" element={<SDeviations />} />
 
             <Route path="/ssubm" element={<SSubmissions />} />
+
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
+            <Route path="/ssubm/sub2/prop" element={<NewProposal />} />
             <Route path="/ssubm/sub2/view" element={<SubmissionView />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
 
