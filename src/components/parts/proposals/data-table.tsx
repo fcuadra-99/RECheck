@@ -82,7 +82,7 @@ export function DataTable<TData, TValue>({
 
   React.useEffect(() => { handleStatusFilter(statuses[0]) }, [])
 
-  const statuses = ["Manuscript Check", "Risk Assessment", "Forms Check", "Deploy Queue"]
+  const statuses = ["Check Manuscript", "Risk Assessment", "Forms Check", "Deploy Queue"]
 
   return (
     <div className="z-50">

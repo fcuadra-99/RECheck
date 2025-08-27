@@ -15,7 +15,7 @@ import {
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 
-type Status = "Manuscript Check" | "Risk Assessment" | "Forms Check" | "Deploy Queue";
+type Status = "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue";
 
 let ide = ""
 let titlee = ""
@@ -46,18 +46,18 @@ export function handleCheck(
 
 function stat(params: Status) {
     const awa = {
-        "Manuscript Check": "Risk Assessment",
+        "Check Manuscript": "Risk Assessment",
         "Risk Assessment": "Forms Check",
         "Forms Check": "Deploy Queue",
-        "Deploy Queue": "Manuscript Check",
+        "Deploy Queue": "Check Manuscript",
     }
     return awa[params]
 }
 
 function statm(params: Status) {
     const awa = {
-        "Manuscript Check": "Resend Manuscript",
-        "Risk Assessment": "Manuscript Check",
+        "Check Manuscript": "Resend Manuscript",
+        "Risk Assessment": "Check Manuscript",
         "Forms Check": "Resend Forms",
         "Deploy Queue": "Forms Check",
     }

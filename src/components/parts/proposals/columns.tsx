@@ -8,10 +8,10 @@ import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
 import { useNavigate } from "react-router"
 
-function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessment" | "Resend Manuscript" | "Forms Check" | "Deploy Queue") {
+function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Resend Manuscript" | "Forms Check" | "Deploy Queue") {
   let awa = {
     "Resend Manuscript": "Pending",
-    "Manuscript Check": "Pending",
+    "Check Manuscript": "Pending",
     "Risk Assessment": "Pending",
     "Resend Forms": "Pending",
     "Forms Check": "Pending",
@@ -21,7 +21,7 @@ function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessmen
   if (data.user.role == "Admin Assistant") {
     awa = {
     "Resend Manuscript": "Check",
-    "Manuscript Check": "Check",
+    "Check Manuscript": "Check",
     "Risk Assessment": "Pending",
     "Resend Forms": "Check",
     "Forms Check": "Check",
@@ -32,7 +32,7 @@ function stat(params: "Resend Manuscript" | "Manuscript Check" | "Risk Assessmen
   if (data.user.role == "Chairperson") {
     awa = {
     "Resend Manuscript": "Check",
-    "Manuscript Check": "Check",
+    "Check Manuscript": "Check",
     "Risk Assessment": "Check",
     "Resend Forms": "Check",
     "Forms Check": "Check",
