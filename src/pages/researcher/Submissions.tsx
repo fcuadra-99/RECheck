@@ -12,7 +12,6 @@ import { Plus } from "lucide-react";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-import { stat } from "fs";
 
 interface Submission {
     proposal_id: number;
@@ -180,7 +179,7 @@ export default function SubmissionsPage() {
 
     const handleSubmit = async (submission: Submission) => {
         const docs = getPhaseDocuments(submission);
-        const { data: userData } = await supabase.auth.getUser();
+        const {} = await supabase.auth.getUser();
 
         try {
             if (submission.status === "Resend Manuscript" || submission.status === "Resend Forms") {

@@ -58,7 +58,7 @@ export function SignupForm({
 
             if (user) {
                 // Insert into profiles
-                const { error: profileError } = await supabase.from("profiles").insert({
+                const {} = await supabase.from("profiles").insert({
                     id: user.id,
                     fname: formData.fname,
                     lname: formData.lname,
