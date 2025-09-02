@@ -151,8 +151,8 @@ export default function SubmissionsPage() {
                     description: newProposalDescription,
                     category: newProposalCategory,
                     status: "Send Manuscript",
-                    date: supabase.rpc('now'),
                     researcher: userData?.user?.id,
+                    date: new Date().toISOString(),
                 },
             ])
             .select()
