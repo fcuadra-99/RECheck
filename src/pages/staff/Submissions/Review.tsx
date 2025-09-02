@@ -47,7 +47,7 @@ export function handleCheck(
 function stat(params: Status) {
     const awa = {
         "Check Manuscript": "Risk Assessment",
-        "Risk Assessment": "Forms Check",
+        "Risk Assessment": "Send Forms",
         "Forms Check": "Deploy Queue",
         "Deploy Queue": "Check Manuscript",
     }
@@ -86,40 +86,61 @@ export const SReview = () => {
 
     async function handleSubmit() {
         const loading = toast.loading("Loading...")
-        if (tog == "deny") {
-            try {
-                const { data, error } = await supabase
-                    .from('proposals')
-                    .update({ status: statm(status) })
-                    .eq('proposal_id', id)
-                if (data) toast.success(`${data}`)
-                if (error) toast.error(`${error}`)
-            } catch (error) {
-                toast.error(`${error}`)
-            } finally {
-                toast.dismiss(loading)
-                navigate("/ssubm/sub1")
-            }
-        } else {
-            try {
-                const { data, error } = await supabase
-                    .from('proposals')
-                    .update({ status: stat(status) })
-                    .eq('proposal_id', id)
-                if (data) toast.success(`${data}`)
-                if (error) toast.error(`${error}`)
 
-            } catch (error) {
-                toast.error(`${error}`)
-            } finally {
-                toast.dismiss(loading)
-                navigate("/ssubm/sub1")
+        try {
+            if (type === "Assess") {
+                // ✅ Ensure a review type is chosen
+                if (!tog) {
+                    toast.error("Please select a review type before submitting.")
+                    return
+                }
+
+                const { error } = await supabase
+                    .from("proposals")
+                    .update({
+                        status: stat(status),
+                        review_type: tog, // ✅ now correctly bound
+                        updated_on: new Date().toISOString()
+                    })
+                    .eq("proposal_id", id)
+
+                if (error) throw error
+                toast.success(`Risk assessment saved as "${tog}"`)
+
+            } else if (tog === "deny") {
+                // Denial -> Resend docs
+                const { error } = await supabase
+                    .from("proposals")
+                    .update({
+                        status: statm(status),
+                        updated_on: new Date().toISOString()
+                    })
+                    .eq("proposal_id", id)
+
+                if (error) throw error
+                toast.success("Revision requested")
+
+            } else {
+                // Approve -> move to next status
+                const { error } = await supabase
+                    .from("proposals")
+                    .update({
+                        status: stat(status),
+                        updated_on: new Date().toISOString()
+                    })
+                    .eq("proposal_id", id)
+
+                if (error) throw error
+                toast.success("Phase approved")
             }
+        } catch (error: any) {
+            toast.error("Submit Error: " + error.message)
+        } finally {
+            toast.dismiss(loading)
+            navigate("/ssubm/sub1")
         }
-
-
-
     }
+
 
     return <>
         <main className="m-12">
@@ -329,36 +350,35 @@ export const SReview = () => {
                     </h1>
                     <span>
                         <RadioGroup
-                            defaultValue="fboard"
+                            defaultValue="Full Board"
                             value={tog}
                             onValueChange={setTog}
-                            onChange={() => { console.log(tog) }}
                             required
                         >
                             <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                                <RadioGroupItem value="fboard" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <RadioGroupItem value="Full Board" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
                                 <div>
-                                    <div className="font-medium">Full Board</div>
+                                    <div className="font-medium">Full Board Review</div>
                                     <div className="text-muted-foreground text-xs">
-                                        ...
+                                        Requires review by the full ethics board.
                                     </div>
                                 </div>
                             </div>
                             <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                                <RadioGroupItem value="exped" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <RadioGroupItem value="Expedited" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
                                 <div>
-                                    <div className="font-medium">Expedited</div>
+                                    <div className="font-medium">Expedited Review</div>
                                     <div className="text-muted-foreground text-xs">
-                                        ...
+                                        Can be reviewed by a smaller ethics committee.
                                     </div>
                                 </div>
                             </div>
                             <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                                <RadioGroupItem value="exempt" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                                <RadioGroupItem value="Exempt" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
                                 <div>
-                                    <div className="font-medium">Exempt</div>
+                                    <div className="font-medium">Exempt Review</div>
                                     <div className="text-muted-foreground text-xs">
-                                        ...
+                                        Does not require board-level review.
                                     </div>
                                 </div>
                             </div>

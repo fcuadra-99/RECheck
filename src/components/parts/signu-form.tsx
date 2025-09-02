@@ -34,7 +34,7 @@ export function SignupForm({
 
         console.log(formData)
         try {
-            const { error } = await supabase.auth.signUp({
+            const { data, error } = await supabase.auth.signUp({
                 email: formData.email,
                 password: formData.password,
                 options: {
@@ -48,11 +48,26 @@ export function SignupForm({
                 }
             });
 
+            const user = data.user;
+
             if (error) {
                 toast.error(error.message);
             } else {
                 navigate("/sdash")
             }
+
+            if (user) {
+                // Insert into profiles
+                const { error: profileError } = await supabase.from("profiles").insert({
+                    id: user.id,
+                    fname: formData.fname,
+                    lname: formData.lname,
+                    org: formData.org,
+                    avatar: formData.avatar,
+                    role: formData.role,
+                });
+            }
+            
         } catch (err) {
             console.error(err);
         } finally {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -12,8 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus } from "lucide-react";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
+import { RippleButton } from "@/components/animate-ui/buttons/ripple";
+import { stat } from "fs";
 
-// Submission type matching proposals table
 interface Submission {
     proposal_id: number;
     proposal_title: string;
@@ -25,14 +25,12 @@ interface Submission {
     date: string;
 }
 
-// Document type for each phase
 interface Document {
     name: string;
     templateUrl: string;
     required: boolean;
 }
 
-// Define phases and their possible statuses
 const phases = [
     { title: "Phase 1: Manuscript Submission", statuses: ["Send Manuscript", "Check Manuscript", "Resend Manuscript"] },
     { title: "Phase 2: Risk Assessment", statuses: ["Risk Assessment"] },
@@ -40,7 +38,6 @@ const phases = [
     { title: "Phase 4: Deployment Queue", statuses: ["Deploy Queue"] },
 ];
 
-// Map status to progress percentage
 const calculateProgress = (status: string): number => {
     switch (status) {
         case "Send Manuscript": return 10;
@@ -55,7 +52,6 @@ const calculateProgress = (status: string): number => {
     }
 };
 
-// Determine next status on submission
 const getNextStatus = (status: string): string => {
     switch (status) {
         case "Send Manuscript": return "Check Manuscript";
@@ -69,7 +65,6 @@ const getNextStatus = (status: string): string => {
     }
 };
 
-// Label for action buttons
 const getActionLabel = (status: string): string => {
     switch (status) {
         case "Send Manuscript": return "Submit";
@@ -84,7 +79,6 @@ const getActionLabel = (status: string): string => {
     }
 };
 
-// Documents required for each phase
 const getPhaseDocuments = (submission: Submission): Document[] => {
     if (["Send Manuscript", "Resend Manuscript"].includes(submission.status)) {
         return [
@@ -124,7 +118,6 @@ export default function SubmissionsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
 
-    // New proposal dialog state
     const [newProposalOpen, setNewProposalOpen] = useState(false);
     const [newProposalTitle, setNewProposalTitle] = useState("");
     const [newProposalDescription, setNewProposalDescription] = useState("");
@@ -135,7 +128,7 @@ export default function SubmissionsPage() {
             const { data, error } = await supabase
                 .from("proposals")
                 .select("*")
-                .order("date", { ascending: false }); // newest first
+                .order("date", { ascending: false });
 
             if (error) console.error(error);
             else setSubmissions(data || []);
@@ -144,7 +137,6 @@ export default function SubmissionsPage() {
         fetchSubmissions();
     }, []);
 
-    // Create new proposal
     const handleCreateProposal = async () => {
         if (!newProposalTitle.trim()) {
             toast.error("Title is required");
@@ -160,7 +152,7 @@ export default function SubmissionsPage() {
                     description: newProposalDescription,
                     category: newProposalCategory,
                     status: "Send Manuscript",
-                    date: new Date().toISOString(),
+                    date: supabase.rpc('now'),
                     researcher: userData?.user?.id,
                 },
             ])
@@ -180,27 +172,74 @@ export default function SubmissionsPage() {
         setNewProposalOpen(false);
     };
 
-    // Update status to next phase
-    const handleSubmitPhase = async (submission: Submission) => {
+    function normalizeStatus(status: string) {
+        if (status == "Resend Manuscript") return "Send Manuscript";
+        if (status == "Resend Forms") return "Send Forms";
+        return status;
+    }
+
+    const handleSubmit = async (submission: Submission) => {
+        const docs = getPhaseDocuments(submission);
+        const { data: userData } = await supabase.auth.getUser();
+
         try {
+            if (submission.status === "Resend Manuscript" || submission.status === "Resend Forms") {
+                
+            }
+            toast.loading("Uploading files...", { id: "upload" });
+
+            for (const doc of docs) {
+                if (doc.required && uploadedFiles[doc.name]) {
+                    const file = uploadedFiles[doc.name]!;
+                    const path = `${submission.proposal_id}/${normalizeStatus(submission.status)}/${file.name}`;
+
+                    const { error: storageError } = await supabase.storage
+                        .from("documents")
+                        .upload(path, file, { upsert: true });
+                    if (storageError) throw new Error(`Failed to upload "${doc.name}": ${storageError.message}`);
+
+                    const { error: dbError } = await supabase
+                        .from("proposal_documents")
+                        .insert({
+                            proposal_id: submission.proposal_id,
+                            doc_type: doc.name,
+                            file_path: path,
+                        })
+                        .select();
+
+                    if (dbError) throw new Error(`Failed to record "${doc.name}" in database: ${dbError.message}`);
+                } else if (doc.required && !uploadedFiles[doc.name]) {
+                    throw new Error(`Required file "${doc.name}" has not been uploaded.`);
+                }
+            }
+
             const nextStatus = getNextStatus(submission.status);
-            const { data, error } = await supabase
+            const { error: statusError } = await supabase
                 .from("proposals")
-                .update({ status: nextStatus })
+                .update({
+                    status: nextStatus,
+                })
                 .eq("proposal_id", submission.proposal_id)
                 .select();
 
-            if (error) throw error;
+            if (statusError) throw new Error(`Failed to update submission status: ${statusError.message}`);
+
+            const keysToClear = docs.map(d => d.name);
+            setUploadedFiles(prev => {
+                const copy = { ...prev };
+                keysToClear.forEach(k => delete copy[k]);
+                return copy;
+            });
 
             setSubmissions(prev =>
                 prev.map(s => s.proposal_id === submission.proposal_id ? { ...s, status: nextStatus } : s)
             );
-
-            toast.success(`Status updated to "${nextStatus}"`);
+            toast.success("Phase submitted successfully", { id: "upload" });
             setActiveSubmission(null);
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to update status");
+
+        } catch (err: any) {
+            console.error("Submit Phase Error:", err);
+            toast.error(`Submission failed: ${err.message}`, { id: "upload" });
         }
     };
 
@@ -208,14 +247,16 @@ export default function SubmissionsPage() {
         return phases.findIndex(phase => phase.statuses.includes(status));
     };
 
+    const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
+
     return (
         <div className="p-8">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-[30px] font-medium">My Submissions</h1>
-                <Button onClick={() => setNewProposalOpen(true)} className="flex items-center gap-2">
+                <RippleButton onClick={() => setNewProposalOpen(true)} className="flex items-center gap-2">
                     <Plus className="h-4 w-4" /> New Proposal
-                </Button>
+                </RippleButton>
             </div>
 
             {/* Submissions Table */}
@@ -256,13 +297,13 @@ export default function SubmissionsPage() {
                                     </TableCell>
                                     <TableCell>{new Date(submission.date).toLocaleDateString()}</TableCell>
                                     <TableCell>
-                                        <Button
+                                        <RippleButton
                                             variant="outline"
                                             className="w-[120px] justify-center"
                                             onClick={() => setActiveSubmission(submission)}
                                         >
                                             {getActionLabel(submission.status)}
-                                        </Button>
+                                        </RippleButton>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -282,17 +323,21 @@ export default function SubmissionsPage() {
                             </DialogHeader>
 
                             {/* Submission Info */}
-                            <div className="space-y-2 mb-4 flex-shrink-0">
+                            <div className="grid grid-cols-2 gap-4 mb-4 flex-shrink-0">
                                 <p><strong>User:</strong> {activeSubmission.researcher}</p>
                                 <p><strong>Category:</strong> {activeSubmission.category}</p>
                                 <p><strong>Review Type:</strong> {activeSubmission.review_type || "Not Assigned"}</p>
-                                <p><strong>Description:</strong> {activeSubmission.description || "No description"}</p>
+                                <p><strong>Date:</strong> {new Date(activeSubmission.date).toLocaleDateString()}</p>
+                            </div>
+                            <div className="mb-4">
+                                <p><strong>Description:</strong></p>
+                                <p className="text-gray-700">{activeSubmission.description || "No description"}</p>
                             </div>
 
                             {/* Progress */}
                             <Progress value={calculateProgress(activeSubmission.status)} className="mb-4 flex-shrink-0" />
 
-                            {/* Phases */}
+                            {/* Phases Timeline */}
                             <div className="flex gap-2 mb-4 flex-shrink-0">
                                 {phases.map((phase, idx) => {
                                     const activeIdx = getActivePhaseIndex(activeSubmission.status);
@@ -300,10 +345,10 @@ export default function SubmissionsPage() {
                                         <div
                                             key={phase.title}
                                             className={`flex-1 p-2 rounded text-center text-sm ${idx === activeIdx
-                                                    ? "bg-blue-500 text-white"
-                                                    : idx < activeIdx
-                                                        ? "bg-green-500 text-white"
-                                                        : "bg-gray-200"
+                                                ? "bg-blue-500 text-white"
+                                                : idx < activeIdx
+                                                    ? "bg-green-500 text-white"
+                                                    : "bg-gray-200"
                                                 }`}
                                         >
                                             {phase.title}
@@ -316,25 +361,48 @@ export default function SubmissionsPage() {
                             <div className="flex-1 overflow-y-auto space-y-3 mb-4">
                                 {getPhaseDocuments(activeSubmission).map(doc => (
                                     <div key={doc.name} className="flex justify-between items-center border p-2 rounded">
-                                        <div>
+                                        <div className="w-50 pr-4">
                                             <p className="font-medium">{doc.name}</p>
                                             <p className="text-xs text-gray-500">{doc.required ? "Required" : "Optional"}</p>
                                         </div>
-                                        <a href={doc.templateUrl} download>
-                                            <Button variant="outline" size="sm">Download Template</Button>
-                                        </a>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                type="file"
+                                                onChange={(e) => {
+                                                    setUploadedFiles(prev => ({
+                                                        ...prev,
+                                                        [doc.name]: e.target.files ? e.target.files[0] : null
+                                                    }));
+                                                }}
+                                            />
+                                            <a href={doc.templateUrl} download>
+                                                <RippleButton variant="outline" size="sm">Download Template</RippleButton>
+                                            </a>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
 
-                            {/* Submit Button */}
+                            {/* Submit Button (Phase 1 & 3 only) */}
                             <div className="flex-shrink-0">
-                                <Button onClick={() => handleSubmitPhase(activeSubmission)}>Submit Phase</Button>
+                                {["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(activeSubmission.status) && (
+                                    <RippleButton
+                                        onClick={() => handleSubmit(activeSubmission)}
+                                        disabled={
+                                            !getPhaseDocuments(activeSubmission).every(
+                                                doc => !doc.required || uploadedFiles[doc.name]
+                                            )
+                                        }
+                                    >
+                                        Submit Phase
+                                    </RippleButton>
+                                )}
                             </div>
                         </>
                     )}
                 </DialogContent>
             </Dialog>
+
 
 
             {/* New Proposal Dialog */}
@@ -379,7 +447,7 @@ export default function SubmissionsPage() {
                     </div>
 
                     <DialogFooter>
-                        <Button onClick={handleCreateProposal}>Create</Button>
+                        <RippleButton onClick={handleCreateProposal}>Create</RippleButton>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -33,7 +33,7 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
     awa = {
     "Resend Manuscript": "Check",
     "Check Manuscript": "Check",
-    "Risk Assessment": "Check",
+    "Risk Assessment": "Assess",
     "Resend Forms": "Check",
     "Forms Check": "Check",
     "Deploy Queue": "View",
