@@ -7,7 +7,7 @@ const SDashboard = () => {
     return (
         <>
             <div className="flex-1 [&>*]:my-3">
-                <h1 className="text-[30px] font-medium">Dashboard</h1>
+                <h1 className="text-[30px] font-medium">REC Dashboard</h1>
                 <ChartLineMultiple
                     title="Applications" desc="..." data={Data.subm} />
                 <ChartLineMultiple
