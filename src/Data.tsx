@@ -1,9 +1,11 @@
+    // Removed misplaced duplicate 'Message' tab object
 import {
   BookCopy,
+  Megaphone,
   GalleryVerticalEnd,
   LayoutDashboard,
   PencilRuler,
-  Settings,
+  User,
   type LucideIcon,
 } from "lucide-react"
 
@@ -120,32 +122,31 @@ export const data: AppData = {
       ],
     },
     {
-      title: "Deviations",
+      title: "Assign Reviewer",
+      url: "/sassign-reviewer",
+      icon: User,
+      isActive: true,
+    },
+    {
+      title: "Review Submission",
+      url: "/sreview-submission",
+      icon: BookCopy,
+      isActive: true,
+    },
+    {
+      title: "Deviation Management",
       url: "/sdevi",
       icon: PencilRuler,
       isActive: true,
-      items: [
-        {
-          title: "Devi Sub1",
-          url: "/sdevi/sub1",
-        },
-        {
-          title: "Devi Sub2",
-          url: "/sdevi/sub2",
-        },
-        {
-          title: "Devi Sub3",
-          url: "/sdevi/sub3",
-        },
-      ],
+    },
+    {
+      title: "Create announcement",
+      url: "/screate-announcement",
+      icon: Megaphone,
+      isActive: true,
     },
   ],
   navSecondary: [
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings,
-    },
   ],
   subm: [
     { month: "January", desktop: 186, mobile: 80 },
