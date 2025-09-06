@@ -1,87 +1,59 @@
 'use client';
 
 import * as React from 'react';
+
 import { data as DATA } from "@/Data"
+import { sidebarMenus } from "@/constants/sidebarMenus"
+import { formsCatalog, getFormSubmissionCounts } from "@/constants/forms"
+import type { NavItem } from "@/Data"
+import useAuth from "@/hooks/useAuth"
+import { useUserRole } from "@/hooks/useUserRole"
 
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import {
   SidebarProvider,
-  SidebarInset,
   SidebarTrigger,
   Sidebar,
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
-  SidebarRail,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
-  SidebarMenuAction,
 } from '@/components/animate-ui/radix/sidebar';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/animate-ui/radix/collapsible';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from '@/components/animate-ui/radix/dropdown-menu';
-import {
-  AudioWaveform,
-  BadgeCheck,
-  Bell,
-  BookOpen,
-  Bot,
-  ChevronRight,
-  ChevronsUpDown,
-  Command,
-  CreditCard,
-  Folder,
-  Forward,
-  Frame,
-  GalleryVerticalEnd,
-  LogOut,
-  Map,
-  MoreHorizontal,
-  PieChart,
-  Plus,
-  Settings2,
-  Sparkles,
-  SquareTerminal,
-  Trash2,
-} from 'lucide-react';
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/animate-ui/radix/dropdown-menu';
+import { BadgeCheck, ChevronsUpDown, ChevronDown } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router-dom';
+
 
 
 export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
+  const { role: userRole } = useUserRole(user);
   const main = DATA.main[0];
+
+  
+  const role: keyof typeof sidebarMenus = (userRole as keyof typeof sidebarMenus) || (DATA.user.role as keyof typeof sidebarMenus) || "Researcher";
+  const menu: NavItem[] = sidebarMenus[role] || sidebarMenus["Researcher"];
+  const [showFormsSub, setShowFormsSub] = React.useState<boolean>(false);
+  const researcherForms = role === 'Researcher' ? formsCatalog : [];
+  const [formCounts, setFormCounts] = React.useState<Record<string, number>>({});
+  React.useEffect(() => {
+    try { setFormCounts(getFormSubmissionCounts()); } catch { }
+  }, []);
+  const location = useLocation();
+  const activeFormId = React.useMemo(() => {
+    try {
+      const sp = new URLSearchParams(location.search);
+      return sp.get('form') || '';
+    } catch {
+      return '';
+    }
+  }, [location.search]);
 
   return (
     <>
@@ -119,36 +91,60 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
             <SidebarGroup>
               <SidebarGroupLabel>Platform</SidebarGroupLabel>
               <SidebarMenu>
-                {DATA.navMain.map((item) => (
-                  <Collapsible>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton tooltip={item.title}>
-                          {item.icon && <item.icon />}
-                          <span>{item.title}</span>
-                          <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
+                {menu.map((item: NavItem) => {
+                  const isFormsParent = item.title === 'Forms' && researcherForms.length > 0;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <div className="flex flex-col">
+                        <SidebarMenuButton asChild={!isFormsParent} tooltip={item.title} onClick={() => {
+                          if (isFormsParent) {
+                            setShowFormsSub(prev => !prev);
+                          }
+                        }}>
+                          {isFormsParent ? (
+                            <>
+                              {item.icon && <item.icon />}
+                              <span>{item.title}</span>
+                              <ChevronDown className={`ml-auto size-4 transition-transform duration-200 ${showFormsSub ? 'rotate-180' : ''}`} />
+                            </>
+                          ) : (
+                            <Link to={item.url} className="flex items-center gap-2 w-full">
+                              {item.icon && <item.icon />}
+                              <span>{item.title}</span>
+                            </Link>
+                          )}
                         </SidebarMenuButton>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <SidebarMenuSub>
-                          {item.items?.map((subItem) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton asChild>
-                                <Link to={subItem.url}>
-                                  <span>{subItem.title}</span>
+                        {isFormsParent && showFormsSub && (
+                          <div className="ml-4 mt-1 space-y-1">
+                            {researcherForms.map(f => {
+                              const isActive = activeFormId === f.id;
+                              return (
+                                <Link
+                                  key={f.id}
+                                  to={`/researcher/forms?form=${f.id}`}
+                                  className={`group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground
+                                    ${isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium' : 'text-sidebar-foreground/70'}
+                                  `}
+                                >
+                                  {f.icon ? <f.icon className="size-4" /> : <span className="text-xs">•</span>}
+                                  <span className="flex-1 truncate">{f.title}</span>
+                                  {formCounts[f.id] && formCounts[f.id] > 0 && (
+                                    <span className="ml-auto px-1.5 py-0.5 rounded-md bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
+                                      {formCounts[f.id]}
+                                    </span>
+                                  )}
                                 </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      </CollapsibleContent>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     </SidebarMenuItem>
-                  </Collapsible>
-                ))}
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroup>
             {/* Nav Main */}
-
           </SidebarContent>
           <SidebarFooter>
             {/* Nav User */}
@@ -234,8 +230,8 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
             {/* Nav User */}
           </SidebarFooter>
         </Sidebar>
-        <SidebarTrigger className="mx-4 my-2 min-md:invisible md:transition-none z-30 fixed" onClick={() => console.log("ww")} />
+        <SidebarTrigger className="mx-4 my-2 md:invisible z-30 fixed" />
       </SidebarProvider >
     </>
   );
-};
+}
