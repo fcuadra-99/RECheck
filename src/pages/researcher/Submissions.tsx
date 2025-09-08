@@ -24,6 +24,13 @@ interface Submission {
     date: string;
 }
 
+interface Profile {
+    id: string;
+    fname: string | null;
+    lname: string | null;
+}
+
+
 interface Document {
     name: string;
     templateUrl: string;
@@ -114,6 +121,7 @@ const getPhaseDocuments = (submission: Submission): Document[] => {
 
 export default function SubmissionsPage() {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
+    const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
 
@@ -124,17 +132,43 @@ export default function SubmissionsPage() {
 
     useEffect(() => {
         const fetchSubmissions = async () => {
-            const { data, error } = await supabase
+            const { data: proposals, error: proposalsError } = await supabase
                 .from("proposals")
                 .select("*")
                 .order("date", { ascending: false });
 
-            if (error) console.error(error);
-            else setSubmissions(data || []);
+            if (proposalsError) {
+                console.error(proposalsError);
+                setIsLoading(false);
+                return;
+            }
+
+            setSubmissions(proposals || []);
+
+            const profileIds = proposals?.map(p => p.researcher).filter(Boolean);
+            if (!profileIds?.length) {
+                setIsLoading(false);
+                return;
+            }
+
+            const { data: profilesData, error: profilesError } = await supabase
+                .from("profiles")
+                .select("id, fname, lname")
+                .in("id", profileIds);
+
+            if (profilesError) {
+                console.error(profilesError);
+                setIsLoading(false);
+                return;
+            }
+
+            setProfiles(profilesData || []);
             setIsLoading(false);
         };
+
         fetchSubmissions();
     }, []);
+
 
     const handleCreateProposal = async () => {
         if (!newProposalTitle.trim()) {
@@ -179,18 +213,21 @@ export default function SubmissionsPage() {
 
     const handleSubmit = async (submission: Submission) => {
         const docs = getPhaseDocuments(submission);
-        const {} = await supabase.auth.getUser();
+        const { } = await supabase.auth.getUser();
 
         try {
             if (submission.status === "Resend Manuscript" || submission.status === "Resend Forms") {
-                
+                normalizeStatus(submission.status);
             }
             toast.loading("Uploading files...", { id: "upload" });
 
             for (const doc of docs) {
                 if (doc.required && uploadedFiles[doc.name]) {
                     const file = uploadedFiles[doc.name]!;
-                    const path = `${submission.proposal_id}/${normalizeStatus(submission.status)}/${file.name}`;
+                    const ext = file.name.split('.').pop();
+                    const safeDocName = doc.name.replace(/\s+/g, "_");
+
+                    const path = `${submission.proposal_id}/${normalizeStatus(submission.status)}/${safeDocName}.${ext}`;
 
                     const { error: storageError } = await supabase.storage
                         .from("documents")
@@ -323,7 +360,13 @@ export default function SubmissionsPage() {
 
                             {/* Submission Info */}
                             <div className="grid grid-cols-2 gap-4 mb-4 flex-shrink-0">
-                                <p><strong>User:</strong> {activeSubmission.researcher}</p>
+                                <p>
+                                    <strong>User:</strong>{" "}
+                                    {(() => {
+                                        const profile = profiles.find(pr => pr.id === activeSubmission.researcher);
+                                        return profile ? `${profile.lname}, ${profile.fname}` : "Unknown";
+                                    })()}
+                                </p>
                                 <p><strong>Category:</strong> {activeSubmission.category}</p>
                                 <p><strong>Review Type:</strong> {activeSubmission.review_type || "Not Assigned"}</p>
                                 <p><strong>Date:</strong> {new Date(activeSubmission.date).toLocaleDateString()}</p>
