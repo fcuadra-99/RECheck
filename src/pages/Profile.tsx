@@ -251,7 +251,7 @@ function Detail({ label, value }: { label: string; value?: string }) {
 }
 
 /* Edit Account Form (inside modal) */
-function EditAccountForm({ user, fname, lname, org, role, avatar, setFname, setLname, setOrg, setRole, setAvatar }: any) {
+function EditAccountForm({ user, fname, lname, org, avatar, setFname, setLname, setOrg}: any) {
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
