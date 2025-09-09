@@ -121,15 +121,7 @@ export default function App() {
             <Route path="/" element={<SDashboard />} />
             <Route path="/sdash" element={<SDashboard />} />
             <Route path="/sdash/sub1" element={<STrends />} />
-            <Route path="/profile" element={
-              <Profile
-                fname={sesh.fname}
-                lname={sesh.lname}
-                email={sesh.email}
-                org={sesh.org}
-                avatar={sesh.avatar}
-                role={sesh.role}
-              />} />
+            <Route path="/profile" element={<Profile/>} />
 
             <Route path="*" element={<SDashboard />} />
 

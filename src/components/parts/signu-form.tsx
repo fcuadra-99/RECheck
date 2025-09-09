@@ -24,6 +24,7 @@ export function SignupForm({
         rpassword: '',
         avatar: '',
         role: 'researcher',
+        category: '',
     });
 
     const navigate = useNavigate();
@@ -57,17 +58,17 @@ export function SignupForm({
             }
 
             if (user) {
-                // Insert into profiles
-                const {} = await supabase.from("profiles").insert({
+                const { } = await supabase.from("profiles").insert({
                     id: user.id,
                     fname: formData.fname,
                     lname: formData.lname,
                     org: formData.org,
                     avatar: formData.avatar,
                     role: formData.role,
+                    category: formData.category
                 });
             }
-            
+
         } catch (err) {
             console.error(err);
         } finally {
@@ -150,6 +151,19 @@ export function SignupForm({
                                 onChange={handleChange}
                                 required
                             />
+                                <Label htmlFor="category">Category</Label>
+                                <select
+                                    id="category"
+                                    value={formData.category}
+                                    onChange={e => setFormData({ ...formData, category: e.target.value })}
+                                    required
+                                    className="border rounded px-2 py-1"
+                                >
+                                    <option value="">Select category</option>
+                                    <option value="Undergraduate">Undergraduate</option>
+                                    <option value="Graduate">Graduate</option>
+                                    <option value="External">External</option>
+                                </select>
                         </div>
                         <div className="text-center text-sm">
                             Already have an account?{" "}

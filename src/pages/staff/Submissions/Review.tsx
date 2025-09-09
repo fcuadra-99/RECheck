@@ -1,6 +1,4 @@
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from '@/components/ui/button';
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
@@ -8,9 +6,6 @@ import {
   Dialog,
   DialogBackdrop,
   DialogPanel,
-  DialogTitle,
-  DialogDescription,
-  DialogHeader,
 } from '@/components/animate-ui/headless/dialog';
 import { supabase } from "@/DB";
 import { toast } from "sonner";
@@ -81,8 +76,7 @@ export const SReview = () => {
   const [manuOpen, setmanuOpen] = React.useState(false);
   const [formOpen, setformOpen] = React.useState(false);
   const navigate = useNavigate();
-  const [tog, setTog] = React.useState("");
-  const [msg, setMsg] = React.useState("");
+  const [tog] = React.useState("");
   const [id] = React.useState(ide.toString());
   const [title] = React.useState(titlee);
   const [researcher] = React.useState(researchere);
@@ -99,10 +93,11 @@ export const SReview = () => {
   }, [navigate, title]);
 
   React.useEffect(() => {
-    if (selectedDoc) fetchDoc(selectedDoc);
+    if (selectedDoc) fetchDoc();
   }, [selectedDoc]);
 
-  async function fetchDoc(fileName: string) {
+  //edit this plz
+  async function fetchDoc() {
     try {
       const { data, error } = await supabase.storage
         .from("documents")

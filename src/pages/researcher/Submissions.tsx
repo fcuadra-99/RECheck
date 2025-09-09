@@ -302,7 +302,7 @@ export default function SubmissionsPage() {
                         <TableRow>
                             <TableHead>Title</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>Progress</TableHead>
+                            <TableHead>Researcher</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead>Action</TableHead>
                         </TableRow>
@@ -326,10 +326,10 @@ export default function SubmissionsPage() {
                                         {submission.status}
                                     </TableCell>
                                     <TableCell className="w-[200px]">
-                                        <Progress
-                                            value={calculateProgress(submission.status)}
-                                            className={`bg-gray-200 ${submission.status.includes("Resend") ? "[&>div]:bg-red-500" : "[&>div]:bg-blue-500"}`}
-                                        />
+                                        {(() => {
+                                            const profile = profiles.find(pr => pr.id === submission.researcher);
+                                            return profile ? `${profile.lname}, ${profile.fname}` : "Unknown";
+                                        })()}
                                     </TableCell>
                                     <TableCell>{new Date(submission.date).toLocaleDateString()}</TableCell>
                                     <TableCell>
