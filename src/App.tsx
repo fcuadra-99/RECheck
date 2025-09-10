@@ -35,6 +35,7 @@ import Announcements from './pages/Announcements';
 import RForms from './pages/researcher/Forms';
 import ResolutionReviews from './pages/staff/ResolutionReviews';
 import ResolutionDetail from './pages/staff/ResolutionDetail';
+import ManageFinalReports from './pages/staff/ManageFinalReports';
 
 
 function App() {
@@ -134,6 +135,11 @@ function App() {
             <Route path="/staff/resolution-detail/:id" element={
               <ProtectedRoute allowedRoles={["Staff"]}>
                 <ResolutionDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/staff/manage-final-reports" element={
+              <ProtectedRoute allowedRoles={["Staff"]}>
+                <ManageFinalReports />
               </ProtectedRoute>
             } />
             {/* Reviewer routes */}
