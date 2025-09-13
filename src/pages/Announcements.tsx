@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import useAuth from '@/hooks/useAuth';
-import { Megaphone, Paperclip, Clock } from 'lucide-react';
+import { Megaphone, Paperclip, Clock, ChevronRight } from 'lucide-react';
 
 export default function Announcements() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
@@ -72,38 +74,67 @@ export default function Announcements() {
         <div className="text-gray-400">No announcements.</div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2">
-          {items.map(a => (
-            <article key={a.id} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 rounded-lg bg-indigo-50 p-3 text-indigo-600">
-                  <Megaphone className="w-5 h-5" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{a.title}</h3>
-                      <div className="mt-1 text-sm text-gray-600">{a.created_by_email} • <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(a.created_at).toLocaleString()}</span></div>
-                    </div>
-                    <div className="text-right">
-                      <span className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${a.audience === 'all' ? 'bg-green-100 text-green-800' : a.audience === 'students' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>{a.audience}</span>
-                    </div>
+          {items.map(a => {
+            const truncatedDescription = a.description.length > 200 
+              ? a.description.substring(0, 200) + '...' 
+              : a.description;
+            const isLongDescription = a.description.length > 200;
+            
+            return (
+              <article 
+                key={a.id} 
+                className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer group"
+                onClick={() => navigate(`/announcements/${a.id}`)}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 rounded-lg bg-indigo-50 p-3 text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                    <Megaphone className="w-5 h-5" />
                   </div>
-
-                  <p className="mt-4 text-gray-700 whitespace-pre-line">{a.description}</p>
-
-                  {a.attachments && a.attachments.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {a.attachments.map((u: string, i: number) => (
-                        <a key={i} href={u} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-md text-sm text-gray-700 hover:bg-gray-100">
-                          <Paperclip className="w-4 h-4 text-gray-500" /> Attachment {i + 1}
-                        </a>
-                      ))}
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-indigo-700 transition-colors">
+                            {a.title}
+                          </h3>
+                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all flex-shrink-0 mt-1" />
+                        </div>
+                        <div className="mt-1 text-sm text-gray-600">
+                          {a.created_by_email} • <span className="inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {new Date(a.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  )}
+
+                    <div className="mt-2 mb-3">
+                      <span className={`inline-flex text-xs font-medium px-2 py-1 rounded-full ${a.audience === 'all' ? 'bg-green-100 text-green-800' : a.audience === 'students' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {a.audience === 'all' ? 'Everyone' : 
+                         a.audience === 'students' ? 'Researchers' : 
+                         a.audience === 'committee' ? 'Committee' : a.audience}
+                      </span>
+                    </div>
+
+                    <p className="text-gray-700 whitespace-pre-line">
+                      {truncatedDescription}
+                      {isLongDescription && (
+                        <span className="text-indigo-600 font-medium ml-1 group-hover:text-indigo-700">
+                          Click to read more
+                        </span>
+                      )}
+                    </p>
+
+                    {a.attachments && a.attachments.length > 0 && (
+                      <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                        <Paperclip className="w-4 h-4 text-gray-500" />
+                        <span>{a.attachments.length} attachment{a.attachments.length > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </div>

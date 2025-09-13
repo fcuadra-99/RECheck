@@ -32,6 +32,7 @@ import RDashboard from './pages/researcher/Dashboard';
 import AssignedReviews from './pages/reviewer/AssignedReviews';
 import ReviewDetails from './pages/reviewer/ReviewDetails';
 import Announcements from './pages/Announcements';
+import AnnouncementDetail from './pages/AnnouncementDetail';
 import RForms from './pages/researcher/Forms';
 import ResolutionReviews from './pages/staff/ResolutionReviews';
 import ResolutionDetail from './pages/staff/ResolutionDetail';
@@ -194,6 +195,11 @@ function App() {
             <Route path="/announcements" element={
               <ProtectedRoute allowedRoles={["Staff","Researcher","Reviewer"]}>
                 <Announcements />
+              </ProtectedRoute>
+            } />
+            <Route path="/announcements/:id" element={
+              <ProtectedRoute allowedRoles={["Staff","Researcher","Reviewer"]}>
+                <AnnouncementDetail />
               </ProtectedRoute>
             } />
             {/* Fallback */}
