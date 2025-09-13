@@ -9,7 +9,7 @@ const ResolutionReviews = () => {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('All');
     const [page, setPage] = useState(1);
-    const PAGE_SIZE = 10;
+    const PAGE_SIZE = 5;
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -52,6 +52,7 @@ const ResolutionReviews = () => {
 
     const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1;
     const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    // Only 5 items per page for cleaner pagination
 
     useEffect(() => {
         if (page > totalPages) setPage(1);

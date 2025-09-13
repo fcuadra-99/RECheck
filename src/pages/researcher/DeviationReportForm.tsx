@@ -3,6 +3,8 @@ import { submitDeviationReport } from '../../services/deviationReportService';
 import { FileUploadService, UPLOAD_CONFIGS } from '../../services/fileUploadService';
 import useAuth from '@/hooks/useAuth';
 import { ClipboardList, CalendarDays, FileText, UploadCloud, AlertCircle } from 'lucide-react';
+import DigitalSignaturePad from '../../components/DigitalSignaturePad';
+import { testDatabaseConnection } from '../../utils/debugDatabase';
 
 
 const deviationTypeOptions = [
@@ -45,6 +47,9 @@ const DeviationReportForm: React.FC = () => {
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [submittedReportId, setSubmittedReportId] = useState<string>('');
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -90,7 +95,7 @@ const DeviationReportForm: React.FC = () => {
       // Get successful upload URLs
       const uploadedUrls = uploadResults.map(result => result.url);
 
-  const { error } = await submitDeviationReport({
+      const { data, error } = await submitDeviationReport({
         protocolTitle: investigator.protocolTitle,
         protocolCode: investigator.protocolCode,
         deviationDate: investigator.deviationDate,
@@ -102,12 +107,26 @@ const DeviationReportForm: React.FC = () => {
         reportSubmissionDate: investigator.reportSubmissionDate,
         type: investigator.type,
       });
+      
       if (error) {
         alert('Submission failed: ' + error.message);
+      } else if (data && data.length > 0) {
+        // Report submitted successfully, now show signature pad
+        console.log('Submitted report data:', data[0]); // Debug log
+        const reportId = data[0].id;
+        console.log('Report ID:', reportId); // Debug log
+        
+        // Debug: Test database connection
+        testDatabaseConnection(reportId).then(result => {
+          console.log('Database test result:', result);
+        });
+        
+        setSubmittedReportId(reportId);
+        setSubmissionSuccess(true);
+        setShowSignaturePad(true);
       } else {
-        alert('Deviation report submitted!');
-        setInvestigator(initialInvestigator);
-        setFiles([]);
+        console.error('No data returned from submission'); // Debug log
+        alert('Submission failed: No data returned');
       }
     } catch (err: any) {
       alert('Submission failed: ' + (err.message || 'Upload error'));
@@ -116,12 +135,52 @@ const DeviationReportForm: React.FC = () => {
     }
   };
 
+  const handleSignatureComplete = (success: boolean) => {
+    if (success) {
+      alert('Deviation report submitted and signed successfully!');
+      setInvestigator(initialInvestigator);
+      setFiles([]);
+      setShowSignaturePad(false);
+      setSubmissionSuccess(false);
+      setSubmittedReportId('');
+    } else {
+      alert('Failed to apply signature. Please try again.');
+    }
+  };
+
+  const handleSignatureCancel = () => {
+    setShowSignaturePad(false);
+    // Note: The report has already been submitted to the database
+    // We're just not applying the signature at this time
+    alert('Report submitted without signature. You can sign it later from your dashboard.');
+    setInvestigator(initialInvestigator);
+    setFiles([]);
+    setSubmissionSuccess(false);
+    setSubmittedReportId('');
+  };
+
   return (
     <div className="min-h-screen w-full bg-gray-50 py-10 px-4">
-      <form
-        className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 px-8 py-10 relative"
-        onSubmit={handleSubmit}
-      >
+      {showSignaturePad ? (
+        // Stage 1: Signature Process
+        <div className="w-full max-w-3xl mx-auto">
+          <div className="mb-6 text-center">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-2">Complete Your Submission</h1>
+            <p className="text-gray-600">Your deviation report has been submitted successfully. Please sign to complete the process.</p>
+          </div>
+          <DigitalSignaturePad
+            deviationReportId={submittedReportId}
+            userRole="researcher"
+            onSignatureComplete={handleSignatureComplete}
+            onCancel={handleSignatureCancel}
+          />
+        </div>
+      ) : (
+        // Form UI
+        <form
+          className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 px-8 py-10 relative"
+          onSubmit={handleSubmit}
+        >
         <header className="mb-10 flex items-start gap-4">
           <div className="h-12 w-12 rounded-xl bg-blue-600/10 text-blue-700 flex items-center justify-center">
             <ClipboardList className="h-6 w-6" />
@@ -316,7 +375,8 @@ const DeviationReportForm: React.FC = () => {
             {loading ? 'Submitting...' : 'Submit Report'}
           </button>
         </div>
-      </form>
+        </form>
+      )}
     </div>
   );
 };

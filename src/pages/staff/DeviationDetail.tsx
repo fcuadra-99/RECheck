@@ -1,6 +1,8 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import DigitalSignaturePad from '../../components/DigitalSignaturePad';
+import SignatureDisplay from '../../components/SignatureDisplay';
 
 
 const DeviationDetail = () => {
@@ -14,6 +16,7 @@ const DeviationDetail = () => {
   const [notifMsg, setNotifMsg] = React.useState('👍');
   const [notifIcon, setNotifIcon] = React.useState('👍');
   const [reviewText, setReviewText] = React.useState('');
+  const [showSignaturePad, setShowSignaturePad] = React.useState(false);
   const isReviewed = deviation && deviation.severity && deviation.severity !== '';
   // const [correctiveText, setCorrectiveText] = React.useState('');
 
@@ -130,6 +133,12 @@ const DeviationDetail = () => {
               )}
             </div>
           </div>
+          
+          {/* Digital Signatures Section */}
+          <div className="mb-8">
+            <SignatureDisplay deviationReportId={deviation.id} />
+          </div>
+          
           <div className="mb-8">
             <div className="font-semibold text-gray-700 mb-2 flex items-center justify-between">
               <span>Assess Severity</span>
@@ -142,7 +151,10 @@ const DeviationDetail = () => {
                   name="severity"
                   value="Minor"
                   checked={severity === 'Minor'}
-                  onChange={() => setSeverity('Minor')}
+                  onChange={() => {
+                    setSeverity('Minor');
+                    setShowSignaturePad(true);
+                  }}
                   disabled={isReviewed}
                   className="accent-blue-600"
                 />
@@ -154,7 +166,10 @@ const DeviationDetail = () => {
                   name="severity"
                   value="Major"
                   checked={severity === 'Major'}
-                  onChange={() => setSeverity('Major')}
+                  onChange={() => {
+                    setSeverity('Major');
+                    setShowSignaturePad(false);
+                  }}
                   disabled={isReviewed}
                   className="accent-red-900"
                 />
@@ -177,28 +192,36 @@ const DeviationDetail = () => {
                   placeholder="Enter deviation review..."
                   disabled={isReviewed}
                 />
-                {!isReviewed && (
-                  <button
-                    className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700 transition w-fit mt-auto"
-                    onClick={async () => {
-                      setLoading(true);
-                      const { error } = await supabase
-                        .from('deviation_reports')
-                        .update({ review: reviewText, severity: 'Minor' })
-                        .eq('id', deviation.id);
-                      setLoading(false);
-                      if (!error) {
-                        // Mark as reviewed locally to lock UI without refetch
-                        setDeviation((prev: any) => prev ? { ...prev, severity: 'Minor', review: reviewText } : prev);
-                        setSeverity('Minor');
-                        showNotification('Deviation review has been saved and sent to the Researcher', '👍');
-                      } else {
-                        showNotification('Failed to save review. Please try again.', '❌');
-                      }
-                    }}
-                  >
-                    Approve
-                  </button>
+                
+                {!isReviewed && showSignaturePad && (
+                  <div className="border-t-2 border-gray-200 pt-6 mt-6">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                      Staff Signature Required
+                    </h3>
+                    <DigitalSignaturePad 
+                      deviationReportId={deviation.id}
+                      userRole="staff"
+                      onSignatureComplete={async () => {
+                        // Save the review when signature is completed
+                        setLoading(true);
+                        const { error } = await supabase
+                          .from('deviation_reports')
+                          .update({ review: reviewText, severity: 'Minor', status: 'Reviewed' })
+                          .eq('id', deviation.id);
+                        setLoading(false);
+                        
+                        if (!error) {
+                          setDeviation((prev: any) => prev ? { ...prev, severity: 'Minor', review: reviewText } : prev);
+                          setShowSignaturePad(false);
+                          showNotification('Deviation review has been signed and completed!', '✅');
+                          // Refresh the data to show signatures
+                          window.location.reload();
+                        } else {
+                          showNotification('Failed to save review. Please try again.', '❌');
+                        }
+                      }}
+                    />
+                  </div>
                 )}
               </div>
             )}

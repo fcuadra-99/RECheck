@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { FileUploadService, UPLOAD_CONFIGS } from '../../services/fileUploadService';
+import SignatureDisplay from '../../components/SignatureDisplay';
 import type { ResearcherDeviationReport } from '../../types/deviationReport';
 
 const FeedbackDetail = () => {
@@ -226,6 +227,11 @@ const FeedbackDetail = () => {
                             ? (deviation.corrective_action_feedback || 'No corrective action feedback provided.')
                             : (deviation.review || 'No feedback provided.')}
                     </div>
+                </div>
+
+                {/* Digital Signatures Section */}
+                <div className="mb-6">
+                    <SignatureDisplay deviationReportId={deviation.id} showAuditTrail={true} />
                 </div>
 
                 {/* Major Deviation Details */}

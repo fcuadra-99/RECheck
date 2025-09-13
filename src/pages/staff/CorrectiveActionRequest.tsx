@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-
+import DigitalSignaturePad from '../../components/DigitalSignaturePad';
+import SignatureDisplay from '../../components/SignatureDisplay';
+import useAuth from '../../hooks/useAuth';
 
 export default function CorrectiveActionRequest() {
   const [requiredChange, setRequiredChange] = useState('changes');
@@ -12,10 +14,58 @@ export default function CorrectiveActionRequest() {
   const [deadline, setDeadline] = useState('');
   const [loading, setLoading] = useState(false);
   const [notif, setNotif] = useState('');
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   // Try to get deviation id from query param or state
   const deviationId = location.state?.deviationId || new URLSearchParams(location.search).get('id');
+
+  const handleSubmitReview = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!deviationId) {
+      setNotif('No deviation selected.');
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase
+      .from('deviation_reports')
+      .update({
+        corrective_action_feedback: deviationFeedback,
+        corrective_action_required: requiredChange,
+        corrective_action_details: requiredChangesText,
+        corrective_action_docs: additionalDocs,
+        corrective_action_docs_details: additionalDocsText,
+        corrective_action_deadline: deadline,
+        severity: 'Major',
+        status: 'Reviewed',
+      })
+      .eq('id', deviationId);
+    setLoading(false);
+    if (!error) {
+      setReviewSubmitted(true);
+      setShowSignaturePad(true);
+      setNotif('Review submitted! Please sign to complete the process.');
+    } else {
+      setNotif('Failed to submit corrective action.');
+    }
+  };
+
+  const handleSignatureComplete = (success: boolean) => {
+    if (success) {
+      setNotif('Review completed and signed successfully!');
+      setTimeout(() => navigate(-1), 1500);
+    } else {
+      setNotif('Failed to apply signature. Please try again.');
+    }
+  };
+
+  const handleSignatureCancel = () => {
+    setShowSignaturePad(false);
+    setNotif('Review submitted without signature. You can sign it later.');
+    setTimeout(() => navigate(-1), 1500);
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 py-10 px-2">
@@ -26,7 +76,31 @@ export default function CorrectiveActionRequest() {
             <span className="inline-block w-2 h-8 bg-pink-600 rounded-full mr-2"></span>
             Request Corrective Action
           </h1>
-          <div className="mb-8">
+
+          {showSignaturePad ? (
+            // Stage 2: Staff Signature Process
+            <div>
+              <div className="mb-6 text-center">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">Complete Your Review</h2>
+                <p className="text-gray-600">Your review has been submitted. Please sign to complete the process.</p>
+              </div>
+              
+              {/* Show existing signatures */}
+              <div className="mb-6">
+                <SignatureDisplay deviationReportId={deviationId} />
+              </div>
+              
+              {/* Staff signature pad */}
+              <DigitalSignaturePad
+                deviationReportId={deviationId}
+                userRole="staff"
+                onSignatureComplete={handleSignatureComplete}
+                onCancel={handleSignatureCancel}
+              />
+            </div>
+          ) : (
+            // Review Form
+            <>
             <div className="font-semibold text-gray-700 mb-2">Deviation Feedback</div>
             <textarea
               className="border border-gray-300 rounded-lg p-4 bg-gray-50 text-gray-800 mb-6 w-full min-h-[80px] focus:outline-none focus:ring-2 focus:ring-blue-200"
@@ -75,43 +149,17 @@ export default function CorrectiveActionRequest() {
               value={deadline}
               onChange={e => setDeadline(e.target.value)}
             />
-          </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end mt-6">
             <button
               className="bg-blue-600 px-8 py-2 rounded-lg font-semibold text-white hover:bg-blue-700 text-lg shadow"
               disabled={loading}
-              onClick={async (e) => {
-                e.preventDefault();
-                if (!deviationId) {
-                  setNotif('No deviation selected.');
-                  return;
-                }
-                setLoading(true);
-                const { error } = await supabase
-                  .from('deviation_reports')
-                  .update({
-                    corrective_action_feedback: deviationFeedback,
-                    corrective_action_required: requiredChange,
-                    corrective_action_details: requiredChangesText,
-                    corrective_action_docs: additionalDocs,
-                    corrective_action_docs_details: additionalDocsText,
-                    corrective_action_deadline: deadline,
-                    severity: 'Major',
-                    status: 'Reviewed',
-                  })
-                  .eq('id', deviationId);
-                setLoading(false);
-                if (!error) {
-                  setNotif('Corrective action submitted!');
-                  setTimeout(() => navigate(-1), 1200);
-                } else {
-                  setNotif('Failed to submit corrective action.');
-                }
-              }}
+              onClick={handleSubmitReview}
             >
               {loading ? 'Submitting...' : 'Submit'}
             </button>
           </div>
+          </>
+          )}
           {notif && <div className="mt-4 text-center text-blue-700 font-semibold">{notif}</div>}
         </div>
       </div>
