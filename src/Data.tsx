@@ -1,4 +1,4 @@
-    // Removed misplaced duplicate 'Message' tab object
+// Removed misplaced duplicate 'Message' tab object
 import {
   BookCopy,
   Megaphone,
@@ -7,6 +7,7 @@ import {
   PencilRuler,
   User,
   type LucideIcon,
+  FileText,
 } from "lucide-react"
 
 export type {
@@ -121,6 +122,12 @@ export const data: AppData = {
         },
       ],
     },
+      {
+        title: "Submitted Forms",
+        url: "/researcher/template-submissions",
+        icon: FileText,
+        isActive: true,
+      },
     {
       title: "Assign Reviewer",
       url: "/sassign-reviewer",

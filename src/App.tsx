@@ -33,10 +33,14 @@ import AssignedReviews from './pages/reviewer/AssignedReviews';
 import ReviewDetails from './pages/reviewer/ReviewDetails';
 import Announcements from './pages/Announcements';
 import AnnouncementDetail from './pages/AnnouncementDetail';
-import RForms from './pages/researcher/Forms';
+
+import FormsTemplates from './pages/researcher/FormsTemplates';
 import ResolutionReviews from './pages/staff/ResolutionReviews';
 import ResolutionDetail from './pages/staff/ResolutionDetail';
-import ManageFinalReports from './pages/staff/ManageFinalReports';
+import TemplateSubmissions from './pages/staff/TemplateSubmissions';
+import TemplateSubmissionDetail from './pages/staff/TemplateSubmissionDetail';
+import ResearcherTemplateSubmissions from './pages/researcher/TemplateSubmissions';
+import ResearcherTemplateSubmissionDetail from './pages/researcher/TemplateSubmissionDetail';
 
 
 function App() {
@@ -138,9 +142,14 @@ function App() {
                 <ResolutionDetail />
               </ProtectedRoute>
             } />
-            <Route path="/staff/manage-final-reports" element={
+            <Route path="/staff/template-submissions" element={
               <ProtectedRoute allowedRoles={["Staff"]}>
-                <ManageFinalReports />
+                <TemplateSubmissions />
+              </ProtectedRoute>
+            } />
+            <Route path="/staff/template-submissions/:id" element={
+              <ProtectedRoute allowedRoles={["Staff"]}>
+                <TemplateSubmissionDetail />
               </ProtectedRoute>
             } />
             {/* Reviewer routes */}
@@ -175,9 +184,19 @@ function App() {
                 <RSubmissions />
               </ProtectedRoute>
             } />
-            <Route path="/researcher/forms" element={
+            <Route path="/researcher/forms-templates" element={
               <ProtectedRoute allowedRoles={["Researcher"]}>
-                <RForms />
+                <FormsTemplates />
+              </ProtectedRoute>
+            } />
+            <Route path="/researcher/template-submissions" element={
+              <ProtectedRoute allowedRoles={["Researcher"]}>
+                <ResearcherTemplateSubmissions />
+              </ProtectedRoute>
+            } />
+            <Route path="/researcher/template-submissions/:id" element={
+              <ProtectedRoute allowedRoles={["Researcher"]}>
+                <ResearcherTemplateSubmissionDetail />
               </ProtectedRoute>
             } />
             {/* Researcher deviation routes */}
