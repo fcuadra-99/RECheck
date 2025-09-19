@@ -20,6 +20,8 @@ import { supabase } from './DB';
 import { type User } from '@supabase/supabase-js';
 import Profile from './pages/Profile';
 import RSubmissions from './pages/researcher/Submissions';
+import RDashboard from './pages/researcher/Dashboard';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -120,7 +122,8 @@ export default function App() {
           )}>
             <Route path="/" element={<SDashboard />} />
             <Route path="/sdash" element={<SDashboard />} />
-            <Route path="/sdash/sub1" element={<STrends />} />
+            <Route path="/sdash/sub1" element={<SDashboard />} />
+            <Route path="/sdash/sub2" element={<RDashboard />} />
             <Route path="/profile" element={<Profile/>} />
 
             <Route path="*" element={<SDashboard />} />
@@ -133,6 +136,8 @@ export default function App() {
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
 
             <Route path="/sdevi" element={<SDeviations />} />
+
+            <Route path="/admin/userroles" element={<AdminUsersPage />} />
           </Route>
         </Routes>
       </Router>

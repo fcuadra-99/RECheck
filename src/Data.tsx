@@ -140,6 +140,18 @@ export const data: AppData = {
         },
       ],
     },
+        {
+      title: "Admin",
+      url: "/sdevi",
+      icon: PencilRuler,
+      isActive: true,
+      items: [
+        {
+          title: "Devi Sub1",
+          url: "/admin/userroles",
+        },
+      ],
+    },
   ],
   navSecondary: [
     {

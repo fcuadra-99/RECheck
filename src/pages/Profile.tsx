@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { supabase } from "@/DB"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { RippleButton } from "@/components/animate-ui/buttons/ripple" // 👈 using ripple button
+import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -53,7 +53,6 @@ export default function ProfilePage() {
     fetchUser()
   }, [])
 
-  /* Inside ProfilePage, after useEffect */
   const handleTestNotification = async () => {
     if (!("Notification" in window)) {
       toast.error("This browser does not support notifications.");
@@ -66,14 +65,15 @@ export default function ProfilePage() {
       return;
     }
 
-    new Notification("Test Notification", {
-      body: "This is how notifications will appear in your PWA 🚀",
-      icon: avatar || "/icons/icon-192x192.png", // optional: fallback to PWA icon
-    });
-
-    toast.success("Notification sent!");
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "TEST_NOTIFICATION",
+      });
+      toast.success("Notification request sent to service worker!");
+    } else {
+      toast.error("No active service worker found.");
+    }
   };
-
 
   if (loading) {
     return <div className="container mx-auto py-10">Loading...</div>
@@ -147,6 +147,7 @@ export default function ProfilePage() {
 
           {/* Content */}
           <div className="space-y-10">
+            
             {/* Account Settings (read-only) */}
             <section id="account">
               <Card>
@@ -162,6 +163,7 @@ export default function ProfilePage() {
                   <Detail label="Role" value={role} />
                 </CardContent>
                 <div className="p-4">
+
                   {/* Edit Account Modal */}
                   <Dialog>
                     <DialogTrigger asChild>
@@ -251,7 +253,7 @@ function Detail({ label, value }: { label: string; value?: string }) {
 }
 
 /* Edit Account Form (inside modal) */
-function EditAccountForm({ user, fname, lname, org, avatar, setFname, setLname, setOrg}: any) {
+function EditAccountForm({ user, fname, lname, org, avatar, setFname, setLname, setOrg }: any) {
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {

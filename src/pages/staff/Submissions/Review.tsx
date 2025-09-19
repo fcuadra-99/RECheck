@@ -9,6 +9,8 @@ import {
 } from '@/components/animate-ui/headless/dialog';
 import { supabase } from "@/DB";
 import { toast } from "sonner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 
 type Status = "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue";
 
@@ -76,7 +78,10 @@ export const SReview = () => {
   const [manuOpen, setmanuOpen] = React.useState(false);
   const [formOpen, setformOpen] = React.useState(false);
   const navigate = useNavigate();
-  const [tog] = React.useState("");
+
+  const [tog, setTog] = React.useState("");
+  const [msg, setMsg] = React.useState("");
+
   const [id] = React.useState(ide.toString());
   const [title] = React.useState(titlee);
   const [researcher] = React.useState(researchere);
@@ -96,12 +101,11 @@ export const SReview = () => {
     if (selectedDoc) fetchDoc();
   }, [selectedDoc]);
 
-  //edit this plz
   async function fetchDoc() {
     try {
       const { data, error } = await supabase.storage
         .from("documents")
-        .createSignedUrl("1.pdf", 60);
+        .createSignedUrl(selectedDoc, 60);
 
       if (error || !data?.signedUrl) {
         toast.error("Failed to load document");
@@ -142,6 +146,7 @@ export const SReview = () => {
           .from("proposals")
           .update({
             status: statm(status),
+            // later you can add: revision_message: msg,
             updated_on: new Date().toISOString(),
           })
           .eq("proposal_id", id);
@@ -170,7 +175,7 @@ export const SReview = () => {
 
   return (
     <main className="m-12">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
         {/* Proposal Info */}
         <section>
           <div className="flex gap-2 my-3">
@@ -250,7 +255,9 @@ export const SReview = () => {
                         title="Document Viewer"
                       />
                     ) : (
-                      <div className="text-center text-gray-500 mt-20">Loading document...</div>
+                      <div className="text-center text-gray-500 mt-20">
+                        Loading document...
+                      </div>
                     )}
                   </div>
                 </DialogPanel>
@@ -297,7 +304,9 @@ export const SReview = () => {
                         title="Document Viewer"
                       />
                     ) : (
-                      <div className="text-center text-gray-500 mt-20">Loading document...</div>
+                      <div className="text-center text-gray-500 mt-20">
+                        Loading document...
+                      </div>
                     )}
                   </div>
                 </DialogPanel>
@@ -306,8 +315,92 @@ export const SReview = () => {
           </div>
         </section>
 
-        {/* Status Management / Risk Assessment sections remain unchanged */}
+        {/* Status Management */}
+        <section hidden={type !== "Check"}>
+          <h1 className="text-2xl my-5">
+            <b>Status Management</b>
+          </h1>
+          <span>
+            <RadioGroup
+              defaultValue="approve"
+              value={tog}
+              onValueChange={setTog}
+            >
+              <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                <RadioGroupItem value="approve" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <div>
+                  <div className="font-medium">Check Manuscript</div>
+                  <div className="text-muted-foreground text-xs">
+                    Queue proposal for Risk Assessment
+                  </div>
+                </div>
+              </div>
 
+              <div className="bg-card flex px-4 py-5 rounded-xl flex-wrap shadow-sm border-2 space-x-10">
+                <RadioGroupItem value="deny" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <div className="grow">
+                  <div className="font-medium">Request Revision</div>
+                  <div className="text-muted-foreground text-xs">
+                    Request Researcher to revise their manuscript
+                  </div>
+                </div>
+
+                <Textarea
+                  placeholder="Type your message here."
+                  className="resize-none mt-4 z-50 wrap-anywhere"
+                  value={msg}
+                  onChange={(event) => setMsg(event.target.value)}
+                  disabled={tog === "approve"}
+                />
+              </div>
+            </RadioGroup>
+          </span>
+        </section>
+
+        {/* Risk Assessment */}
+        <section hidden={type !== "Assess"}>
+          <h1 className="text-2xl my-5">
+            <b>Risk Assessment</b>
+          </h1>
+          <span>
+            <RadioGroup
+              defaultValue="Full Board"
+              value={tog}
+              onValueChange={setTog}
+              required
+            >
+              <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                <RadioGroupItem value="Full Board" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <div>
+                  <div className="font-medium">Full Board Review</div>
+                  <div className="text-muted-foreground text-xs">
+                    Requires review by the full ethics board.
+                  </div>
+                </div>
+              </div>
+              <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                <RadioGroupItem value="Expedited" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <div>
+                  <div className="font-medium">Expedited Review</div>
+                  <div className="text-muted-foreground text-xs">
+                    Can be reviewed by a smaller ethics committee.
+                  </div>
+                </div>
+              </div>
+              <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
+                <RadioGroupItem value="Exempt" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <div>
+                  <div className="font-medium">Exempt Review</div>
+                  <div className="text-muted-foreground text-xs">
+                    Does not require board-level review.
+                  </div>
+                </div>
+              </div>
+            </RadioGroup>
+          </span>
+        </section>
+
+        {/* Buttons */}
         <section className="absolute my-10 h-20 flex gap-5">
           <RippleButton
             type="button"

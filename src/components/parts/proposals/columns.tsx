@@ -31,7 +31,7 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
 
   if (data.user.role == "Chairperson") {
     awa = {
-    "Resend Manuscript": "Check",
+    "Resend Manuscript": "Assess",
     "Check Manuscript": "Check",
     "Risk Assessment": "Assess",
     "Resend Forms": "Check",
