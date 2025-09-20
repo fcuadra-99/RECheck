@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { Pen, RotateCcw, Check, X, FileCheck } from 'lucide-react';
+import { Pen, RotateCcw, Check, X } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { DigitalSignatureService } from '../services/digitalSignatureService';
 import { UserSignatureService } from '../services/userSignatureService';

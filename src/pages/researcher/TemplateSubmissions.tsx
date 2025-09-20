@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, FileText, Calendar, Eye } from 'lucide-react';
+import { Eye } from 'lucide-react';
 
 interface TemplateSubmission {
   id: string;

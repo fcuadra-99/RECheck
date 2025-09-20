@@ -1,4 +1,3 @@
-import { DataTablePagination } from "../pagination"
 import { columns, type Payment } from "./columns"
 import { DataTable } from "./data-table"
 

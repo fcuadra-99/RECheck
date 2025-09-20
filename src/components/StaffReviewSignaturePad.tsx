@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { Shield, RotateCcw, Check, X, FileText } from 'lucide-react';
+import { Shield, RotateCcw, Check, X } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { DigitalSignatureService } from '../services/digitalSignatureService';
 import SignatureDisplay from './SignatureDisplay';
@@ -23,7 +23,6 @@ export default function StaffReviewSignaturePad({
   const [error, setError] = useState<string>('');
   const [canSign, setCanSign] = useState(false);
   const [checkingPermissions, setCheckingPermissions] = useState(true);
-  const [reportData, setReportData] = useState<any>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -152,8 +151,8 @@ export default function StaffReviewSignaturePad({
       {/* Show existing signatures */}
       <SignatureDisplay deviationReportId={deviationReportId} />
 
-      {/* Report Summary (if enabled) */}
-      {showReportSummary && reportData && (
+      {/* Report Summary (if enabled) - commented out until reportData is properly implemented */}
+      {/* {showReportSummary && reportData && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
           <div className="flex items-center mb-3">
             <FileText className="h-5 w-5 text-gray-600 mr-2" />
@@ -174,7 +173,7 @@ export default function StaffReviewSignaturePad({
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Signature Pad */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">

@@ -47,7 +47,6 @@ const DeviationReportForm: React.FC = () => {
   const [errors, setErrors] = useState<Record<string,string>>({});
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string>('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const { user } = useAuth();
@@ -122,7 +121,6 @@ const DeviationReportForm: React.FC = () => {
         });
         
         setSubmittedReportId(reportId);
-        setSubmissionSuccess(true);
         setShowSignaturePad(true);
       } else {
         console.error('No data returned from submission'); // Debug log
@@ -141,7 +139,6 @@ const DeviationReportForm: React.FC = () => {
       setInvestigator(initialInvestigator);
       setFiles([]);
       setShowSignaturePad(false);
-      setSubmissionSuccess(false);
       setSubmittedReportId('');
     } else {
       alert('Failed to apply signature. Please try again.');
@@ -155,7 +152,6 @@ const DeviationReportForm: React.FC = () => {
     alert('Report submitted without signature. You can sign it later from your dashboard.');
     setInvestigator(initialInvestigator);
     setFiles([]);
-    setSubmissionSuccess(false);
     setSubmittedReportId('');
   };
 

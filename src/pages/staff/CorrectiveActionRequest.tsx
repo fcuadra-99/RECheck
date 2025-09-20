@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import DigitalSignaturePad from '../../components/DigitalSignaturePad';
 import SignatureDisplay from '../../components/SignatureDisplay';
-import useAuth from '../../hooks/useAuth';
 
 export default function CorrectiveActionRequest() {
   const [requiredChange, setRequiredChange] = useState('changes');
@@ -15,10 +14,8 @@ export default function CorrectiveActionRequest() {
   const [loading, setLoading] = useState(false);
   const [notif, setNotif] = useState('');
   const [showSignaturePad, setShowSignaturePad] = useState(false);
-  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
   // Try to get deviation id from query param or state
   const deviationId = location.state?.deviationId || new URLSearchParams(location.search).get('id');
 
@@ -44,7 +41,6 @@ export default function CorrectiveActionRequest() {
       .eq('id', deviationId);
     setLoading(false);
     if (!error) {
-      setReviewSubmitted(true);
       setShowSignaturePad(true);
       setNotif('Review submitted! Please sign to complete the process.');
     } else {

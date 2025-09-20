@@ -23,10 +23,10 @@ import {
   SidebarMenuButton,
 } from '@/components/animate-ui/radix/sidebar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/animate-ui/radix/dropdown-menu';
-import { BadgeCheck, ChevronsUpDown, ChevronDown } from 'lucide-react';
+import { BadgeCheck, ChevronsUpDown } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 
 

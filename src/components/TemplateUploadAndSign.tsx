@@ -28,7 +28,6 @@ export default function TemplateUploadAndSign({
   const [submissionTitle, setSubmissionTitle] = useState<string>('');
   const [description, setDescription] = useState<string>('');
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
-  const [isCheckingSignature, setIsCheckingSignature] = useState(false);
 
   const templateSubmissionService = new TemplateSubmissionService();
 
@@ -39,7 +38,6 @@ export default function TemplateUploadAndSign({
 
   const checkForSavedSignature = async () => {
     try {
-      setIsCheckingSignature(true);
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) return;
 
@@ -49,8 +47,6 @@ export default function TemplateUploadAndSign({
       }
     } catch (error) {
       console.error('Error checking for saved signature:', error);
-    } finally {
-      setIsCheckingSignature(false);
     }
   };
 

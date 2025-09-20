@@ -1,24 +1,12 @@
 import * as React from 'react';
 import { data as DATA } from "@/Data"
 
+
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import { Separator } from '@/components/ui/separator';
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
   Sidebar,
   SidebarHeader,
   SidebarContent,
   SidebarFooter,
-  SidebarRail,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -27,7 +15,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
-  SidebarMenuAction,
 } from '@/components/animate-ui/radix/sidebar';
 import {
   Collapsible,
@@ -41,32 +28,12 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/animate-ui/radix/dropdown-menu';
 import {
-  AudioWaveform,
   BadgeCheck,
-  Bell,
-  BookOpen,
-  Bot,
   ChevronRight,
   ChevronsUpDown,
-  Command,
-  CreditCard,
-  Folder,
-  Forward,
-  Frame,
-  GalleryVerticalEnd,
-  LogOut,
-  Map,
-  MoreHorizontal,
-  PieChart,
-  Plus,
-  Settings2,
-  Sparkles,
-  SquareTerminal,
-  Trash2,
 } from 'lucide-react';
 import {
   Avatar,
@@ -78,7 +45,6 @@ import { Link } from 'react-router';
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();
-  const main = DATA.main[0];
   return (
     <Sidebar {...props}>
       <SidebarHeader>

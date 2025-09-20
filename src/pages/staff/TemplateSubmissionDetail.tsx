@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 import FileAttachment from '../../components/FileAttachment';
 import AttachmentList from '../../components/AttachmentList';
 import { 
@@ -12,11 +11,9 @@ import {
   CheckCircle, 
   XCircle, 
   AlertCircle, 
-  MessageSquare,
   Download,
   Eye,
-  Clock,
-  Paperclip
+  Clock
 } from 'lucide-react';
 
 interface TemplateSubmission {

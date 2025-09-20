@@ -46,17 +46,7 @@ type Submissions = {
   month: string;
   desktop: number;
   mobile: number;
-};
-type SubmConf = {
-    desktop: {
-        label: "Desktop",
-        color: "var(--chart-1)",
-    },
-    mobile: {
-        label: "Mobile",
-        color: "var(--chart-2)",
-    },
-} 
+}; 
 
 type AppData = {
   user: User;

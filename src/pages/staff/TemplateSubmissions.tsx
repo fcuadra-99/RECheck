@@ -24,6 +24,9 @@ export default function TemplateSubmissions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [templateTypeFilter, setTemplateTypeFilter] = useState<string>('all');
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchSubmissions();
@@ -116,12 +119,22 @@ export default function TemplateSubmissions() {
       submission.original_filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
       submission.submitted_by.toLowerCase().includes(searchTerm.toLowerCase()) ||
       submission.template_type.toLowerCase().includes(searchTerm.toLowerCase());
-    
     const matchesStatus = statusFilter === 'all' || submission.status === statusFilter;
     const matchesType = templateTypeFilter === 'all' || submission.template_type === templateTypeFilter;
-    
     return matchesSearch && matchesStatus && matchesType;
   });
+
+  // Pagination logic
+  const totalPages = Math.max(1, Math.ceil(filteredSubmissions.length / itemsPerPage));
+  const paginatedSubmissions = filteredSubmissions.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Reset to page 1 when filters/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, templateTypeFilter]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -244,7 +257,7 @@ export default function TemplateSubmissions() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredSubmissions.map((submission) => (
+                {paginatedSubmissions.map((submission) => (
                   <tr key={submission.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -314,7 +327,7 @@ export default function TemplateSubmissions() {
               </tbody>
             </table>
 
-            {filteredSubmissions.length === 0 && (
+            {paginatedSubmissions.length === 0 && (
               <div className="text-center py-12">
                 <FileText className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No submissions found</h3>
@@ -326,6 +339,28 @@ export default function TemplateSubmissions() {
               </div>
             )}
           </div>
+        </div>
+        {/* Pagination Controls */}
+        <div className="flex justify-center items-center py-6">
+          <button
+            className={`px-2 py-1 rounded-full mx-2 text-gray-400 hover:text-gray-600 focus:outline-none ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => setCurrentPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            aria-label="Previous page"
+          >
+            {'<'}
+          </button>
+          <span className="px-4 py-2 rounded-full bg-gray-100 text-gray-700 font-medium text-base select-none">
+            {currentPage}
+          </span>
+          <button
+            className={`px-2 py-1 rounded-full mx-2 text-gray-400 hover:text-gray-600 focus:outline-none ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => setCurrentPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            aria-label="Next page"
+          >
+            {'>'}
+          </button>
         </div>
       </div>
     </div>
