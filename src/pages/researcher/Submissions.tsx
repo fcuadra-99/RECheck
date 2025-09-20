@@ -5,7 +5,6 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus } from "lucide-react";
 import { supabase } from "@/DB";
@@ -36,6 +35,17 @@ interface Document {
     required: boolean;
 }
 
+interface HistoryEntry {
+    history_id: number;
+    history_date: string;
+    history_type: string | null;
+    paper_id: number | null;
+    comment: string | null;
+    actor: string | null;
+    affected_files: { name: string; required: boolean }[] | null;
+    action: string | null;
+}
+
 const phases = [
     { title: "Phase 1: Manuscript Submission", statuses: ["Send Manuscript", "Check Manuscript", "Resend Manuscript"] },
     { title: "Phase 2: Risk Assessment", statuses: ["Risk Assessment"] },
@@ -43,21 +53,7 @@ const phases = [
     { title: "Phase 4: Deployment Queue", statuses: ["Deploy Queue"] },
 ];
 
-const calculateProgress = (status: string): number => {
-    switch (status) {
-        case "Send Manuscript": return 10;
-        case "Check Manuscript":
-        case "Resend Manuscript": return 25;
-        case "Risk Assessment": return 40;
-        case "Send Forms": return 55;
-        case "Forms Check":
-        case "Resend Forms": return 70;
-        case "Deploy Queue": return 100;
-        default: return 0;
-    }
-};
-
-const getNextStatus = (status: string): string => {
+const getNextStatus = (status: string) => {
     switch (status) {
         case "Send Manuscript": return "Check Manuscript";
         case "Check Manuscript": return "Risk Assessment";
@@ -70,7 +66,7 @@ const getNextStatus = (status: string): string => {
     }
 };
 
-const getActionLabel = (status: string): string => {
+const getActionLabel = (status: string) => {
     switch (status) {
         case "Send Manuscript": return "Submit";
         case "Check Manuscript": return "View";
@@ -118,144 +114,118 @@ const getPhaseDocuments = (submission: Submission): Document[] => {
     return [];
 };
 
+const getLatestHistory = async (proposal_id: number): Promise<HistoryEntry | null> => {
+    const { data, error } = await supabase
+        .from("history")
+        .select("*")
+        .eq("paper_id", proposal_id)
+        .order("history_date", { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error) {
+        console.error("Failed to fetch history:", error);
+        return null;
+    }
+    return data as HistoryEntry;
+};
+
 export default function SubmissionsPage() {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
+    const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
     const [newProposalOpen, setNewProposalOpen] = useState(false);
     const [newProposalTitle, setNewProposalTitle] = useState("");
     const [newProposalDescription, setNewProposalDescription] = useState("");
-    const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
+    const [historyFiles, setHistoryFiles] = useState<Document[] | null>(null);
+    const [latestComment, setLatestComment] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchSubmissions = async () => {
-            const { data: proposals, error: proposalsError } = await supabase
-                .from("proposals")
-                .select("*")
-                .order("date", { ascending: false });
+            try {
+                const { data: proposals, error } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+                if (error) throw error;
+                setSubmissions(proposals || []);
 
-            if (proposalsError) {
-                console.error(proposalsError);
+                const profileIds = proposals?.map(p => p.researcher).filter(Boolean);
+                if (!profileIds?.length) return setIsLoading(false);
+
+                const { data: profilesData, error: profilesError } = await supabase
+                    .from("profiles")
+                    .select("id, fname, lname, category")
+                    .in("id", profileIds);
+                if (profilesError) throw profilesError;
+                setProfiles(profilesData || []);
+            } catch (err) {
+                console.error(err);
+            } finally {
                 setIsLoading(false);
-                return;
             }
-
-            setSubmissions(proposals || []);
-
-            const profileIds = proposals?.map(p => p.researcher).filter(Boolean);
-            if (!profileIds?.length) {
-                setIsLoading(false);
-                return;
-            }
-
-            const { data: profilesData, error: profilesError } = await supabase
-                .from("profiles")
-                .select("id, fname, lname, category")
-                .in("id", profileIds);
-
-            if (profilesError) {
-                console.error(profilesError);
-                setIsLoading(false);
-                return;
-            }
-
-            setProfiles(profilesData || []);
-            setIsLoading(false);
         };
-
         fetchSubmissions();
     }, []);
 
-    function normalizeStatus(status: string) {
-        if (status == "Resend Manuscript") return "Send Manuscript";
-        if (status == "Resend Forms") return "Send Forms";
+    const normalizeStatus = (status: string) => {
+        if (status === "Resend Manuscript") return "Send Manuscript";
+        if (status === "Resend Forms") return "Send Forms";
         return status;
-    }
+    };
 
     const handleCreateProposal = async () => {
-        if (!newProposalTitle.trim()) {
-            toast.error("Title is required");
-            return;
-        }
+        if (!newProposalTitle.trim()) return toast.error("Title is required");
 
-        // Get current user
-        const { data: userData } = await supabase.auth.getUser();
-        const userProfile = profiles.find(p => p.id === userData?.user?.id);
-        const category = userProfile?.category || "Undergraduate";
-
-        // Prepare Phase 1 documents
-        const phase1Docs = getPhaseDocuments({ status: "Send Manuscript", category } as Submission);
-        const missingFiles = phase1Docs.filter(d => d.required && !uploadedFiles[d.name]);
-        if (missingFiles.length > 0) {
-            toast.error(`Please upload all required Phase 1 documents`);
-            return;
-        }
-
-        // Create proposal
-        const { data: proposal, error } = await supabase
-            .from("proposals")
-            .insert([{
-                proposal_title: newProposalTitle,
-                description: newProposalDescription,
-                category,
-                status: "Send Manuscript",
-                researcher: userData?.user?.id,
-                date: new Date().toISOString(),
-            }])
-            .select()
-            .single();
-
-        if (error || !proposal) {
-            toast.error("Failed to create proposal");
-            return;
-        }
-
-        // Upload Phase 1 documents
-        toast.loading("Uploading Phase 1 files...", { id: "upload" });
+        const loading = toast.loading("Creating proposal...");
         try {
-            for (const doc of phase1Docs) {
-                const file = uploadedFiles[doc.name]!;
-                const ext = file.name.split('.').pop();
-                const safeDocName = doc.name.replace(/\s+/g, "_");
-                const path = `${proposal.proposal_id}/Send_Manuscript/${safeDocName}.${ext}`;
+            const { data: userData } = await supabase.auth.getUser();
+            const userProfile = profiles.find(p => p.id === userData?.user?.id);
+            const category = userProfile?.category || "Undergraduate";
 
-                const { error: storageError } = await supabase.storage.from("documents").upload(path, file, { upsert: true });
-                if (storageError) throw new Error(storageError.message);
+            const { data: proposal, error } = await supabase
+                .from("proposals")
+                .insert([{
+                    proposal_title: newProposalTitle,
+                    description: newProposalDescription,
+                    category,
+                    status: "Send Manuscript",
+                    researcher: userData?.user?.id,
+                    date: new Date().toISOString(),
+                }])
+                .select()
+                .single();
 
-                const { error: dbError } = await supabase.from("proposal_documents").insert({
-                    proposal_id: proposal.proposal_id,
-                    doc_type: doc.name,
-                    file_path: path,
-                });
-                if (dbError) throw new Error(dbError.message);
-            }
+            if (error || !proposal) throw error;
 
-            setSubmissions([proposal, ...submissions]);
-            setUploadedFiles({});
-            toast.success("Proposal created and Phase 1 uploaded!", { id: "upload" });
+            setSubmissions(prev => [proposal, ...prev]);
+            setNewProposalOpen(false);
             setNewProposalTitle("");
             setNewProposalDescription("");
-            setNewProposalOpen(false);
+            toast.success("Proposal created successfully!", { id: loading });
         } catch (err: any) {
             console.error(err);
-            toast.error(`Upload failed: ${err.message}`, { id: "upload" });
+            toast.error("Failed to create proposal: " + err.message, { id: loading });
+        } finally {
+            toast.dismiss(loading);
         }
     };
 
     const handleSubmitPhase = async (submission: Submission) => {
-        const docs = getPhaseDocuments(submission);
-        toast.loading("Uploading files...", { id: "upload" });
+        const docs = historyFiles || getPhaseDocuments(submission);
+
+        const loadingToastId = toast.loading("Uploading files...");
 
         try {
             for (const doc of docs) {
                 if (doc.required && uploadedFiles[doc.name]) {
                     const file = uploadedFiles[doc.name]!;
-                    const ext = file.name.split('.').pop();
+                    const ext = file.name.split(".").pop();
                     const safeDocName = doc.name.replace(/\s+/g, "_");
                     const path = `${submission.proposal_id}/${normalizeStatus(submission.status)}/${safeDocName}.${ext}`;
 
-                    const { error: storageError } = await supabase.storage.from("documents").upload(path, file, { upsert: true });
+                    const { error: storageError } = await supabase.storage
+                        .from("documents")
+                        .upload(path, file, { upsert: true });
                     if (storageError) throw new Error(storageError.message);
 
                     const { error: dbError } = await supabase.from("proposal_documents").insert({
@@ -270,8 +240,29 @@ export default function SubmissionsPage() {
             }
 
             const nextStatus = getNextStatus(submission.status);
-            const { error: statusError } = await supabase.from("proposals").update({ status: nextStatus }).eq("proposal_id", submission.proposal_id);
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({ status: nextStatus })
+                .eq("proposal_id", submission.proposal_id);
             if (statusError) throw new Error(statusError.message);
+
+            const { data: userData } = await supabase.auth.getUser();
+            const actorId = userData?.user?.id || "unknown";
+
+            const affectedFiles = docs.map(d => ({ name: d.name, required: d.required }));
+
+            const { error: historyError } = await supabase
+                .from("history")
+                .insert({
+                    history_type: "submission",
+                    paper_id: submission.proposal_id,
+                    comment: "Phase submitted",
+                    actor: actorId,
+                    affected_files: affectedFiles,
+                    action: "Submit Phase",
+                    history_date: new Date().toISOString(),
+                });
+            if (historyError) throw new Error(historyError.message);
 
             setUploadedFiles(prev => {
                 const copy = { ...prev };
@@ -279,19 +270,54 @@ export default function SubmissionsPage() {
                 return copy;
             });
 
-            setSubmissions(prev =>
-                prev.map(s => s.proposal_id === submission.proposal_id ? { ...s, status: nextStatus } : s)
-            );
-
-            toast.success("Phase submitted successfully", { id: "upload" });
+            setSubmissions(prev => prev.map(s => s.proposal_id === submission.proposal_id ? { ...s, status: nextStatus } : s));
             setActiveSubmission(null);
+            setHistoryFiles(null);
+            setLatestComment(null);
+            toast.success("Phase submitted successfully", { id: loadingToastId });
         } catch (err: any) {
             console.error(err);
-            toast.error(`Submission failed: ${err.message}`, { id: "upload" });
+            toast.error(`Submission failed: ${err.message}`, { id: loadingToastId });
         }
     };
 
-    const getActivePhaseIndex = (status: string) => phases.findIndex(phase => phase.statuses.includes(status));
+
+    const getActivePhaseIndex = (status: string) => phases.findIndex(p => p.statuses.includes(status));
+
+    const handleOpenSubmission = async (submission: Submission) => {
+        setActiveSubmission(submission);
+        setLatestComment(null);
+
+        if (["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
+            const history = await getLatestHistory(submission.proposal_id);
+
+            let files: { name: string; required: boolean }[] = [];
+            try {
+                files = history?.affected_files
+                    ? typeof history.affected_files === "string"
+                        ? JSON.parse(history.affected_files)
+                        : history.affected_files
+                    : [];
+            } catch (err) {
+                console.error("Failed to parse affected_files:", err);
+            }
+
+            setHistoryFiles(
+                files.map(f => ({
+                    name: f.name,
+                    required: f.required,
+                    templateUrl: "/templates/unknown.docx",
+                }))
+            );
+
+            console.log("Affected files for this submission:", files);
+
+            setLatestComment(history?.comment || null);
+        } else {
+            setHistoryFiles(null);
+            setLatestComment(null);
+        }
+    };
 
     return (
         <div className="p-8">
@@ -316,8 +342,8 @@ export default function SubmissionsPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {isLoading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
+                        {isLoading
+                            ? Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={i}>
                                     <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
@@ -326,11 +352,12 @@ export default function SubmissionsPage() {
                                     <TableCell><Skeleton className="h-8 w-[120px]" /></TableCell>
                                 </TableRow>
                             ))
-                        ) : (
-                            submissions.map(submission => (
+                            : submissions.map(submission => (
                                 <TableRow key={submission.proposal_id}>
                                     <TableCell>{submission.proposal_title}</TableCell>
-                                    <TableCell className={submission.status.includes("Resend") ? "text-red-500 font-medium" : ""}>{submission.status}</TableCell>
+                                    <TableCell className={submission.status.includes("Resend") ? "text-red-500 font-medium" : ""}>
+                                        {submission.status}
+                                    </TableCell>
                                     <TableCell className="w-[200px]">
                                         {(() => {
                                             const profile = profiles.find(pr => pr.id === submission.researcher);
@@ -339,20 +366,23 @@ export default function SubmissionsPage() {
                                     </TableCell>
                                     <TableCell>{new Date(submission.date).toLocaleDateString()}</TableCell>
                                     <TableCell>
-                                        <RippleButton variant="outline" className="w-[120px] justify-center" onClick={() => setActiveSubmission(submission)}>
+                                        <RippleButton
+                                            variant="outline"
+                                            className="w-[120px] justify-center"
+                                            onClick={() => handleOpenSubmission(submission)}
+                                        >
                                             {getActionLabel(submission.status)}
                                         </RippleButton>
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        )}
+                            ))}
                     </TableBody>
                 </Table>
             </div>
 
             {/* Active Submission Dialog */}
             <Dialog open={!!activeSubmission} onOpenChange={() => setActiveSubmission(null)}>
-                <DialogContent className="w-full sm:max-w-md md:max-w-2xl max-h-[80vh] p-6 flex flex-col">
+                <DialogContent className="w-full max-w-[95vw] sm:max-w-lg md:max-w-2xl max-h-[90vh] p-6 flex flex-col overflow-y-auto">
                     {activeSubmission && (
                         <>
                             <DialogHeader className="flex-shrink-0">
@@ -375,17 +405,21 @@ export default function SubmissionsPage() {
                                 <p className="text-gray-700">{activeSubmission.description || "No description"}</p>
                             </div>
 
-                            {/* Progress */}
-                            <Progress value={calculateProgress(activeSubmission.status)} className="mb-4 flex-shrink-0" />
+                            {/* Comment Section */}
+                            {latestComment && (
+                                <div className="mb-4 p-2 border rounded bg-gray-50">
+                                    <p className="font-medium mb-1">Comment:</p>
+                                    <p className="text-gray-700">{latestComment}</p>
+                                </div>
+                            )}
 
                             {/* Timeline */}
                             <div className="flex gap-2 mb-4 flex-shrink-0">
                                 {phases.map((phase, idx) => {
                                     const activeIdx = getActivePhaseIndex(activeSubmission.status);
                                     return (
-                                        <div key={phase.title} className={`flex-1 p-2 rounded text-center text-sm ${idx === activeIdx ? "bg-blue-500 text-white" : idx < activeIdx ? "bg-green-500 text-white" : "bg-gray-200"}`}>
-                                            {phase.title}
-                                        </div>
+                                        <div key={phase.title} className={`flex-1 p-2 rounded text-center text-sm ${idx === activeIdx ? "bg-blue-500 text-white" : idx < activeIdx ? "bg-green-500 text-white" : "bg-gray-200"
+                                            }`}>{phase.title}</div>
                                     );
                                 })}
                             </div>
@@ -393,7 +427,7 @@ export default function SubmissionsPage() {
                             {/* Document List */}
                             {["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(activeSubmission.status) && (
                                 <div className="flex-1 overflow-y-auto space-y-3 mb-4">
-                                    {getPhaseDocuments(activeSubmission).map(doc => (
+                                    {(historyFiles || getPhaseDocuments(activeSubmission)).map(doc => (
                                         <div key={doc.name} className="flex justify-between items-center border p-2 rounded">
                                             <div className="w-50 pr-4">
                                                 <p className="font-medium">{doc.name}</p>
@@ -402,7 +436,25 @@ export default function SubmissionsPage() {
                                             <div className="flex gap-2">
                                                 <Input
                                                     type="file"
-                                                    onChange={(e) => setUploadedFiles(prev => ({ ...prev, [doc.name]: e.target.files ? e.target.files[0] : null }))}
+                                                    accept="application/pdf" 
+                                                    onChange={(e) => {
+                                                        const file = e.target.files ? e.target.files[0] : null;
+                                                        if (!file) return;
+
+                                                        if (file.type !== "application/pdf") {
+                                                            toast.error("Only PDF files are allowed");
+                                                            e.target.value = "";
+                                                            return;
+                                                        }
+
+                                                        if (file.size > 25 * 1024 * 1024) {
+                                                            toast.error("File size must be under 25MB");
+                                                            e.target.value = "";
+                                                            return;
+                                                        }
+
+                                                        setUploadedFiles(prev => ({ ...prev, [doc.name]: file }));
+                                                    }}
                                                 />
                                                 <a href={doc.templateUrl} download>
                                                     <RippleButton variant="outline" size="sm">Download Template</RippleButton>
@@ -418,7 +470,7 @@ export default function SubmissionsPage() {
                                 <div className="flex-shrink-0">
                                     <RippleButton
                                         onClick={() => handleSubmitPhase(activeSubmission)}
-                                        disabled={!getPhaseDocuments(activeSubmission).every(doc => !doc.required || uploadedFiles[doc.name])}
+                                        disabled={!(historyFiles || getPhaseDocuments(activeSubmission)).every(doc => !doc.required || uploadedFiles[doc.name])}
                                     >
                                         Submit Phase
                                     </RippleButton>
@@ -432,51 +484,16 @@ export default function SubmissionsPage() {
             {/* New Proposal Dialog */}
             <Dialog open={newProposalOpen} onOpenChange={setNewProposalOpen}>
                 <DialogContent className="w-full sm:max-w-md md:max-w-2xl max-h-[80vh] p-6 flex flex-col">
-                    <DialogHeader className="flex-shrink-0">
-                        <DialogTitle>New Proposal</DialogTitle>
-                    </DialogHeader>
+                    <DialogHeader className="flex-shrink-0"><DialogTitle>New Proposal</DialogTitle></DialogHeader>
 
                     <div className="flex-1 overflow-y-auto space-y-4">
-                        {/* Title */}
                         <div>
                             <label className="block mb-1">Title</label>
-                            <Input
-                                value={newProposalTitle}
-                                onChange={(e) => setNewProposalTitle(e.target.value)}
-                                placeholder="Enter proposal title"
-                            />
+                            <Input value={newProposalTitle} onChange={(e) => setNewProposalTitle(e.target.value)} placeholder="Enter proposal title" />
                         </div>
-
-                        {/* Description */}
                         <div>
                             <label className="block mb-1">Description</label>
-                            <Textarea
-                                value={newProposalDescription}
-                                onChange={(e) => setNewProposalDescription(e.target.value)}
-                                placeholder="Enter description"
-                            />
-                        </div>
-
-                        {/* Upload Phase 1 Required Files */}
-                        <div className="space-y-2">
-                            <p className="font-medium">Upload Phase 1 Required Files:</p>
-                            {getPhaseDocuments({ status: "Send Manuscript", category: "Undergraduate" } as Submission).map(doc => (
-                                <div key={doc.name} className="flex justify-between items-center border p-2 rounded">
-                                    <div>
-                                        <p className="font-medium">{doc.name}</p>
-                                        <p className="text-xs text-gray-500">{doc.required ? "Required" : "Optional"}</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            type="file"
-                                            onChange={(e) => setUploadedFiles(prev => ({ ...prev, [doc.name]: e.target.files ? e.target.files[0] : null }))}
-                                        />
-                                        <a href={doc.templateUrl} download>
-                                            <RippleButton variant="outline" size="sm">Download Template</RippleButton>
-                                        </a>
-                                    </div>
-                                </div>
-                            ))}
+                            <Textarea value={newProposalDescription} onChange={(e) => setNewProposalDescription(e.target.value)} placeholder="Enter description" />
                         </div>
                     </div>
 

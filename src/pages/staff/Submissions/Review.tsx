@@ -1,18 +1,22 @@
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogBackdrop,
   DialogPanel,
-} from '@/components/animate-ui/headless/dialog';
+} from "@/components/animate-ui/headless/dialog";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 
-type Status = "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue";
+type Status =
+  | "Check Manuscript"
+  | "Risk Assessment"
+  | "Forms Check"
+  | "Deploy Queue";
 
 let ide = "";
 let titlee = "";
@@ -81,6 +85,7 @@ export const SReview = () => {
 
   const [tog, setTog] = React.useState("");
   const [msg, setMsg] = React.useState("");
+  const [selectedFiles, setSelectedFiles] = React.useState<string[]>([]);
 
   const [id] = React.useState(ide.toString());
   const [title] = React.useState(titlee);
@@ -124,7 +129,23 @@ export const SReview = () => {
     const loading = toast.loading("Loading...");
 
     try {
+      // Get current logged-in user
+      const { data: userData } = await supabase.auth.getUser();
+      const actorId = userData?.user?.id;
+
+      if (!actorId) throw new Error("No logged-in user found.");
+
+      // Determine affected files if requesting revision
+      const affectedFiles =
+        tog === "deny"
+          ? selectedFiles.map((fileName) => {
+            const doc = requirementDocs.find((d) => d.name === fileName);
+            return doc ? { name: doc.name, required: true } : null;
+          }).filter(Boolean)
+          : [];
+
       if (type === "Assess") {
+        // Risk assessment
         if (!tog) {
           toast.error("Please select a review type before submitting.");
           return;
@@ -140,20 +161,39 @@ export const SReview = () => {
           .eq("proposal_id", id);
 
         if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "assess",
+          paper_id: id,
+          comment: `Risk assessment set as "${tog}"`,
+          affected_files: JSON.stringify([]),
+          actor: actorId, // ✅ record actor
+        });
+
         toast.success(`Risk assessment saved as "${tog}"`);
       } else if (tog === "deny") {
+        // Request revision / Deny
         const { error } = await supabase
           .from("proposals")
           .update({
             status: statm(status),
-            // later you can add: revision_message: msg,
             updated_on: new Date().toISOString(),
           })
           .eq("proposal_id", id);
 
         if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "deny",
+          paper_id: id,
+          comment: msg || "Revision requested",
+          affected_files: JSON.stringify(affectedFiles),
+          actor: actorId, // ✅ record actor
+        });
+
         toast.success("Revision requested");
       } else {
+        // Approve
         const { error } = await supabase
           .from("proposals")
           .update({
@@ -163,6 +203,15 @@ export const SReview = () => {
           .eq("proposal_id", id);
 
         if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "approve",
+          paper_id: id,
+          comment: "Phase approved",
+          affected_files: JSON.stringify([]),
+          actor: actorId, // ✅ record actor
+        });
+
         toast.success("Phase approved");
       }
     } catch (error: any) {
@@ -173,9 +222,19 @@ export const SReview = () => {
     }
   }
 
+
+
+  const requirementDocs =
+    status === "Check Manuscript" ? manuscriptDocs : formsDocs;
+
   return (
     <main className="m-12">
-      <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
         {/* Proposal Info */}
         <section>
           <div className="flex gap-2 my-3">
@@ -214,7 +273,9 @@ export const SReview = () => {
 
         {/* Review Documents */}
         <section className="my-15 mb-10">
-          <h1 className="text-2xl my-10"><b>Review Documents</b></h1>
+          <h1 className="text-2xl my-10">
+            <b>Review Documents</b>
+          </h1>
 
           {/* Manuscript */}
           <div className="flex justify-between my-5">
@@ -223,6 +284,7 @@ export const SReview = () => {
               <Button
                 variant="outline"
                 type="button"
+                disabled={status !== "Check Manuscript"}
                 onClick={() => {
                   setmanuOpen(true);
                   setSelectedDoc(manuscriptDocs[0].file);
@@ -234,19 +296,19 @@ export const SReview = () => {
               <Dialog open={manuOpen} onClose={() => setmanuOpen(false)}>
                 <DialogBackdrop />
                 <DialogPanel className="sm:max-w-[800px] flex gap-4">
-                  {/* Left Panel */}
                   <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3">
                     {manuscriptDocs.map((doc) => (
                       <Button
                         key={doc.file}
-                        variant={selectedDoc === doc.file ? "default" : "outline"}
+                        variant={
+                          selectedDoc === doc.file ? "default" : "outline"
+                        }
                         onClick={() => setSelectedDoc(doc.file)}
                       >
                         {doc.name}
                       </Button>
                     ))}
                   </div>
-                  {/* Right Panel */}
                   <div className="w-3/4 p-2">
                     {docURL ? (
                       <iframe
@@ -272,6 +334,7 @@ export const SReview = () => {
               <Button
                 variant="outline"
                 type="button"
+                disabled={status !== "Forms Check"}
                 onClick={() => {
                   setformOpen(true);
                   setSelectedDoc(formsDocs[0].file);
@@ -283,19 +346,19 @@ export const SReview = () => {
               <Dialog open={formOpen} onClose={() => setformOpen(false)}>
                 <DialogBackdrop />
                 <DialogPanel className="sm:max-w-[800px] flex gap-4">
-                  {/* Left Panel */}
                   <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3">
                     {formsDocs.map((doc) => (
                       <Button
                         key={doc.file}
-                        variant={selectedDoc === doc.file ? "default" : "outline"}
+                        variant={
+                          selectedDoc === doc.file ? "default" : "outline"
+                        }
                         onClick={() => setSelectedDoc(doc.file)}
                       >
                         {doc.name}
                       </Button>
                     ))}
                   </div>
-                  {/* Right Panel */}
                   <div className="w-3/4 p-2">
                     {docURL ? (
                       <iframe
@@ -326,32 +389,68 @@ export const SReview = () => {
               value={tog}
               onValueChange={setTog}
             >
+              {/* Approve */}
               <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                <RadioGroupItem value="approve" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <RadioGroupItem
+                  value="approve"
+                  className="my-auto mr-5 ml-1 w-5 h-5 z-50"
+                />
                 <div>
-                  <div className="font-medium">Check Manuscript</div>
+                  <div className="font-medium">Approve</div>
                   <div className="text-muted-foreground text-xs">
                     Queue proposal for Risk Assessment
                   </div>
                 </div>
               </div>
 
-              <div className="bg-card flex px-4 py-5 rounded-xl flex-wrap shadow-sm border-2 space-x-10">
-                <RadioGroupItem value="deny" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
-                <div className="grow">
-                  <div className="font-medium">Request Revision</div>
-                  <div className="text-muted-foreground text-xs">
-                    Request Researcher to revise their manuscript
+              {/* Deny */}
+              <div className="bg-card flex flex-col px-4 py-5 rounded-xl shadow-sm border-2 space-y-3">
+                <div className="flex items-center">
+                  <RadioGroupItem
+                    value="deny"
+                    className="my-auto mr-5 ml-1 w-5 h-5 z-50"
+                  />
+                  <div>
+                    <div className="font-medium">Request Revision</div>
+                    <div className="text-muted-foreground text-xs">
+                      Select which files to revise and leave a comment
+                    </div>
                   </div>
                 </div>
 
-                <Textarea
-                  placeholder="Type your message here."
-                  className="resize-none mt-4 z-50 wrap-anywhere"
-                  value={msg}
-                  onChange={(event) => setMsg(event.target.value)}
-                  disabled={tog === "approve"}
-                />
+                {/* File checklist when deny */}
+                {tog === "deny" && (
+                  <div className="ml-8 space-y-2">
+                    {requirementDocs.map((doc) => (
+                      <label key={doc.file} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedFiles.includes(doc.name)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedFiles((prev) => [...prev, doc.name]);
+                            } else {
+                              setSelectedFiles((prev) =>
+                                prev.filter((f) => f !== doc.name)
+                              );
+                            }
+                          }}
+                        />
+                        <span>{doc.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {/* Comment box */}
+                {tog === "deny" && (
+                  <Textarea
+                    placeholder="Type your message here."
+                    className="resize-none mt-2 z-50"
+                    value={msg}
+                    onChange={(event) => setMsg(event.target.value)}
+                  />
+                )}
               </div>
             </RadioGroup>
           </span>
@@ -370,7 +469,10 @@ export const SReview = () => {
               required
             >
               <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                <RadioGroupItem value="Full Board" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <RadioGroupItem
+                  value="Full Board"
+                  className="my-auto mr-5 ml-1 w-5 h-5 z-50"
+                />
                 <div>
                   <div className="font-medium">Full Board Review</div>
                   <div className="text-muted-foreground text-xs">
@@ -379,7 +481,10 @@ export const SReview = () => {
                 </div>
               </div>
               <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                <RadioGroupItem value="Expedited" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <RadioGroupItem
+                  value="Expedited"
+                  className="my-auto mr-5 ml-1 w-5 h-5 z-50"
+                />
                 <div>
                   <div className="font-medium">Expedited Review</div>
                   <div className="text-muted-foreground text-xs">
@@ -388,7 +493,10 @@ export const SReview = () => {
                 </div>
               </div>
               <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
-                <RadioGroupItem value="Exempt" className="my-auto mr-5 ml-1 w-5 h-5 z-50" />
+                <RadioGroupItem
+                  value="Exempt"
+                  className="my-auto mr-5 ml-1 w-5 h-5 z-50"
+                />
                 <div>
                   <div className="font-medium">Exempt Review</div>
                   <div className="text-muted-foreground text-xs">

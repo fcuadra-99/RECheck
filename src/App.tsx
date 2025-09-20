@@ -14,7 +14,7 @@ import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
 import STrends from './pages/staff/Trends';
 import { toast } from 'sonner';
-import SReview from './pages/staff/Submissions/Review';
+import { SReview } from './pages/staff/Submissions/Review';
 import { useEffect, useState } from 'react';
 import { supabase } from './DB';
 import { type User } from '@supabase/supabase-js';

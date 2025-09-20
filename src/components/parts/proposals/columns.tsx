@@ -1,14 +1,21 @@
 import { type ColumnDef } from "@tanstack/react-table"
 import { ArrowUpDown } from "lucide-react"
+import { useNavigate } from "react-router"
+import { useState, useEffect } from "react"
 
 import { Button } from "@/components/ui/button"
-import type { SubmTable } from "@/Data"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
+import type { SubmTable } from "@/Data"
 import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
-import { useNavigate } from "react-router"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { supabase } from "@/DB"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
 
-function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Resend Manuscript" | "Forms Check" | "Deploy Queue") {
+function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
   let awa = {
     "Resend Manuscript": "Pending",
     "Check Manuscript": "Pending",
@@ -20,23 +27,23 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
 
   if (data.user.role == "Admin Assistant") {
     awa = {
-    "Resend Manuscript": "Check",
-    "Check Manuscript": "Check",
-    "Risk Assessment": "Pending",
-    "Resend Forms": "Check",
-    "Forms Check": "Check",
-    "Deploy Queue": "View",
+      "Resend Manuscript": "Check",
+      "Check Manuscript": "Check",
+      "Risk Assessment": "Pending",
+      "Resend Forms": "Check",
+      "Forms Check": "Check",
+      "Deploy Queue": "View",
     }
   }
 
   if (data.user.role == "Chairperson") {
     awa = {
-    "Resend Manuscript": "Assess",
-    "Check Manuscript": "Check",
-    "Risk Assessment": "Assess",
-    "Resend Forms": "Check",
-    "Forms Check": "Check",
-    "Deploy Queue": "View",
+      "Resend Manuscript": "Assess",
+      "Check Manuscript": "Check",
+      "Risk Assessment": "Assess",
+      "Resend Forms": "Check",
+      "Forms Check": "Check",
+      "Deploy Queue": "View",
     }
   }
 
@@ -44,29 +51,33 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
 }
 
 function formatDate(unformatted: string) {
-  const dateString = unformatted
-  const date = new Date(dateString);
-
+  const date = new Date(unformatted)
   const options: Intl.DateTimeFormatOptions = {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  };
-
-  const formattedDate = new Intl.DateTimeFormat("en-US", options).format(date);
-  return formattedDate
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }
+  return new Intl.DateTimeFormat("en-US", options).format(date)
 }
+
+function formatDateTime(unformatted: string) {
+  const date = new Date(unformatted)
+  const options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }
+  return new Intl.DateTimeFormat("en-US", options).format(date)
+}
+
 
 export const columns: ColumnDef<SubmTable>[] = [
   {
     id: "actions",
-    header: () => {
-      return (
-        <div className="p-2 w-[100%] text-center">
-          Actions
-        </div>
-      )
-    },
+    header: () => <div className="p-2 w-full text-center">Actions</div>,
     cell: ({ row }) => {
       const navigate = useNavigate()
       return (
@@ -77,8 +88,8 @@ export const columns: ColumnDef<SubmTable>[] = [
               handleCheck(
                 row.getValue("proposal_id"),
                 row.getValue("proposal_title"),
-                row.getValue("researcher"),
-                row.getValue("email"),
+                row.getValue('researcher_full_name'),
+                row.getValue('researcher_email'),
                 formatDate(row.getValue("date")),
                 "",
                 row.getValue("status"),
@@ -93,139 +104,253 @@ export const columns: ColumnDef<SubmTable>[] = [
         </div>
       )
     },
-    size: 90
+    size: 90,
   },
-
   {
     accessorKey: "proposal_id",
     enableHiding: false,
     size: 100,
-    header: () => {
-      return (
-        <div className="text-center">
-          ID
-        </div>
-      )
-    },
+        header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        ID
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
   {
     accessorKey: "proposal_title",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Proposal Title
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    size: 200
-  },
-  {
-    accessorKey: "date",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Date Submitted
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    cell: ({ row }: { row: { getValue: (key: string) => string } }) => {
-      return <div className="text-left">{formatDate(row.getValue("date"))}</div>
-    },
-    size: 200
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Proposal Title
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    size: 200,
   },
   {
     accessorKey: "researcher",
-    header: ({ column }) => {
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Researcher
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => {
+      const [loading, setLoading] = useState(false)
+      const [open, setOpen] = useState(false)
+      const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+      const [fname, setFname] = useState<string | null>(null)
+      const [lname, setLname] = useState<string | null>(null)
+      const [email, setEmail] = useState<string | null>(null)
+      const [org, setOrg] = useState<string | null>(null)
+      const [category, setCategory] = useState<string | null>(null)
+
+      const researcherId = row.getValue("researcher") as string
+      const fullName = row.getValue("researcher_full_name") as string | null
+
+      // Use researcher_full_name for initials
+      const initials = fullName
+        ? fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
+        : "?"
+
+      useEffect(() => {
+        if (!open || !researcherId) return
+        const fetchProfile = async () => {
+          setLoading(true)
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("fname, lname, email, org, category, avatar")
+            .eq("id", researcherId)
+            .single()
+
+          if (!error && data) {
+            setFname(data.fname)
+            setLname(data.lname)
+            setEmail(data.email)
+            setOrg(data.org)
+            setCategory(data.category)
+            if (data.avatar) {
+              const { data: publicUrlData } = supabase.storage
+                .from("profiles")
+                .getPublicUrl(data.avatar)
+              if (publicUrlData?.publicUrl) setAvatarUrl(publicUrlData.publicUrl)
+            }
+          }
+          setLoading(false)
+        }
+        fetchProfile()
+      }, [open, researcherId])
+
       return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Researcher
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
+        <div className="flex justify-center">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className="rounded-full transition-all cursor-pointer hover:ring-2 hover:ring-primary/70"
+                  onClick={() => setOpen(true)}
+                >
+                  <Avatar className="h-9 w-9">
+                    {avatarUrl ? (
+                      <AvatarImage src={avatarUrl} alt={fullName || "Researcher"} />
+                    ) : (
+                      <AvatarFallback>{initials}</AvatarFallback>
+                    )}
+                  </Avatar>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="pointer-events-none ">
+                <p>{fullName || "Unknown Researcher"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{fullName || "Unknown Researcher"}</DialogTitle>
+                <DialogDescription>Researcher Details</DialogDescription>
+              </DialogHeader>
+
+              <div className="flex flex-col items-center mt-4">
+                <Avatar className="h-50 w-50 m-5 mb-10">
+                  {avatarUrl ? (
+                    <AvatarImage src={avatarUrl} alt={fullName || "Researcher"} />
+                  ) : (
+                    <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+                  )}
+                </Avatar>
+
+                <Table className="w-full">
+                  <TableBody>
+                    <TableRow>
+                      <TableCell><strong>ID</strong></TableCell>
+                      <TableCell>{researcherId || "N/A"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell><strong>Email</strong></TableCell>
+                      <TableCell>
+                        {loading ? <Skeleton className="h-4 w-40" /> : (email || "Not provided")}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell><strong>Organization</strong></TableCell>
+                      <TableCell>
+                        {loading ? <Skeleton className="h-4 w-40" /> : (org || "Not provided")}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell><strong>Category</strong></TableCell>
+                      <TableCell>
+                        {loading ? <Skeleton className="h-4 w-40" /> : (category || "Not provided")}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       )
     },
+    size: 150,
   },
   {
-    accessorKey: "type",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Review Type
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-    size: 200
+    accessorKey: "date",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Date Submitted
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => (
+      <div className="text-left">{formatDateTime(row.getValue("date"))}</div>
+    ),
+    size: 200,
+  },
+  {
+    accessorKey: "updated_on",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Last Updated
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => (
+      <div className="text-left">{formatDateTime(row.getValue("updated_on"))}</div>
+    ),
+    size: 200,
+  },
+  {
+    accessorKey: "researcher_full_name",
+  },
+  {
+    accessorKey: "researcher_email",
+  },
+  {
+    accessorKey: "category",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Category
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => (
+      <div className="text-left">
+        {row.getValue("category") || "Not provided"}
+      </div>
+    ),
+    size: 200,
+  },
+  {
+    accessorKey: "review_type",
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Review Type
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    size: 200,
   },
   {
     accessorKey: "status",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Status
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
+    header: ({ column }) => (
+      <Button
+        variant="ghost"
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        className="w-full hover:bg-white"
+      >
+        Status
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
   },
-  {
-    accessorKey: "email",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-          className="w-[100%] hover:bg-white"
-        >
-          Email
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      )
-    },
-  },
-  // {
-  //   accessorKey: "amount",
-  //   header: ({column}) => {
-  //     return (
-  //       <Button
-  //         variant="ghost"
-  //         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-  //       >
-  //         Amount
-  //         <ArrowUpDown className="ml-2 h-4 w-4" />
-  //       </Button >
-  //     )
-  //   },
-  //   cell: ({ row }) => {
-  //     const amount = parseFloat(row.getValue("amount"))
-  //     const formatted = new Intl.NumberFormat("en-US", {
-  //       style: "currency",
-  //       currency: "USD",
-  //     }).format(amount)
-
-  //     return <div className="text-right font-medium">{formatted}</div>
-  //   },
-  // },
-
 ]
