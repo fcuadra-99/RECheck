@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   PencilRuler,
   Settings,
+  UserCheck,
   type LucideIcon,
 } from "lucide-react"
 
@@ -69,7 +70,7 @@ export const data: AppData = {
     //role: "Admin Assistant",
     role: "Chairperson",
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "/avatars/avatar.png",
     org: "",
   },
   main: [
@@ -143,11 +144,11 @@ export const data: AppData = {
         {
       title: "Admin",
       url: "/sdevi",
-      icon: PencilRuler,
+      icon: UserCheck, 
       isActive: true,
       items: [
         {
-          title: "Devi Sub1",
+          title: "User Management",
           url: "/admin/userroles",
         },
       ],

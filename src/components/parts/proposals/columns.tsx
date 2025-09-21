@@ -110,7 +110,7 @@ export const columns: ColumnDef<SubmTable>[] = [
     accessorKey: "proposal_id",
     enableHiding: false,
     size: 100,
-        header: ({ column }) => (
+    header: ({ column }) => (
       <Button
         variant="ghost"
         onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
@@ -165,13 +165,28 @@ export const columns: ColumnDef<SubmTable>[] = [
         ? fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
         : "?"
 
+      // ✅ Only fetch avatar/details when dialog opens
       useEffect(() => {
         if (!open || !researcherId) return
+
+        // ✅ Reset previous state
+        setAvatarUrl(null)
+        setFname(null)
+        setLname(null)
+        setEmail(null)
+        setOrg(null)
+        setCategory(null)
+        setLoading(true)
+
+        if (!researcherId) {
+          setLoading(false)
+          return
+        }
+
         const fetchProfile = async () => {
-          setLoading(true)
           const { data, error } = await supabase
             .from("profiles")
-            .select("fname, lname, email, org, category, avatar")
+            .select("fname, lname, email, org, category")
             .eq("id", researcherId)
             .single()
 
@@ -181,15 +196,19 @@ export const columns: ColumnDef<SubmTable>[] = [
             setEmail(data.email)
             setOrg(data.org)
             setCategory(data.category)
-            if (data.avatar) {
-              const { data: publicUrlData } = supabase.storage
-                .from("profiles")
-                .getPublicUrl(data.avatar)
-              if (publicUrlData?.publicUrl) setAvatarUrl(publicUrlData.publicUrl)
+
+            const { data: publicUrlData } = supabase.storage
+              .from("profiles")
+              .getPublicUrl(`${researcherId}/avatar.png`)
+
+            if (publicUrlData?.publicUrl) {
+              setAvatarUrl(publicUrlData.publicUrl)
             }
           }
+
           setLoading(false)
         }
+
         fetchProfile()
       }, [open, researcherId])
 
@@ -202,12 +221,9 @@ export const columns: ColumnDef<SubmTable>[] = [
                   className="rounded-full transition-all cursor-pointer hover:ring-2 hover:ring-primary/70"
                   onClick={() => setOpen(true)}
                 >
+                  {/* ✅ Table shows only initials */}
                   <Avatar className="h-9 w-9">
-                    {avatarUrl ? (
-                      <AvatarImage src={avatarUrl} alt={fullName || "Researcher"} />
-                    ) : (
-                      <AvatarFallback>{initials}</AvatarFallback>
-                    )}
+                    <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                 </div>
               </TooltipTrigger>
@@ -217,6 +233,7 @@ export const columns: ColumnDef<SubmTable>[] = [
             </Tooltip>
           </TooltipProvider>
 
+          {/* ✅ Dialog loads actual avatar */}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent>
               <DialogHeader>
@@ -225,9 +242,13 @@ export const columns: ColumnDef<SubmTable>[] = [
               </DialogHeader>
 
               <div className="flex flex-col items-center mt-4">
-                <Avatar className="h-50 w-50 m-5 mb-10">
+                <Avatar className="h-50 w-50 m-5 mb-15 border-10 border-primary">
                   {avatarUrl ? (
-                    <AvatarImage src={avatarUrl} alt={fullName || "Researcher"} />
+                    <AvatarImage
+                      src={avatarUrl}
+                      alt={fullName || "Researcher"}
+                      className="object-cover w-full h-full"
+                    />
                   ) : (
                     <AvatarFallback className="text-lg">{initials}</AvatarFallback>
                   )}

@@ -22,17 +22,22 @@ export default function ProposalsTable() {
   async function getSubm() {
     setIsLoading(true) // <-- start loading
     try {
-      const { data, error } = await supabase.from('proposals').select('*')
+      const { data, error } = await supabase
+        .from("proposals")
+        .select("*")
+        .order("updated_on", { ascending: false }); // <-- sort by last updated
+
       if (data) {
-        setData(data as SubmTable[])
+        setData(data as SubmTable[]);
       }
-      if (error) toast.error(`${error.message || error}`)
+      if (error) toast.error(`${error.message || error}`);
     } catch (err) {
-      toast.error(`${err}`)
+      toast.error(`${err}`);
     } finally {
-      setIsLoading(false) // <-- stop loading
+      setIsLoading(false); // <-- stop loading
     }
   }
+
 
   return (
     <div className="container mx-auto py-10 z-50">

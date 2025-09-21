@@ -101,8 +101,8 @@ export default function App() {
                   lname={sesh.lname}
                   email={sesh.email}
                   org={sesh.org}
-                  avatar={sesh.avatar}
                   role={sesh.role}
+                  userId={user?.id ?? ''}
                 />
               </div>
               <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>

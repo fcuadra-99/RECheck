@@ -11,6 +11,7 @@ import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Status =
   | "Check Manuscript"
@@ -65,19 +66,6 @@ function statm(params: Status) {
   return awa[params];
 }
 
-const manuscriptDocs = [
-  { name: "Revised Manuscript", file: "revised_manuscript.pdf" },
-  { name: "Minutes of Proposal Defense", file: "proposal_minutes.pdf" },
-  { name: "Updated CV", file: "updated_cv.pdf" },
-  { name: "All Grades", file: "all_grades.pdf" },
-];
-
-const formsDocs = [
-  { name: "Payment Receipt", file: "payment_receipt.pdf" },
-  { name: "Other Form 1", file: "form1.pdf" },
-  { name: "Other Form 2", file: "form2.pdf" },
-];
-
 export const SReview = () => {
   const [manuOpen, setmanuOpen] = React.useState(false);
   const [formOpen, setformOpen] = React.useState(false);
@@ -88,33 +76,79 @@ export const SReview = () => {
   const [selectedFiles, setSelectedFiles] = React.useState<string[]>([]);
 
   const [id] = React.useState(ide.toString());
-  const [title] = React.useState(titlee);
-  const [researcher] = React.useState(researchere);
-  const [email] = React.useState(emaile);
-  const [submDate] = React.useState(submDatee);
-  const [status] = React.useState(statuse);
-  const [type] = React.useState(typee);
+  const [title] = React.useState(titlee || "Unknown");
+  const [researcher] = React.useState(researchere || "Unknown");
+  const [email] = React.useState(emaile || "Unknown");
+  const [submDate] = React.useState(submDatee || "Unknown");
+  const [status] = React.useState(statuse || "Unknown");
+  const [type] = React.useState(typee || "Unknown");
 
   const [selectedDoc, setSelectedDoc] = React.useState<string>("");
   const [docURL, setDocURL] = React.useState<string>("");
+  const [manuscriptDocs, setManuscriptDocs] = React.useState<{ name: string; file: string }[]>([]);
+  const [formsDocs, setFormsDocs] = React.useState<{ name: string; file: string }[]>([]);
 
   React.useEffect(() => {
-    if (title === "") navigate("/ssubm/sub1");
+    if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
+
+  // Fetch documents from bucket dynamically
+  React.useEffect(() => {
+    if (!id) return;
+
+    const fetchDocs = async () => {
+      try {
+        const manuscriptPhase = "Send Manuscript";
+        const formsPhase = "Send Forms";
+
+        // List files for manuscript
+        const { data: manuList, error: manuErr } = await supabase.storage
+          .from("documents")
+          .list(`${id}/${manuscriptPhase}`);
+
+        if (manuErr) throw manuErr;
+
+        setManuscriptDocs(
+          manuList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+        );
+
+        // List files for forms
+        const { data: formsList, error: formsErr } = await supabase.storage
+          .from("documents")
+          .list(`${id}/${formsPhase}`);
+
+        if (formsErr) throw formsErr;
+
+        setFormsDocs(
+          formsList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+        );
+      } catch (err: any) {
+        toast.error("Failed to fetch documents: " + err.message);
+      }
+    };
+
+    fetchDocs();
+  }, [id]);
 
   React.useEffect(() => {
     if (selectedDoc) fetchDoc();
   }, [selectedDoc]);
 
   async function fetchDoc() {
+    if (!selectedDoc) return;
+
+    const phase = status === "Check Manuscript" ? "Send Manuscript" : "Send Forms";
+    const path = `${id}/${phase}/${selectedDoc}`;
+
+    setDocURL(""); // Show skeleton while loading
     try {
       const { data, error } = await supabase.storage
         .from("documents")
-        .createSignedUrl(selectedDoc, 60);
+        .createSignedUrl(path, 60);
 
       if (error || !data?.signedUrl) {
         toast.error("Failed to load document");
-        setDocURL("");
+        setDocURL(""); // Document does not exist
         return;
       }
 
@@ -125,27 +159,26 @@ export const SReview = () => {
     }
   }
 
+  React.useEffect(() => {
+    if (!id) {
+      navigate("/ssubm/sub1");
+    }
+  }, [id, navigate]);
+
   async function handleSubmit() {
     const loading = toast.loading("Loading...");
 
     try {
-      // Get current logged-in user
       const { data: userData } = await supabase.auth.getUser();
       const actorId = userData?.user?.id;
-
       if (!actorId) throw new Error("No logged-in user found.");
 
-      // Determine affected files if requesting revision
       const affectedFiles =
         tog === "deny"
-          ? selectedFiles.map((fileName) => {
-            const doc = requirementDocs.find((d) => d.name === fileName);
-            return doc ? { name: doc.name, required: true } : null;
-          }).filter(Boolean)
+          ? requirementDocs.map((doc) => ({ name: doc.name, required: true }))
           : [];
 
       if (type === "Assess") {
-        // Risk assessment
         if (!tog) {
           toast.error("Please select a review type before submitting.");
           return;
@@ -167,12 +200,11 @@ export const SReview = () => {
           paper_id: id,
           comment: `Risk assessment set as "${tog}"`,
           affected_files: JSON.stringify([]),
-          actor: actorId, // ✅ record actor
+          actor: actorId,
         });
 
         toast.success(`Risk assessment saved as "${tog}"`);
       } else if (tog === "deny") {
-        // Request revision / Deny
         const { error } = await supabase
           .from("proposals")
           .update({
@@ -188,12 +220,11 @@ export const SReview = () => {
           paper_id: id,
           comment: msg || "Revision requested",
           affected_files: JSON.stringify(affectedFiles),
-          actor: actorId, // ✅ record actor
+          actor: actorId,
         });
 
         toast.success("Revision requested");
       } else {
-        // Approve
         const { error } = await supabase
           .from("proposals")
           .update({
@@ -209,7 +240,7 @@ export const SReview = () => {
           paper_id: id,
           comment: "Phase approved",
           affected_files: JSON.stringify([]),
-          actor: actorId, // ✅ record actor
+          actor: actorId,
         });
 
         toast.success("Phase approved");
@@ -222,10 +253,7 @@ export const SReview = () => {
     }
   }
 
-
-
-  const requirementDocs =
-    status === "Check Manuscript" ? manuscriptDocs : formsDocs;
+  const requirementDocs = status === "Check Manuscript" ? manuscriptDocs : formsDocs;
 
   return (
     <main className="m-12">
@@ -284,10 +312,10 @@ export const SReview = () => {
               <Button
                 variant="outline"
                 type="button"
-                disabled={status !== "Check Manuscript"}
+                disabled={false} // Always clickable
                 onClick={() => {
                   setmanuOpen(true);
-                  setSelectedDoc(manuscriptDocs[0].file);
+                  if (manuscriptDocs[0]) setSelectedDoc(manuscriptDocs[0].file);
                 }}
               >
                 View Details
@@ -296,30 +324,34 @@ export const SReview = () => {
               <Dialog open={manuOpen} onClose={() => setmanuOpen(false)}>
                 <DialogBackdrop />
                 <DialogPanel className="sm:max-w-[800px] flex gap-4">
-                  <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3">
+                  <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3 overflow-y-auto">
                     {manuscriptDocs.map((doc) => (
                       <Button
                         key={doc.file}
-                        variant={
-                          selectedDoc === doc.file ? "default" : "outline"
-                        }
+                        variant={selectedDoc === doc.file ? "default" : "outline"}
                         onClick={() => setSelectedDoc(doc.file)}
+                        className="wrap-anywhere overflow-hidden text-ellipsis text-left text-xs"
                       >
                         {doc.name}
                       </Button>
                     ))}
                   </div>
+
                   <div className="w-3/4 p-2">
-                    {docURL ? (
+                    {docURL === null ? (
+                      <div className="text-center text-gray-500 mt-20">
+                        Document does not exist.
+                      </div>
+                    ) : !docURL ? (
+                      <div className="mt-20">
+                        <Skeleton className="w-full h-[600px]" />
+                      </div>
+                    ) : (
                       <iframe
                         src={docURL}
                         className="w-full h-[600px] border rounded-lg"
                         title="Document Viewer"
                       />
-                    ) : (
-                      <div className="text-center text-gray-500 mt-20">
-                        Loading document...
-                      </div>
                     )}
                   </div>
                 </DialogPanel>
@@ -334,46 +366,46 @@ export const SReview = () => {
               <Button
                 variant="outline"
                 type="button"
-                disabled={status !== "Forms Check"}
+                disabled={!(status === "Forms Check" || status === "Deploy Queue")}
                 onClick={() => {
                   setformOpen(true);
-                  setSelectedDoc(formsDocs[0].file);
+                  if (formsDocs[0]) setSelectedDoc(formsDocs[0].file);
                 }}
               >
                 View Details
               </Button>
 
-              <Dialog open={formOpen} onClose={() => setformOpen(false)}>
-                <DialogBackdrop />
-                <DialogPanel className="sm:max-w-[800px] flex gap-4">
-                  <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3">
-                    {formsDocs.map((doc) => (
-                      <Button
-                        key={doc.file}
-                        variant={
-                          selectedDoc === doc.file ? "default" : "outline"
-                        }
-                        onClick={() => setSelectedDoc(doc.file)}
-                      >
-                        {doc.name}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="w-3/4 p-2">
-                    {docURL ? (
-                      <iframe
-                        src={docURL}
-                        className="w-full h-[600px] border rounded-lg"
-                        title="Document Viewer"
-                      />
-                    ) : (
-                      <div className="text-center text-gray-500 mt-20">
-                        Loading document...
-                      </div>
-                    )}
-                  </div>
-                </DialogPanel>
-              </Dialog>
+              {(status === "Forms Check" || status === "Deploy Queue") && (
+                <Dialog open={formOpen} onClose={() => setformOpen(false)}>
+                  <DialogBackdrop />
+                  <DialogPanel className="sm:max-w-[800px] flex gap-4">
+                    <div className="w-1/4 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3">
+                      {formsDocs.map((doc) => (
+                        <Button
+                          key={doc.file}
+                          variant={selectedDoc === doc.file ? "default" : "outline"}
+                          onClick={() => setSelectedDoc(doc.file)}
+                        >
+                          {doc.name}
+                        </Button>
+                      ))}
+                    </div>
+                    <div className="w-3/4 p-2">
+                      {docURL ? (
+                        <iframe
+                          src={docURL}
+                          className="w-full h-[600px] border rounded-lg"
+                          title="Document Viewer"
+                        />
+                      ) : (
+                        <div className="text-center text-gray-500 mt-20">
+                          Loading document...
+                        </div>
+                      )}
+                    </div>
+                  </DialogPanel>
+                </Dialog>
+              )}
             </div>
           </div>
         </section>
@@ -384,11 +416,7 @@ export const SReview = () => {
             <b>Status Management</b>
           </h1>
           <span>
-            <RadioGroup
-              defaultValue="approve"
-              value={tog}
-              onValueChange={setTog}
-            >
+            <RadioGroup defaultValue="approve" value={tog} onValueChange={setTog}>
               {/* Approve */}
               <div className="bg-card flex px-4 py-5 rounded-xl shadow-sm border-2">
                 <RadioGroupItem
@@ -418,7 +446,6 @@ export const SReview = () => {
                   </div>
                 </div>
 
-                {/* File checklist when deny */}
                 {tog === "deny" && (
                   <div className="ml-8 space-y-2">
                     {requirementDocs.map((doc) => (
@@ -442,7 +469,6 @@ export const SReview = () => {
                   </div>
                 )}
 
-                {/* Comment box */}
                 {tog === "deny" && (
                   <Textarea
                     placeholder="Type your message here."
