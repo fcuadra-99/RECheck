@@ -12,7 +12,6 @@ import SignupPage from './pages/Signup';
 import { MessageCircle } from 'lucide-react';
 import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
-import STrends from './pages/staff/Trends';
 import { toast } from 'sonner';
 import { SReview } from './pages/staff/Submissions/Review';
 import { useEffect, useState } from 'react';
@@ -34,6 +33,8 @@ export default function App() {
     avatar: '',
     role: '',
   });
+
+
 
   useEffect(() => {
     const getUserSession = async () => {
@@ -106,7 +107,7 @@ export default function App() {
                 />
               </div>
               <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
-                <div className='py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none'>
+                <div className='py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none pl-15'>
                   <AppBreadcrumb />
                 </div>
                 <div className='pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50'>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type JSX } from "react";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Search, Trash2, User } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -72,10 +72,10 @@ export default function AdminUsersPage() {
       if (error) return console.error(error);
 
       const usersWithAvatar = data.map((user) => {
-        const publicUrl =
-          supabase.storage.from("profiles").getPublicUrl(`${user.id}/pfp.png`)
-            .data.publicUrl;
-        return { ...user, avatar: publicUrl || "" };
+        const { data: publicUrlData } = supabase.storage
+          .from("profiles")
+          .getPublicUrl(`${user.id}/avatar.png`);
+        return { ...user, avatar: publicUrlData.publicUrl || "" };
       });
 
       setUsers(usersWithAvatar);
@@ -83,6 +83,7 @@ export default function AdminUsersPage() {
     };
     fetchUsers();
   }, []);
+
 
   // Filtering
   const filteredUsers = users.filter((u) => {
@@ -157,116 +158,132 @@ export default function AdminUsersPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Admin: User Management</h1>
+      <h1 className="text-[30px] font-medium mb-4">User Management</h1>
 
       {/* Search & Filters */}
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
-        <Input
-          placeholder="Search by name, email, or organization"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-md"
-        />
+      <div className="flex flex-col gap-4 mb-4">
+        {/* Full-width Search with icon */}
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <Input
+            placeholder="Search by name, email, or organization"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 w-full"
+          />
+        </div>
 
-        <Select
-          value={roleFilter ?? "all"}
-          onValueChange={(val) => setRoleFilter(val === "all" ? null : val)}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by Role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Roles</SelectItem>
-            {ROLE_OPTIONS.map((role) => (
-              <SelectItem key={role} value={role}>
-                {role}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Dropdowns side by side with icons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="relative w-full">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Select
+              value={roleFilter ?? "all"}
+              onValueChange={(val) => setRoleFilter(val === "all" ? null : val)}
+            >
+              <SelectTrigger className="w-full pl-10">
+                <SelectValue placeholder="Filter by Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                {ROLE_OPTIONS.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <Select
-          value={categoryFilter ?? "all"}
-          onValueChange={(val) => setCategoryFilter(val === "all" ? null : val)}
-        >
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORY_OPTIONS.map((cat) => (
-              <SelectItem key={cat} value={cat}>
-                {cat}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="relative w-full">
+            <Layers className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Select
+              value={categoryFilter ?? "all"}
+              onValueChange={(val) => setCategoryFilter(val === "all" ? null : val)}
+            >
+              <SelectTrigger className="w-full pl-10">
+                <SelectValue placeholder="Filter by Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="border border-gray-300">
           <TableHeader>
-            <TableRow>
-              <TableHead>Avatar</TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Organization</TableHead>
-              <TableHead>Role</TableHead>
+            <TableRow className="border-b border-gray-300">
+              <TableHead className="border-r border-gray-300">Avatar</TableHead>
+              <TableHead className="border-r border-gray-300">Name</TableHead>
+              <TableHead className="border-r border-gray-300">Email</TableHead>
+              <TableHead className="border-r border-gray-300">Organization</TableHead>
+              <TableHead className="border-r border-gray-300">Role</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-32 bg-gray-200 animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-48 bg-gray-200 animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-32 bg-gray-200 animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-4 w-24 bg-gray-200 animate-pulse" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="h-8 w-20 bg-gray-200 rounded animate-pulse" />
-                  </TableCell>
-                </TableRow>
-              ))
-              : paginatedUsers.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell>
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={user.avatar} />
+            {paginatedUsers.map((user) => (
+              <TableRow key={user.id} className="border-b border-gray-300">
+                {/* Avatar */}
+                <TableCell className="border-r border-gray-300 text-center align-middle">
+                  <div className="flex justify-center">
+                    <Avatar className="w-10 h-10 border-2 border-primary">
+                      <AvatarImage src={user.avatar} className="object-cover w-full h-full" />
                       <AvatarFallback>
                         {user.fname[0]}
                         {user.lname[0]}
                       </AvatarFallback>
                     </Avatar>
-                  </TableCell>
-                  <TableCell>{user.fname + " " + user.lname}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.org}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(user)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                  </div>
+                </TableCell>
+
+                {/* Name */}
+                <TableCell className="border-r border-gray-300 text-center align-middle">
+                  {user.fname + " " + user.lname}
+                </TableCell>
+
+                {/* Email */}
+                <TableCell className="border-r border-gray-300 text-center align-middle">
+                  {user.email}
+                </TableCell>
+
+                {/* Org */}
+                <TableCell className="border-r border-gray-300 text-center align-middle">
+                  {user.org}
+                </TableCell>
+
+                {/* Role w/ icon */}
+                <TableCell className="border-r border-gray-300 text-center align-middle">
+                  <div className="flex items-center justify-center">
+                    {ROLE_ICONS[user.role] ?? <User className="w-4 h-4 mr-2 text-gray-400" />}
+                    {user.role}
+                  </div>
+                </TableCell>
+
+                {/* Actions */}
+                <TableCell className="text-center align-middle">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEditDialog(user)}
+                    className="mx-auto flex items-center justify-center"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
+
         </Table>
 
         {/* Pagination Footer */}
@@ -360,8 +377,8 @@ export default function AdminUsersPage() {
             {/* Avatar on left, spanning 2 rows, match height of inputs */}
             {editingUser && (
               <div className="row-span-2 flex items-start justify-center">
-                <Avatar className="h-[120px] w-[120px] m-1 border-2 border-black">
-                  <AvatarImage src={editingUser.avatar} />
+                <Avatar className="h-[120px] w-[120px] m-1 border-3 border-primary">
+                  <AvatarImage src={editingUser.avatar} className="object-cover w-full h-full" />
                   <AvatarFallback>
                     {editingUser.fname[0]}
                     {editingUser.lname[0]}
@@ -436,7 +453,10 @@ export default function AdminUsersPage() {
                   <SelectContent className="w-full">
                     {ROLE_OPTIONS.map((role) => (
                       <SelectItem key={role} value={role}>
-                        {role}
+                        <div className="flex items-center">
+                          {ROLE_ICONS[role] ?? <User className="w-4 h-4 mr-2 text-gray-400" />}
+                          {role}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -499,3 +519,17 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+import {
+  Shield, Users,
+  BookOpen, ClipboardCheck, Crown
+} from "lucide-react";
+
+// Role → Icon mapping
+const ROLE_ICONS: Record<string, JSX.Element> = {
+  Admin: <Shield className="w-4 h-4 mr-2 text-primary" />,
+  "Admin Assistant": <Users className="w-4 h-4 mr-2 text-blue-500" />,
+  Researcher: <BookOpen className="w-4 h-4 mr-2 text-green-500" />,
+  Reviewer: <ClipboardCheck className="w-4 h-4 mr-2 text-purple-500" />,
+  Chairperson: <Crown className="w-4 h-4 mr-2 text-yellow-500" />,
+};

@@ -40,7 +40,7 @@ export default function ProposalsTable() {
 
 
   return (
-    <div className="container mx-auto py-10 z-50">
+    <div className="container mx-auto py-4 z-50">
       <DataTable columns={columns} data={data} isLoading={isLoading} />
     </div>
   )

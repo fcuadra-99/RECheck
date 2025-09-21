@@ -231,7 +231,20 @@ export function RadixSidebarDemo({
           </SidebarMenu>
         </SidebarFooter>
       </Sidebar>
-      <SidebarTrigger className="mx-4 my-2 min-md:invisible md:transition-none z-50 fixed" />
+      <SidebarTriggerPortal />
     </SidebarProvider>
+  );
+}
+
+"use client";
+
+import { createPortal } from "react-dom";
+
+export function SidebarTriggerPortal() {
+  if (typeof document === "undefined") return null; 
+
+  return createPortal(
+    <SidebarTrigger className="mx-2 mt-0.5 fixed top-2 left-2 md:hidden sm:visible z-[2]" />,
+    document.body
   );
 }
