@@ -1,10 +1,9 @@
 import { type ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown, FileText, Hash, Eye, Clock, Scale, ClipboardCheck, Workflow, Calendar, UserCircle2, Tags, ListFilter, Activity, UserRound } from "lucide-react"
+import { FileText, Hash, Eye, Clock, Scale, ClipboardCheck, Workflow, Calendar, Tags, ListFilter, Activity, UserRound } from "lucide-react"
 import { useNavigate } from "react-router"
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
-import { Button } from "@/components/ui/button"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import type { SubmTable } from "@/Data"
 import { data } from "@/Data"
@@ -14,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { supabase } from "@/DB"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import { Table, TableRow, TableBody, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
 function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
@@ -158,7 +157,7 @@ export const columns: ColumnDef<SubmTable>[] = [
   },
   {
     accessorKey: "researcher",
-    header: ({ column }) => (
+    header: ({ }) => (
       <>
       <UserRound className="h-4 w-4 text-gray-500" />
       Researcher
