@@ -35,7 +35,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { DataTablePagination } from "@/components/parts/pagination"
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, FileCheck, AlertTriangle, ClipboardCheck, Upload, FileX, ListCheck } from "lucide-react"
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, FileCheck, AlertTriangle, ClipboardCheck, Upload, ListCheck } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 

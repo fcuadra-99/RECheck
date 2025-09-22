@@ -1,4 +1,4 @@
-import * as React from "react"
+
 import ReactCrop, { type Crop } from "react-image-crop"
 import "react-image-crop/dist/ReactCrop.css"
 
@@ -32,6 +32,7 @@ export function ImageCropper({
 // Helper function to get the cropped image as a blob
 export async function getCroppedImg(
 imageSrc: string, pixelCrop: Crop, p0: string): Promise<Blob | null> {
+  p0
   const image = await createImage(imageSrc)
   const canvas = document.createElement("canvas")
   const ctx = canvas.getContext("2d")

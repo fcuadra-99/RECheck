@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { data as DATA } from "@/Data";
+import { data as DATA, generateNav, type NavItem } from "@/Data";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -45,10 +45,10 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { supabase } from '@/DB';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router';
+import { createPortal } from 'react-dom';
 
 interface RadixSidebarDemoProps {
   fname: string;
@@ -63,6 +63,7 @@ export function RadixSidebarDemo({
   fname,
   lname,
   email,
+  role,
   userId,
   ...props
 }: RadixSidebarDemoProps & React.ComponentProps<typeof Sidebar>) {
@@ -72,17 +73,41 @@ export function RadixSidebarDemo({
 
   const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
 
+  // ----------------------------
+  // Dynamic nav items based on role
+  // ----------------------------
+  const navItems = React.useMemo(() => {
+    if (!role) return [];
+    return generateNav(role);
+  }, [role]);
+
+  // ----------------------------
+  // Avatar fetching (keep intact)
+  // ----------------------------
   React.useEffect(() => {
     if (!userId) return;
 
     const fetchAvatar = async () => {
-      const { data: publicUrlData } = supabase.storage
-        .from("profiles")
-        .getPublicUrl(`${userId}/avatar.png`);
+      try {
+        const { data: publicUrlData } = supabase.storage
+          .from("profiles")
+          .getPublicUrl(`${userId}/avatar.png`);
 
-      if (publicUrlData?.publicUrl) {
-        setAvatarUrl(publicUrlData.publicUrl);
-      } else {
+        const url = publicUrlData?.publicUrl;
+
+        if (!url) {
+          setAvatarUrl(null);
+          return;
+        }
+
+        const res = await fetch(url, { method: "HEAD" });
+        if (res.ok) {
+          setAvatarUrl(url);
+        } else {
+          setAvatarUrl(null);
+        }
+      } catch (err) {
+        console.error("Avatar fetch error:", err);
         setAvatarUrl(null);
       }
     };
@@ -90,6 +115,9 @@ export function RadixSidebarDemo({
     fetchAvatar();
   }, [userId]);
 
+  // ----------------------------
+  // Logout handler
+  // ----------------------------
   const handleLogout = async () => {
     const loading = toast.loading("Logging Out...");
     try {
@@ -108,11 +136,13 @@ export function RadixSidebarDemo({
     }
   };
 
+  // ----------------------------
+  // Render
+  // ----------------------------
   return (
     <SidebarProvider>
-      <Sidebar {...props} className=''>
+      <Sidebar {...props}>
         <SidebarHeader>
-          {/* Team Switcher */}
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg">
@@ -132,29 +162,33 @@ export function RadixSidebarDemo({
           <SidebarGroup>
             <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarMenu>
-              {DATA.navMain.map((item) => (
+              {navItems.map((item: NavItem) => (
                 <Collapsible key={item.title}>
                   <SidebarMenuItem>
                     <CollapsibleTrigger asChild>
                       <SidebarMenuButton tooltip={item.title}>
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
-                        <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
+                        {item.items?.length ? (
+                          <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
+                        ) : null}
                       </SidebarMenuButton>
                     </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {item.items?.map((subItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton asChild>
-                              <Link to={subItem.url}>
-                                <span>{subItem.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
+                    {item.items?.length ? (
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.items.map((subItem) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton asChild>
+                                <Link to={subItem.url}>
+                                  <span>{subItem.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    ) : null}
                   </SidebarMenuItem>
                 </Collapsible>
               ))}
@@ -170,7 +204,7 @@ export function RadixSidebarDemo({
                   <SidebarMenuButton size="lg">
                     <Avatar className="h-8 w-8 rounded-xl border-2 border-primary">
                       {avatarUrl ? (
-                        <AvatarImage src={avatarUrl} className='w-full h-full object-cover' />
+                        <AvatarImage src={avatarUrl} className="w-full h-full object-cover" />
                       ) : (
                         <AvatarFallback className="rounded-lg">{lname[0]?.toUpperCase()}</AvatarFallback>
                       )}
@@ -185,7 +219,7 @@ export function RadixSidebarDemo({
 
                 <DropdownMenuContent
                   className="w-[--radix-dropdown-menu-trigger-width] min-w-67 md:min-w-60 rounded-md"
-                  side={isMobile ? 'bottom' : 'bottom'}
+                  side={isMobile ? "bottom" : "bottom"}
                   align="center"
                   sideOffset={10}
                 >
@@ -236,12 +270,9 @@ export function RadixSidebarDemo({
   );
 }
 
-"use client";
-
-import { createPortal } from "react-dom";
-
+// Sidebar trigger portal
 export function SidebarTriggerPortal() {
-  if (typeof document === "undefined") return null; 
+  if (typeof document === "undefined") return null;
 
   return createPortal(
     <SidebarTrigger className="mx-2 mt-0.5 fixed top-2 left-2 md:hidden sm:visible z-[2]" />,

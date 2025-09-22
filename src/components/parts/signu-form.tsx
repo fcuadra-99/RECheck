@@ -21,7 +21,7 @@ export function SignupForm({
         password: "",
         rpassword: "",
         avatarExt: "png",
-        role: "researcher",
+        role: "Researcher",
         category: "",
     })
 
@@ -96,6 +96,7 @@ export function SignupForm({
                 id: user.id,
                 fname: formData.fname,
                 lname: formData.lname,
+                email: formData.email,
                 org: formData.org,
                 role: formData.role,
                 category: formData.category,
