@@ -1,6 +1,11 @@
 "use client";
 
-import * as React from "react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+
 import { useState, useEffect } from "react";
 import {
     Table,
@@ -64,6 +69,7 @@ interface HistoryEntry {
 }
 
 /* ----------------- helpers & config ----------------- */
+
 const phases = [
     {
         title: "Phase 1: Manuscript Submission",
@@ -76,6 +82,9 @@ const phases = [
     },
     { title: "Phase 4: Deployment Queue", statuses: ["Deploy Queue"] },
 ];
+
+// icon mapping for phases (1: Manuscript, 2: Risk, 3: Forms, 4: Deploy)
+const phaseIcons = [FileText, Shield, ClipboardList, Rocket];
 
 const normalizeStatus = (status: string) => {
     if (status === "Resend Manuscript") return "Send Manuscript";
@@ -204,11 +213,14 @@ export default function SubmissionsPage() {
     // user + uploads
     const [userId, setUserId] = useState<string | null>(null);
     const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
+    const [signedDocuments, setSignedDocuments] = useState<{ [key: string]: boolean }>({});
 
     // preview dialog
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
+    const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+    const [activeDocument, setActiveDocument] = useState<string | null>(null);
 
     // new proposal modal
     const [newProposalOpen, setNewProposalOpen] = useState(false);
@@ -264,11 +276,11 @@ export default function SubmissionsPage() {
         .sort((a, b) => +new Date(b.date) - +new Date(a.date));
 
     const displayedSubmissions = userSubmissions.slice(0, 3);
-    const canCreateNew = userSubmissions.length < 3;
 
     /* when activeSubmission changes: reset uploads, load history if "Resend" */
     useEffect(() => {
         setUploadedFiles({});
+        setSignedDocuments({});
         setHistoryFiles(null);
         setLatestComment(null);
         setActiveTab(0);
@@ -314,7 +326,6 @@ export default function SubmissionsPage() {
             const { data, error } = await supabase.storage.from("documents").list(path);
 
             if (error) {
-                // folder may not exist
                 console.debug("listStoredFilesForPhase error:", error.message);
                 return [];
             }
@@ -326,7 +337,7 @@ export default function SubmissionsPage() {
                 data.map(async (f: any) => {
                     const { data: signed, error: signError } = await supabase.storage
                         .from("documents")
-                        .createSignedUrl(`${path}/${f.name}`, 60 * 5); // 5 min validity
+                        .createSignedUrl(`${path}/${f.name}`, 60 * 5);
 
                     if (signError) {
                         console.error("Signed URL error:", signError.message);
@@ -485,38 +496,137 @@ export default function SubmissionsPage() {
         return (
             <div className="space-y-3">
                 {docs.map((doc) => (
-                    <div key={doc.name} className="flex items-center justify-between border p-3 rounded">
-                        <div>
-                            <div className="font-medium">{doc.name}</div>
-                            <div className="text-xs text-gray-500">{doc.required ? "Required" : "Optional"}</div>
+                    <div key={doc.name} className="flex items-start gap-4 border p-3 rounded">
+                        <div className="flex-shrink-0 w-[200px]">
+                            <div className="font-medium break-words line-clamp-2 min-h-[48px]" title={doc.name}>{doc.name}</div>
+                            <div className="text-xs text-gray-500 mt-1">{doc.required ? "Required" : "Optional"}</div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <Input
-                                type="file"
-                                accept="application/pdf"
-                                onChange={(e) => {
-                                    const file = e.target.files ? e.target.files[0] : null;
+                        <div className="flex-1 flex gap-4">
+                            <div
+                                className={cn(
+                                    "relative flex-1 min-h-[120px] border-2 border-dashed rounded-lg p-4 transition-colors",
+                                    uploadedFiles[doc.name] 
+                                        ? "border-primary bg-primary/5" 
+                                        : "border-gray-200 hover:border-gray-300"
+                                )}
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                }}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const file = e.dataTransfer.files[0];
                                     if (!file) return;
                                     if (file.type !== "application/pdf") {
                                         toast.error("Only PDF files are allowed");
-                                        (e.target as HTMLInputElement).value = "";
                                         return;
                                     }
                                     if (file.size > 25 * 1024 * 1024) {
                                         toast.error("File size must be under 25MB");
-                                        (e.target as HTMLInputElement).value = "";
                                         return;
                                     }
                                     handleFileSelect(doc.name, file);
                                 }}
-                            />
+                            >
+                                <Input
+                                    type="file"
+                                    accept="application/pdf"
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                    onChange={(e) => {
+                                        const file = e.target.files ? e.target.files[0] : null;
+                                        if (!file) return;
+                                        if (file.type !== "application/pdf") {
+                                            toast.error("Only PDF files are allowed");
+                                            (e.target as HTMLInputElement).value = "";
+                                            return;
+                                        }
+                                        if (file.size > 25 * 1024 * 1024) {
+                                            toast.error("File size must be under 25MB");
+                                            (e.target as HTMLInputElement).value = "";
+                                            return;
+                                        }
+                                        handleFileSelect(doc.name, file);
+                                    }}
+                                />
+                                <div className="text-center flex flex-col items-center justify-center h-full">
+                                    <FileUp className="h-8 w-8 text-gray-400 mb-2" />
+                                    <p className="text-sm text-gray-500 max-w-full truncate px-2">
+                                        {uploadedFiles[doc.name] 
+                                            ? uploadedFiles[doc.name]?.name 
+                                            : "Drop PDF here or click to upload"}
+                                    </p>
+                                </div>
+                            </div>
 
-                            <a href={doc.templateUrl} download>
-                                <RippleButton variant="outline" size="sm">
-                                    Download Template
-                                </RippleButton>
-                            </a>
+                            <div className="flex-shrink-0 flex flex-col gap-2">
+                                <TooltipProvider delayDuration={200}>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <a href={doc.templateUrl} download>
+                                                <RippleButton variant="outline" size="sm" className="w-9 h-9 p-0">
+                                                    <Download className="h-4 w-4" />
+                                                </RippleButton>
+                                            </a>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left">
+                                            <p>Download Template</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-9 h-9 p-0"
+                                                disabled={!uploadedFiles[doc.name]}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    if (uploadedFiles[doc.name]) {
+                                                        const url = URL.createObjectURL(uploadedFiles[doc.name]!);
+                                                        setPreviewUrl(url);
+                                                        setPreviewTitle(doc.name);
+                                                        setPreviewOpen(true);
+                                                    }
+                                                }}
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left">
+                                            <p>Preview Document</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className={cn(
+                                                    "w-9 h-9 p-0",
+                                                    doc.required && !signedDocuments[doc.name] && uploadedFiles[doc.name] ? "animate-pulse border-pink-500" : "",
+                                                    signedDocuments[doc.name] ? "border-green-500 text-green-500" : "",
+                                                    "transition-colors"
+                                                )}
+                                                disabled={!uploadedFiles[doc.name]}
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    setActiveDocument(doc.name);
+                                                    setSignatureDialogOpen(true);
+                                                }}
+                                            >
+                                                <PenLine className="h-4 w-4" />
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="left">
+                                            <p>Add Signature</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -524,7 +634,7 @@ export default function SubmissionsPage() {
                 <div>
                     <RippleButton
                         onClick={() => uploadAndAdvancePhase(submission)}
-                        disabled={!docs.every((d) => !d.required || uploadedFiles[d.name])}
+                        disabled={!docs.every((d) => !d.required || (uploadedFiles[d.name] && signedDocuments[d.name]))}
                     >
                         Submit Phase
                     </RippleButton>
@@ -591,9 +701,6 @@ export default function SubmissionsPage() {
                                 href={f.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                onClick={async (e) => {
-                                    // Optionally, you can remove this handler if direct download is preferred
-                                }}
                             >
                                 <RippleButton variant="outline" size="sm">Download</RippleButton>
                             </a>
@@ -610,15 +717,9 @@ export default function SubmissionsPage() {
             {/* header */}
             <div className="flex justify-between items-center mb-2">
                 <h1 className="text-[30px] font-medium">My Submissions</h1>
-                {canCreateNew ? (
-                    <RippleButton onClick={() => setNewProposalOpen(true)} className="flex items-center gap-2">
-                        <Plus className="h-4 w-4" /> New Proposal ({userSubmissions.length}/3)
-                    </RippleButton>
-                ) : (
-                    <RippleButton disabled className="opacity-60 cursor-not-allowed">
-                        {userSubmissions.length}/3 Proposals
-                    </RippleButton>
-                )}
+                <div className="text-sm text-gray-500">
+                    {userSubmissions.length}/3 Proposals Available
+                </div>
             </div>
 
             {/* bottom table (up to 3) */}
@@ -646,35 +747,105 @@ export default function SubmissionsPage() {
                                 </TableRow>
                             ))
                         ) : (
-                            displayedSubmissions.map((submission) => (
+                            Array.from({ length: 3 }).map((_, index) => {
+                                const submission = displayedSubmissions[index];
+                                return submission ? (
                                 <TableRow
                                     key={submission.proposal_id}
-                                    className="cursor-pointer"
+                                    className={cn(
+                                        "cursor-pointer hover:bg-gray-50/50",
+                                        activeSubmission?.proposal_id === submission.proposal_id && "bg-primary/5"
+                                    )}
                                     onClick={() => setActiveSubmission(submission)}
                                 >
-                                    <TableCell className="border">{submission.proposal_title}</TableCell>
-                                    <TableCell
-                                        className={`border ${submission.status.includes("Resend") ? "text-red-500 font-medium" : ""}`}
-                                    >
-                                        {submission.status}
+                                    <TableCell className="border">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-gray-500" />
+                                            <span className="font-medium">{submission.proposal_title}</span>
+                                        </div>
                                     </TableCell>
                                     <TableCell className="border">
+                                        <Badge 
+                                            variant={submission.status.includes("Resend") ? "destructive" : "outline"}
+                                            className={cn(
+                                                "font-medium",
+                                                submission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
+                                                submission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+                                            )}
+                                        >
+                                            {submission.status.includes("Resend") && <RefreshCcw className="w-3 h-3 mr-1" />}
+                                            {submission.status.includes("Check") && <Clock className="w-3 h-3 mr-1" />}
+                                            {submission.status === "Deploy Queue" && <Check className="w-3 h-3 mr-1" />}
+                                            {submission.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="border text-gray-600">
                                         {new Date(submission.date).toLocaleDateString()}
                                     </TableCell>
                                     <TableCell className="border w-1 whitespace-nowrap text-center">
-                                        <RippleButton
-                                            variant="outline"
-                                            className={`justify-center ${activeSubmission?.proposal_id === submission.proposal_id
-                                                ? "border-primary text-primary"
-                                                : ""
-                                                }`}
-                                            onClick={() => handleOpenSubmission(submission)}
-                                        >
-                                            {getActionLabel(submission.status)}
-                                        </RippleButton>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <RippleButton
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className={cn(
+                                                            "h-8 px-2",
+                                                            activeSubmission?.proposal_id === submission.proposal_id
+                                                                ? "text-primary bg-primary/10"
+                                                                : "text-gray-600 hover:text-primary"
+                                                        )}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenSubmission(submission);
+                                                        }}
+                                                    >
+                                                        <Eye className="w-4 h-4 mr-1" />
+                                                        <span className="text-sm">{getActionLabel(submission.status)}</span>
+                                                    </RippleButton>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{activeSubmission?.proposal_id === submission.proposal_id ? 'Hide details' : 'View details'}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                ) : (
+                                <TableRow key={`empty-${index}`} className="hover:bg-gray-50/50">
+                                    <TableCell className="border text-gray-400 italic">
+                                        <div className="flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-gray-300" />
+                                            <span>Available Slot</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="border">
+                                        <Badge variant="outline" className="text-gray-400 border-gray-200">Not Started</Badge>
+                                    </TableCell>
+                                    <TableCell className="border text-gray-400">—</TableCell>
+                                    <TableCell className="border w-1 whitespace-nowrap text-center">
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <RippleButton
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 px-2 text-gray-600 hover:text-primary"
+                                                        onClick={() => setNewProposalOpen(true)}
+                                                    >
+                                                        <Plus className="w-4 h-4 mr-1" />
+                                                        <span className="text-sm">New</span>
+                                                    </RippleButton>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Create a new proposal</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </TableCell>
+                                </TableRow>
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
@@ -686,45 +857,66 @@ export default function SubmissionsPage() {
                     <div className="text-center py-8 text-gray-500">No submission selected</div>
                 ) : (
                     <>
-                        <div className="md:flex md:items-start md:justify-between mb-4 gap-4">
+                        <div className="md:flex md:items-start md:justify-between mb-6 gap-6">
                             <div className="flex-1">
-                                <h2 className="text-lg font-semibold">{activeSubmission.proposal_title}</h2>
-                                <div className="text-sm text-gray-600 mt-1">
+                                <h2 className="text-lg font-semibold break-words pr-2">{activeSubmission.proposal_title}</h2>
+                                <div className="text-sm text-gray-600 mt-1 mb-3">
                                     {getProfileName(activeSubmission.researcher)} • <span className="text-muted-foreground">{activeSubmission.category}</span>
                                 </div>
-                                <p className="mt-3 text-gray-700">{activeSubmission.description || "No description."}</p>
                             </div>
 
-                            <div className="w-full md:w-64 mt-4 md:mt-0">
-                                <div className="text-sm text-gray-500">Status</div>
-                                <div className="font-medium">{activeSubmission.status}</div>
+                            <div className="w-full md:w-64 mt-4 md:mt-0 flex-shrink-0">
+                                <div className="flex items-center justify-between md:block">
+                                    <div className="text-xs md:text-sm text-gray-500 uppercase tracking-wide">Status</div>
+                                </div>
+                                <div className="mt-1 md:mt-1 max-w-full">
+                                    <Badge 
+                                        variant={activeSubmission.status.includes("Resend") ? "destructive" : "outline"}
+                                        className={cn(
+                                            "inline-flex items-center gap-1 max-w-full px-2 py-1 md:px-2 md:py-1",
+                                            activeSubmission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
+                                            activeSubmission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+                                        )}
+                                    >
+                                        {activeSubmission.status.includes("Resend") && <RefreshCcw className="w-3 h-3" />}
+                                        {activeSubmission.status.includes("Check") && <Clock className="w-3 h-3" />}
+                                        {activeSubmission.status === "Deploy Queue" && <Check className="w-3 h-3" />}
+                                        <span className="truncate">{activeSubmission.status}</span>
+                                    </Badge>
+                                </div>
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
                             </div>
                         </div>
 
-                        {/* timeline */}
-                        <div className="grid grid-cols-4 gap-2 mb-6 w-full">
-                            {phases.map((phase, idx) => {
-                                const activeIdx = getActivePhaseIndex(activeSubmission.status);
-                                return (
-                                    <div
-                                        key={phase.title}
-                                        className={`p-3 rounded text-center text-sm font-medium ${idx === activeIdx
-                                            ? "bg-primary text-white"
-                                            : idx < activeIdx
-                                                ? "bg-muted/70 text-white"
-                                                : "bg-gray-200 text-gray-600"
-                                            }`}
-                                    >
-                                        {phase.title}
-                                    </div>
-                                );
-                            })}
+                        {/* description placed above phases */}
+                        <div className="space-y-2 mb-4">
+                            <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
+                                <FileText className="w-3.5 h-3.5" />
+                                <span className="uppercase tracking-wide">Description</span>
+                            </div>
+                            <div className="my-2">
+                                <Textarea
+                                    value={activeSubmission.description || "No description."}
+                                    className="w-full max-w-full resize-none bg-transparent overflow-x-hidden whitespace-pre-wrap break-words"
+                                    rows={4}
+                                    readOnly
+                                />
+                            </div>
                         </div>
-
+                        
                         {/* tabs */}
+                        {latestComment && (
+                            <div className="mb-4 p-3 border rounded bg-amber-50 text-amber-800 flex items-start gap-2">
+                                <Clock className="w-4 h-4 mt-0.5" />
+                                <div className="text-sm">
+                                    <div className="font-medium">Reviewer comment</div>
+                                    <div className="whitespace-pre-wrap break-words">{latestComment}</div>
+                                </div>
+                            </div>
+                        )}
+
                         <Tabs value={`${activeTab}`} onValueChange={(v) => setActiveTab(Number(v))}>
-                            <TabsList className="grid grid-cols-4 w-full">
+                            <TabsList className="flex w-full gap-2">
                                 {phases.map((phase, idx) => {
                                     const activeIdx = getActivePhaseIndex(activeSubmission?.status || "");
                                     const isActive = idx === activeIdx;
@@ -736,13 +928,10 @@ export default function SubmissionsPage() {
                                             key={phase.title}
                                             value={`${idx}`}
                                             disabled={isUpcoming}
-                                            className={`
-          ${isActive ? "phase-active" : ""}
-          ${isComplete ? "phase-complete" : ""}
-          ${isUpcoming ? "phase-upcoming text-white" : ""}
-        `}
+                                            className={`flex items-center justify-center gap-2 min-w-[10px] whitespace-nowrap ${isActive ? "phase-active" : ""} ${isComplete ? "phase-complete" : ""} ${isUpcoming ? "phase-upcoming text-white" : ""}`}
                                         >
-                                            {phase.title.split(":")[0]}
+                                            {(() => { const Icon = phaseIcons[idx]; return Icon ? <Icon className="w-4 h-4 shrink-0" /> : null; })()}
+                                            <span className="truncate text-sm sm:text-[0.95rem]">{phase.title}</span>
                                         </TabsTrigger>
                                     );
                                 })}
@@ -787,6 +976,7 @@ export default function SubmissionsPage() {
                                 );
                             })}
                         </Tabs>
+
                     </>
                 )}
             </div>
@@ -826,6 +1016,74 @@ export default function SubmissionsPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* New Proposal Dialog */}
+            <Dialog open={newProposalOpen} onOpenChange={setNewProposalOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Create New Proposal</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Input
+                                id="title"
+                                placeholder="Enter proposal title"
+                                value={newProposalTitle}
+                                onChange={(e) => setNewProposalTitle(e.target.value)}
+                                className="col-span-4"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-start gap-4">
+                            <Label htmlFor="description" className="text-right col-span-4">
+                                Description
+                            </Label>
+                            <Textarea
+                                id="description"
+                                placeholder="Enter proposal description"
+                                value={newProposalDescription}
+                                onChange={(e) => setNewProposalDescription(e.target.value)}
+                                className="col-span-4 resize-none"
+                                rows={4}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setNewProposalOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={handleCreateProposal}>Create</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Signature Dialog */}
+            <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+                <DialogContent className="w-full max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Add Signature - {activeDocument}</DialogTitle>
+                    </DialogHeader>
+                    
+                    {/* SIGNATURE MODULE PLACEHOLDER */}
+                    {/* Place your signature module implementation here */}
+                    <div className="h-[300px] flex items-center justify-center border rounded text-gray-500">
+                        Signature module placeholder
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={() => {
+                            if (activeDocument) {
+                                setSignedDocuments(prev => ({ ...prev, [activeDocument]: true }));
+                                setSignatureDialogOpen(false);
+                                toast.success("Signature added successfully");
+                            }
+                        }}>
+                            Save Signature
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

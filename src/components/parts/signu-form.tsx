@@ -99,7 +99,7 @@ export function SignupForm({
                 org: formData.org,
                 role: formData.role,
                 category: formData.category,
-                avatar: avatarPath, 
+                avatar: avatarPath,
             })
 
             if (insertError) throw insertError
@@ -173,7 +173,9 @@ export function SignupForm({
                                 onChange={handleChange}
                                 required
                             />
-                            <Label htmlFor="category">Category</Label>
+                            <Label htmlFor="category" hidden={
+                                formData.email === "" ||
+                                formData.org === ""}>Category</Label>
                             <select
                                 id="category"
                                 value={formData.category}
@@ -182,8 +184,10 @@ export function SignupForm({
                                 }
                                 required
                                 className="border rounded px-2 py-1"
+                                hidden={
+                                    formData.email === "" ||
+                                    formData.org === ""}
                                 disabled={
-                                    !formData.email ||
                                     !(
                                         formData.email.endsWith("@uic.edu.ph") &&
                                         formData.org === "University of the Immaculate Conception"

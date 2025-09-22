@@ -1,7 +1,8 @@
 import { type ColumnDef } from "@tanstack/react-table"
-import { ArrowUpDown } from "lucide-react"
+import { ArrowUpDown, FileText, Hash, Eye, Clock, Scale, ClipboardCheck, Workflow, Calendar, UserCircle2, Tags, ListFilter, Activity, UserRound } from "lucide-react"
 import { useNavigate } from "react-router"
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
@@ -14,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { supabase } from "@/DB"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
   let awa = {
@@ -77,75 +79,91 @@ function formatDateTime(unformatted: string) {
 export const columns: ColumnDef<SubmTable>[] = [
   {
     id: "actions",
-    header: () => <div className="p-2 w-full text-center">Actions</div>,
+    header: () => (
+      <div className="flex items-center justify-center gap-2">
+        <Workflow className="h-4 w-4 text-gray-500" />
+        <span>Actions</span>
+      </div>
+    ),
     cell: ({ row }) => {
       const navigate = useNavigate()
+      const status = stat(row.getValue("status"))
       return (
         <div className="flex justify-center">
-          <RippleButton
-            className="h-9 w-17 hover:bg-muted rounded-sm text-xs"
-            onClick={() => {
-              handleCheck(
-                row.getValue("proposal_id"),
-                row.getValue("proposal_title"),
-                row.getValue('researcher_full_name'),
-                row.getValue('researcher_email'),
-                formatDate(row.getValue("date")),
-                "",
-                row.getValue("status"),
-                stat(row.getValue("status"))
-              )
-              navigate("/ssubm/sub1/sreview")
-            }}
-            disabled={stat(row.getValue("status")) === "Pending"}
-          >
-            {stat(row.getValue("status"))}
-          </RippleButton>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <RippleButton
+                  className={cn(
+                    "h-8 px-3 rounded-md text-sm font-medium",
+                    status === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
+                    status === "Check" && "text-white",
+                    status === "Assess" && "text-amber-600",
+                    status === "View" && "text-gray-600"
+                  )}
+                  onClick={() => {
+                    handleCheck(
+                      row.getValue("proposal_id"),
+                      row.getValue("proposal_title"),
+                      row.getValue('researcher_full_name'),
+                      row.getValue('researcher_email'),
+                      formatDate(row.getValue("date")),
+                      "",
+                      row.getValue("status"),
+                      status
+                    )
+                    navigate("/ssubm/sub1/sreview")
+                  }}
+                  disabled={status === "Pending"}
+                >
+                  {status === "Check" && <ClipboardCheck className="h-4 w-4 mr-2" />}
+                  {status === "Assess" && <Scale className="h-4 w-4 mr-2" />}
+                  {status === "View" && <Eye className="h-4 w-4 mr-2" />}
+                  {status === "Pending" && <Clock className="h-4 w-4 mr-2" />}
+                  {status}
+                </RippleButton>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {status === "Pending" ? "Awaiting previous steps" : `Click to ${status.toLowerCase()}`}
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       )
     },
-    size: 90,
+    size: 120,
   },
   {
     accessorKey: "proposal_id",
     enableHiding: false,
     size: 100,
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        ID
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <Hash className="h-4 w-4 text-gray-500" />
+        <span>ID</span>
+      </div>
     ),
   },
   {
     accessorKey: "proposal_title",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Proposal Title
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <FileText className="h-4 w-4 text-gray-500" />
+        <span>Proposal Title</span>
+      </div>
     ),
     size: 200,
   },
   {
     accessorKey: "researcher",
     header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Researcher
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+      <>
+      <UserRound className="h-4 w-4 text-gray-500" />
+      Researcher
+      </>
+
     ),
     cell: ({ row }) => {
       const [loading, setLoading] = useState(false)
@@ -164,6 +182,8 @@ export const columns: ColumnDef<SubmTable>[] = [
       const initials = fullName
         ? fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
         : "?"
+
+      console.log(fname,lname);
 
       // ✅ Only fetch avatar/details when dialog opens
       useEffect(() => {
@@ -286,39 +306,39 @@ export const columns: ColumnDef<SubmTable>[] = [
         </div>
       )
     },
-    size: 150,
+    size: 160,
   },
   {
     accessorKey: "date",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Date Submitted
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-gray-500" />
+        <span>Date Submitted</span>
+      </div>
     ),
     cell: ({ row }) => (
-      <div className="text-left">{formatDateTime(row.getValue("date"))}</div>
+      <div className="flex items-center gap-2">
+        <time dateTime={row.getValue("date")} className="text-gray-600">
+          {formatDateTime(row.getValue("date"))}
+        </time>
+      </div>
     ),
     size: 200,
   },
   {
     accessorKey: "updated_on",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Last Updated
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-gray-500" />
+        <span>Last Updated</span>
+      </div>
     ),
     cell: ({ row }) => (
-      <div className="text-left">{formatDateTime(row.getValue("updated_on"))}</div>
+      <div className="flex items-center gap-2">
+        <time dateTime={row.getValue("updated_on")} className="text-gray-600">
+          {formatDateTime(row.getValue("updated_on"))}
+        </time>
+      </div>
     ),
     size: 200,
   },
@@ -330,48 +350,74 @@ export const columns: ColumnDef<SubmTable>[] = [
   },
   {
     accessorKey: "category",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Category
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <Tags className="h-4 w-4 text-gray-500" />
+        <span>Category</span>
+      </div>
     ),
     cell: ({ row }) => (
-      <div className="text-left">
-        {row.getValue("category") || "Not provided"}
+      <div className="flex items-center gap-2">
+        <Badge variant="outline" className="text-gray-600 bg-gray-50/50">
+          {row.getValue("category") || "Not provided"}
+        </Badge>
       </div>
     ),
     size: 200,
   },
   {
     accessorKey: "review_type",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Review Type
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <ListFilter className="h-4 w-4 text-gray-500" />
+        <span>Review Type</span>
+      </div>
     ),
+    cell: ({ row }) => {
+      const reviewType = row.getValue("review_type") as string
+      return (
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "font-medium",
+              reviewType === "Expedited" && "bg-green-50 text-green-700 border-green-300",
+              reviewType === "Full" && "bg-amber-50 text-amber-700 border-amber-300"
+            )}
+          >
+            {reviewType || "Pending"}
+          </Badge>
+        </div>
+      )
+    },
     size: 200,
   },
   {
     accessorKey: "status",
-    header: ({ column }) => (
-      <Button
-        variant="ghost"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        className="w-full hover:bg-white"
-      >
-        Status
-        <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
+    header: () => (
+      <div className="flex items-center gap-2">
+        <Activity className="h-4 w-4 text-gray-500" />
+        <span>Status</span>
+      </div>
     ),
+    cell: ({ row }) => {
+      const status = row.getValue("status") as string
+      return (
+        <div className="flex items-center gap-2">
+          <Badge
+            variant="outline"
+            className={cn(
+              "font-medium",
+              status.includes("Check") && "bg-blue-50 text-white border-blue-300",
+              status.includes("Resend") && "bg-red-50 text-red-700 border-red-300",
+              status === "Risk Assessment" && "bg-amber-50 text-amber-700 border-amber-300",
+              status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+            )}
+          >
+            {status}
+          </Badge>
+        </div>
+      )
+    },
   },
 ]

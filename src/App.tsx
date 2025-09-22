@@ -90,8 +90,16 @@ export default function App() {
     <>
       <Router>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signu" element={<SignupPage />} />
+          <Route path="/login" element={
+            <div className='overflow-hidden'>
+              <LoginPage />
+            </div>
+          } />
+          <Route path="/signu" element={
+            <div className='overflow-hidden'>
+              <SignupPage />
+            </div>
+          } />
           <Route element={seshempty ? (
             <Navigate to="/login" replace />
           ) : (
@@ -125,7 +133,7 @@ export default function App() {
             <Route path="/sdash" element={<SDashboard />} />
             <Route path="/sdash/sub1" element={<SDashboard />} />
             <Route path="/sdash/sub2" element={<RDashboard />} />
-            <Route path="/profile" element={<Profile/>} />
+            <Route path="/profile" element={<Profile />} />
 
             <Route path="*" element={<SDashboard />} />
 
