@@ -31,11 +31,21 @@ interface SessionProfile {
   role: string;
 }
 
+// ----------------------------
+// Redirect if user is logged in but not verified
+// ----------------------------
 function AuthRedirect({ user, children }: { user: User | null; children: JSX.Element }) {
-  if (user) {
-    // already logged in → redirect to root (which will handle role redirect)
+  const isVerified = user?.email_confirmed_at || user?.user_metadata?.email_confirmed;
+
+  if (user && !isVerified) {
+    toast.error("Please verify your email first!");
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user && isVerified) {
     return <Navigate to="/" replace />;
   }
+
   return children;
 }
 
@@ -50,7 +60,6 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
     return <Navigate to="/sdash/sub1" replace />;
   }
 
-  // Fallback for invalid paths
   return <div className="p-10 text-center">Page not found</div>;
 }
 
@@ -131,7 +140,7 @@ export default function App() {
     }
 
     const fetchProfile = async () => {
-      setProfile(null); // reset while fetching
+      setProfile(null);
       try {
         const { data, error } = await supabase
           .from('profiles')
@@ -181,7 +190,6 @@ export default function App() {
     <Router>
       <Routes>
         {/* Public pages */}
-        {/* Public pages - blocked if logged in */}
         <Route
           path="/login"
           element={
@@ -199,13 +207,16 @@ export default function App() {
           }
         />
 
-
         {/* Authenticated layout */}
-        <Route element={!user ? <Navigate to="/login" replace /> : <SidebarLayout profile={profile} user={user} />}>
-          {/* Root redirect based on role */}
+        <Route
+          element={
+            !user || !(user.email_confirmed_at || user.user_metadata?.email_confirmed)
+              ? <Navigate to="/login" replace />
+              : <SidebarLayout profile={profile} user={user} />
+          }
+        >
           {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
 
-          {/* Staff/Researcher pages */}
           <Route path="/sdash" element={<SDashboard />} />
           <Route path="/sdash/sub1" element={<SDashboard />} />
           <Route path="/sdash/sub2" element={<RDashboard />} />
@@ -219,7 +230,6 @@ export default function App() {
           <Route path="/sdevi" element={<SDeviations />} />
           <Route path="/admin/userroles" element={<AdminUsersPage />} />
 
-          {/* Catch-all */}
           {profile && <Route path="*" element={<DefaultRedirect profile={profile} />} />}
         </Route>
       </Routes>

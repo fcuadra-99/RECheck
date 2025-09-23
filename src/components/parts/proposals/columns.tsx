@@ -97,7 +97,7 @@ export const columns: ColumnDef<SubmTable>[] = [
                     "h-8 px-3 rounded-md text-sm font-medium",
                     status === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
                     status === "Check" && "text-white",
-                    status === "Assess" && "text-amber-600",
+                    status === "Assess" && "text-white",
                     status === "View" && "text-gray-600"
                   )}
                   onClick={() => {
