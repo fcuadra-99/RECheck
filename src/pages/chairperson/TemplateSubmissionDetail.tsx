@@ -30,6 +30,7 @@ interface TemplateSubmission {
   digital_signature_status: 'signed' | 'unsigned';
   signature_date?: string;
   submission_notes?: string;
+  signature_image?: string;
 }
 
 export default function TemplateSubmissionDetail() {
@@ -64,7 +65,20 @@ export default function TemplateSubmissionDetail() {
         return;
       }
 
-      if (data) {
+        if (data) {
+        // Fetch researcher's signature
+        let signatureImage = '';
+        if (data.researcher_id) {
+          const { data: signatureData } = await supabase
+            .from('user_signatures')
+            .select('signature_image')
+            .eq('user_id', data.researcher_id)
+            .single();
+          
+          if (signatureData?.signature_image) {
+            signatureImage = signatureData.signature_image;
+          }
+        }
         // Transform database data to match component interface
         const transformedSubmission: TemplateSubmission = {
           id: data.id,
@@ -79,7 +93,8 @@ export default function TemplateSubmissionDetail() {
           reviewed_by: data.reviewer_name,
           reviewed_at: data.review_date,
           reviewer_notes: data.review_comments,
-          submission_notes: data.description
+          submission_notes: data.description,
+          signature_image: signatureImage
         };
 
         setSubmission(transformedSubmission);
@@ -366,6 +381,20 @@ export default function TemplateSubmissionDetail() {
                         <p className="text-xs text-green-600 mt-2">
                           This document has been digitally signed and verified for authenticity.
                         </p>
+                        
+                        {/* Display Signature Image */}
+                        {submission.signature_image && (
+                          <div className="mt-3 pt-3 border-t border-green-200">
+                            <p className="text-xs text-green-600 mb-2">Researcher's Digital Signature:</p>
+                            <div className="bg-white p-2 rounded border border-green-200 inline-block">
+                              <img 
+                                src={submission.signature_image} 
+                                alt="Researcher Digital Signature" 
+                                className="max-w-[200px] max-h-[60px] object-contain"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

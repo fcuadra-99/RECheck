@@ -29,6 +29,7 @@ interface TemplateSubmission {
   digital_signature_status: 'signed' | 'unsigned';
   signature_date?: string;
   submission_notes?: string;
+  signature_image?: string;
 }
 
 export default function ResearcherSubmissionDetail() {
@@ -36,7 +37,6 @@ export default function ResearcherSubmissionDetail() {
   const navigate = useNavigate();
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState('');
   const [editFile, setEditFile] = useState<File | null>(null);
   const [submittingEdit, setSubmittingEdit] = useState(false);
@@ -65,6 +65,20 @@ export default function ResearcherSubmissionDetail() {
       }
 
       if (data) {
+        // Fetch researcher's signature
+        let signatureImage = '';
+        if (data.researcher_id) {
+          const { data: signatureData } = await supabase
+            .from('user_signatures')
+            .select('signature_image')
+            .eq('user_id', data.researcher_id)
+            .single();
+          
+          if (signatureData?.signature_image) {
+            signatureImage = signatureData.signature_image;
+          }
+        }
+
         // Transform database data to match component interface
         const transformedSubmission: TemplateSubmission = {
           id: data.id,
@@ -79,7 +93,8 @@ export default function ResearcherSubmissionDetail() {
           reviewed_by: data.reviewer_name,
           reviewed_at: data.review_date,
           reviewer_notes: data.review_comments,
-          submission_notes: data.description
+          submission_notes: data.description,
+          signature_image: signatureImage
         };
         setSubmission(transformedSubmission);
         setEditNotes(data.description || '');
@@ -137,7 +152,7 @@ export default function ResearcherSubmissionDetail() {
       if (editFile) {
         const fileExt = editFile.name.split('.').pop();
         const filePath = `submissions/${submission.id}/${Date.now()}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('storage')
           .upload(filePath, editFile);
         if (uploadError) {
@@ -157,8 +172,8 @@ export default function ResearcherSubmissionDetail() {
           file_url,
           file_name: original_filename,
           description: editNotes,
-          status: 'pending',
-          researcher_signed_at: null
+          status: 'pending'
+          // Do not reset researcher_signed_at, keep previous signature
         })
         .eq('id', submission.id);
       if (error) {
@@ -167,7 +182,6 @@ export default function ResearcherSubmissionDetail() {
         return;
       }
       alert('Submission updated!');
-      setEditing(false);
       fetchSubmission();
     } catch (err) {
       alert('Error updating submission.');
@@ -419,6 +433,20 @@ export default function ResearcherSubmissionDetail() {
                         <p className="text-xs text-green-600 mt-2">
                           Document integrity verified and authenticated.
                         </p>
+                        
+                        {/* Display Signature Image */}
+                        {submission.signature_image && (
+                          <div className="mt-3 pt-3 border-t border-green-200">
+                            <p className="text-xs text-green-600 mb-2">Your Digital Signature:</p>
+                            <div className="bg-white p-2 rounded border border-green-200 inline-block">
+                              <img 
+                                src={submission.signature_image} 
+                                alt="Digital Signature" 
+                                className="max-w-[200px] max-h-[60px] object-contain"
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
