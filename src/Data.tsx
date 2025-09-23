@@ -72,7 +72,7 @@ const navConfig = {
     url: "/sdash",
     icon: LayoutDashboard,
     items: [
-      { title: "Dashboard Staff", url: "/sdash/staff", role: "Admin Assistant" },
+      { title: "Dashboard Staff", url: "/sdash", role: "Admin Assistant" },
       { title: "Dashboard Researcher", url: "/sdash/sub2", role: "Researcher" },
       { title: "Dashboard Reviewer", url: "/sdash/reviewer", role: "Reviewer" },
       { title: "Dashboard Chairperson", url: "/sdash/chair", role: "Chairperson" },

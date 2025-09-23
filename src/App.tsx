@@ -1,25 +1,26 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
-import { supabase } from './DB';
-import { type User } from '@supabase/supabase-js';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { AppBreadcrumb } from './components/parts/app-breadcrumb';
 import { SidebarProvider } from './components/ui/sidebar';
-import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
-import { RippleButton } from './components/animate-ui/buttons/ripple';
-import { toast } from 'sonner';
-import { MessageCircle } from 'lucide-react';
 
-// Pages
-import LoginPage from './pages/Login';
-import SignupPage from './pages/Signup';
+import './App.css';
+
 import SDashboard from './pages/staff/Dashboard';
 import SSubmissions from './pages/staff/Submissions';
 import SDeviations from './pages/staff/Deviations';
-import SReview from './pages/staff/Submissions/Review';
-import RDashboard from './pages/researcher/Dashboard';
-import RSubmissions from './pages/researcher/Submissions';
-import AdminUsersPage from './pages/AdminUsersPage';
+import LoginPage from './pages/Login';
+import SignupPage from './pages/Signup';
+import { MessageCircle } from 'lucide-react';
+import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
+import { RippleButton } from './components/animate-ui/buttons/ripple';
+import { toast } from 'sonner';
+import { SReview } from './pages/staff/Submissions/Review';
+import { useEffect, useState } from 'react';
+import { supabase } from './DB';
+import { type User } from '@supabase/supabase-js';
 import Profile from './pages/Profile';
+import RSubmissions from './pages/researcher/Submissions';
+import RDashboard from './pages/researcher/Dashboard';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 interface SessionProfile {
   fname: string;
@@ -30,8 +31,59 @@ interface SessionProfile {
   role: string;
 }
 
+// ----------------------------
+// Role-based redirect for root
+// ----------------------------
+function DefaultRedirect({ profile }: { profile: SessionProfile }) {
+  const location = useLocation();
+
+  if (location.pathname === "/") {
+    if (profile.role === "researcher") return <Navigate to="/sdash/sub2" replace />;
+    return <Navigate to="/sdash/sub1" replace />;
+  }
+
+  // Fallback for invalid paths
+  return <div className="p-10 text-center">Page not found</div>;
+}
+
+// ----------------------------
+// Sidebar Layout Wrapper
+// ----------------------------
+function SidebarLayout({ profile, user }: { profile: SessionProfile | null; user: User | null }) {
+  return (
+    <SidebarProvider className='overflow-x-clip'>
+      <div className='w-64 fixed h-screen'>
+        <AppSidebar
+          fname={profile?.fname ?? ''}
+          lname={profile?.lname ?? ''}
+          email={profile?.email ?? ''}
+          org={profile?.org ?? ''}
+          role={profile?.role ?? ''}
+          userId={user?.id ?? ''}
+        />
+      </div>
+      <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
+        <div className='py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none pl-15'>
+          <AppBreadcrumb />
+        </div>
+        <div className='pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50'>
+          <Outlet />
+        </div>
+      </div>
+
+      <RippleButton
+        variant="secondary"
+        size="icon"
+        className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5"
+        onClick={() => { toast.success("Test") }}
+      >
+        <MessageCircle />
+      </RippleButton>
+    </SidebarProvider>
+  );
+}
+
 export default function App() {
-  
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<SessionProfile | null>(null);
@@ -109,91 +161,43 @@ export default function App() {
     return () => { mounted = false; };
   }, [user]);
 
-  // ----------------------------
-  // ProtectedRoute wrapper
-  // ----------------------------
-  function ProtectedRoute({ allowedRoles }: { allowedRoles: string[] }) {
-    if (loading || !user || !profile) {
-      return (
-        <div className="flex items-center justify-center h-screen">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      );
-    }
-
-    if (!allowedRoles.includes(profile.role)) {
-      toast.error("You are not authorized to view this page.");
-      return <Navigate to="/login" replace />;
-    }
-
+  if (loading) {
     return (
-      <SidebarProvider className="overflow-x-clip">
-        <div className="w-64 fixed h-screen">
-          <AppSidebar
-            fname={profile.fname}
-            lname={profile.lname}
-            email={profile.email}
-            org={profile.org}
-            role={profile.role}
-            userId={user.id}
-          />
-        </div>
-        <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
-          <div className="py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none pl-15">
-            <AppBreadcrumb />
-          </div>
-          <div className="pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50">
-            <Outlet />
-          </div>
-        </div>
-        <RippleButton
-          variant="secondary"
-          size="icon"
-          className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5"
-          onClick={() => toast.success('Test')}
-        >
-          <MessageCircle />
-        </RippleButton>
-      </SidebarProvider>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
   return (
     <Router>
       <Routes>
-        {/* Public routes */}
+        {/* Public pages */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/signu" element={<SignupPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-        {/* Staff routes */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin Assistant', 'Chairperson', 'Admin']} />}>
-          <Route path="/" element={<SDashboard />} />
+        {/* Authenticated layout */}
+        <Route element={!user ? <Navigate to="/login" replace /> : <SidebarLayout profile={profile} user={user} />}>
+          {/* Root redirect based on role */}
+          {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
+
+          {/* Staff/Researcher pages */}
           <Route path="/sdash" element={<SDashboard />} />
           <Route path="/sdash/sub1" element={<SDashboard />} />
+          <Route path="/sdash/sub2" element={<RDashboard />} />
+          <Route path="/profile" element={<Profile />} />
+
           <Route path="/ssubm" element={<SSubmissions />} />
           <Route path="/ssubm/sub1" element={<SSubmissions />} />
           <Route path="/ssubm/sub1/sreview" element={<SReview />} />
-          <Route path="/sdevi" element={<SDeviations />} />
-        </Route>
-
-        {/* Researcher routes */}
-        <Route element={<ProtectedRoute allowedRoles={['Researcher', 'Admin']} />}>
-          <Route path="/sdash/sub2" element={<RDashboard />} />
           <Route path="/ssubm/sub2" element={<RSubmissions />} />
-        </Route>
 
-        {/* Admin routes */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+          <Route path="/sdevi" element={<SDeviations />} />
           <Route path="/admin/userroles" element={<AdminUsersPage />} />
-        </Route>
 
-        {/* Profile */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin', 'Researcher', 'Chairperson', 'Admin Assistant']}/>}>
-          <Route path="/profile" element={<Profile />} />
+          {/* Catch-all */}
+          {profile && <Route path="*" element={<DefaultRedirect profile={profile} />} />}
         </Route>
-
-        {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
