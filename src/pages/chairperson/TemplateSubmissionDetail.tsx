@@ -223,7 +223,7 @@ export default function TemplateSubmissionDetail() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{submission.template_type}</h1>
-              <p className="mt-2 text-gray-600">Review and assess this template submission</p>
+              <p className="mt-2 text-gray-600">Review and assess this form submission</p>
             </div>
             {getStatusBadge(submission.status)}
           </div>

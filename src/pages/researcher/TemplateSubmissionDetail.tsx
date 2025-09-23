@@ -36,6 +36,10 @@ export default function ResearcherSubmissionDetail() {
   const navigate = useNavigate();
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
 
   useEffect(() => {
     fetchSubmission();
@@ -77,8 +81,8 @@ export default function ResearcherSubmissionDetail() {
           reviewer_notes: data.review_comments,
           submission_notes: data.description
         };
-
         setSubmission(transformedSubmission);
+        setEditNotes(data.description || '');
       }
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -120,6 +124,56 @@ export default function ResearcherSubmissionDetail() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Handle edit submit
+  const handleEditSubmit = async () => {
+    if (!submission) return;
+    setSubmittingEdit(true);
+    try {
+      let file_url = submission.file_url;
+      let original_filename = submission.original_filename;
+      // If file changed, upload new file
+      if (editFile) {
+        const fileExt = editFile.name.split('.').pop();
+        const filePath = `submissions/${submission.id}/${Date.now()}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('storage')
+          .upload(filePath, editFile);
+        if (uploadError) {
+          alert('File upload failed.');
+          setSubmittingEdit(false);
+          return;
+        }
+        // Get public URL
+        const { data: urlData } = supabase.storage.from('storage').getPublicUrl(filePath);
+        file_url = urlData.publicUrl;
+        original_filename = editFile.name;
+      }
+      // Update submission
+      const { error } = await supabase
+        .from('template_submissions')
+        .update({
+          file_url,
+          file_name: original_filename,
+          description: editNotes,
+          status: 'pending',
+          researcher_signed_at: null
+        })
+        .eq('id', submission.id);
+      if (error) {
+        alert('Failed to update submission.');
+        setSubmittingEdit(false);
+        return;
+      }
+      alert('Submission updated!');
+      setEditing(false);
+      fetchSubmission();
+    } catch (err) {
+      alert('Error updating submission.');
+    } finally {
+      setSubmittingEdit(false);
+    }
   };
 
   if (loading) {
@@ -176,7 +230,6 @@ export default function ResearcherSubmissionDetail() {
             {/* Document Info */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Submission Information</h2>
-              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-3">
                   <FileText className="w-5 h-5 text-gray-400" />
@@ -185,7 +238,6 @@ export default function ResearcherSubmissionDetail() {
                     <p className="text-sm text-gray-600">{submission.template_type}</p>
                   </div>
                 </div>
-                
                 <div className="flex items-center space-x-3">
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
@@ -193,7 +245,6 @@ export default function ResearcherSubmissionDetail() {
                     <p className="text-sm text-gray-600">{formatDate(submission.submitted_at)}</p>
                   </div>
                 </div>
-                
                 <div className="flex items-center space-x-3">
                   <CheckCircle className="w-5 h-5 text-gray-400" />
                   <div>
@@ -205,7 +256,6 @@ export default function ResearcherSubmissionDetail() {
                   </div>
                 </div>
               </div>
-
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-sm font-medium text-gray-900 mb-2">Original Filename</p>
                 <p className="text-sm text-gray-600 font-mono bg-gray-50 px-3 py-2 rounded">
@@ -217,7 +267,6 @@ export default function ResearcherSubmissionDetail() {
             {/* Document Actions */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Document Actions</h2>
-              
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={() => window.open(submission.file_url, '_blank')}
@@ -226,7 +275,6 @@ export default function ResearcherSubmissionDetail() {
                   <Eye className="w-4 h-4 mr-2" />
                   View PDF
                 </button>
-                
                 <a
                   href={submission.file_url}
                   download={submission.original_filename}
@@ -238,8 +286,43 @@ export default function ResearcherSubmissionDetail() {
               </div>
             </div>
 
+            {/* Inline Edit Section */}
+            {submission.status === 'needs_revision' && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <h2 className="text-lg font-medium text-yellow-900 mb-4">Edit & Resubmit</h2>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Update File</label>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={e => setEditFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-700 border border-gray-300 rounded-md"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Update Notes</label>
+                    <textarea
+                      value={editNotes}
+                      onChange={e => setEditNotes(e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      placeholder="Update your submission notes..."
+                    />
+                  </div>
+                  <button
+                    onClick={handleEditSubmit}
+                    disabled={submittingEdit}
+                    className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
+                  >
+                    {submittingEdit ? 'Submitting...' : 'Resubmit'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Submission Notes */}
-            {submission.submission_notes && (
+            {submission.submission_notes && submission.status !== 'needs_revision' && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <h2 className="text-lg font-medium text-gray-900 mb-4">Your Submission Notes</h2>
                 <div className="bg-gray-50 rounded-lg p-4">
@@ -262,27 +345,23 @@ export default function ResearcherSubmissionDetail() {
             {/* Review Status */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Review Status</h3>
-              
               <div className="space-y-3">
                 <div>
                   <p className="text-sm font-medium text-gray-700">Current Status</p>
                   {getStatusBadge(submission.status)}
                 </div>
-                
                 {submission.reviewed_by && (
                   <div>
                     <p className="text-sm font-medium text-gray-700">Reviewed By</p>
                     <p className="text-sm text-gray-600">{submission.reviewed_by}</p>
                   </div>
                 )}
-                
                 {submission.reviewed_at && (
                   <div>
                     <p className="text-sm font-medium text-gray-700">Review Date</p>
                     <p className="text-sm text-gray-600">{formatDate(submission.reviewed_at)}</p>
                   </div>
                 )}
-                
                 {submission.reviewer_notes && (
                   <div>
                     <p className="text-sm font-medium text-gray-700">Review Comments</p>
@@ -295,11 +374,9 @@ export default function ResearcherSubmissionDetail() {
                 )}
               </div>
             </div>
-
             {/* Digital Signature Status */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Digital Signature</h3>
-              
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                   <div className="flex items-center space-x-3">
@@ -330,7 +407,6 @@ export default function ResearcherSubmissionDetail() {
                     )}
                   </div>
                 </div>
-
                 {submission.digital_signature_status === 'signed' && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-start">
@@ -349,11 +425,9 @@ export default function ResearcherSubmissionDetail() {
                 )}
               </div>
             </div>
-
             {/* Quick Info */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Info</h3>
-              
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Submission ID</span>
