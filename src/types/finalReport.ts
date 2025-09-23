@@ -11,7 +11,7 @@ export interface FinalReport {
   submitted_at: string; // ISO timestamp
   last_updated_at: string; // ISO timestamp
   attachments: string[]; // storage object paths
-  remarks?: string | null; // internal staff remarks
+  remarks?: string | null; // internal chairperson remarks
 }
 
 export type FinalReportStatus =

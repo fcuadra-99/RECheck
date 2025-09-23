@@ -13,7 +13,7 @@ export interface ResearcherDeviationReport {
   type: string;
   status: string;
   severity?: string;
-  review?: string; // Feedback from staff
+  review?: string; // Feedback from chairperson
   corrective_action_feedback?: string; // Feedback for major deviations
   corrective_action_required?: string;
   corrective_action_details?: string;
@@ -27,6 +27,6 @@ export interface ResearcherDeviationReport {
   resolution_supporting_documents?: string[];
   resolution_submission_date?: string;
   resolution_notes?: string;
-  staff_acknowledgment?: string;
-  staff_acknowledgment_date?: string;
+  chairperson_acknowledgment?: string;
+  chairperson_acknowledgment_date?: string;
 }

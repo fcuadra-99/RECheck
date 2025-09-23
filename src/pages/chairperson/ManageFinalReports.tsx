@@ -144,7 +144,7 @@ const ManageFinalReports: React.FC = () => {
             </div>
             <div className="mb-6">
               <label className="block text-sm font-medium mb-1">Internal Remarks (not visible to researcher)</label>
-              <textarea value={editRemarks} onChange={e=>setEditRemarks(e.target.value)} rows={3} className="border rounded px-3 py-2 w-full text-sm" placeholder="Internal notes for staff tracking" />
+              <textarea value={editRemarks} onChange={e=>setEditRemarks(e.target.value)} rows={3} className="border rounded px-3 py-2 w-full text-sm" placeholder="Internal notes for chairperson tracking" />
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={()=>setModalOpen(false)} className="px-4 py-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>

@@ -196,11 +196,11 @@ const DeviationDetail = () => {
                 {!isReviewed && showSignaturePad && (
                   <div className="border-t-2 border-gray-200 pt-6 mt-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                      Staff Signature Required
+                      Chairperson Signature Required
                     </h3>
                     <DigitalSignaturePad 
                       deviationReportId={deviation.id}
-                      userRole="staff"
+                      userRole="chairperson"
                       onSignatureComplete={async () => {
                         // Save the review when signature is completed
                         setLoading(true);
@@ -244,7 +244,7 @@ const DeviationDetail = () => {
                       if (!error) {
                         setDeviation((prev: any) => prev ? { ...prev, severity: 'Major' } : prev);
                         setSeverity('Major');
-                        navigate('/staff/corrective-action-request', { state: { deviationId: deviation.id } });
+                        navigate('/chairperson/corrective-action-request', { state: { deviationId: deviation.id } });
                       } else {
                         showNotification('Failed to update severity. Please try again.', '❌');
                       }

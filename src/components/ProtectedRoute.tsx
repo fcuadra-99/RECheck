@@ -40,8 +40,8 @@ export default function ProtectedRoute({ allowedRoles, children }: ProtectedRout
       return <Navigate to="/researcher/dashboard" replace />;
     } else if (normalizedRole === 'reviewer') {
       return <Navigate to="/reviewer/dashboard" replace />;
-    } else if (normalizedRole === 'staff') {
-      return <Navigate to="/staff/dashboard" replace />;
+    } else if (normalizedRole === 'chairperson') {
+      return <Navigate to="/chairperson/dashboard" replace />;
     }
     return <Unauthorized />;
   }

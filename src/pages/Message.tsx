@@ -56,7 +56,7 @@ const dummyMessages: Record<number, Message[]> = {
 
 
 const filters = [
-  'Unread', 'All', 'Students', 'Faculty', 'Staff', 'Today', 'This week'
+  'Unread', 'All', 'Students', 'Faculty', 'Chairperson', 'Today', 'This week'
 ];
 
 export default function Message() {

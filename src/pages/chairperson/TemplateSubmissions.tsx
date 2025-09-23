@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 import { Eye, FileText, Calendar, User, CheckCircle, Clock, AlertCircle, Search, Filter } from 'lucide-react';
 
 interface TemplateSubmission {
@@ -28,66 +29,94 @@ export default function TemplateSubmissions() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    fetchSubmissions();
-  }, []);
-
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Chairperson fetching submissions...');
       
-      // Fetch real data from the database
-      const { data, error } = await supabase
+      // Debug: Check current user and role
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('Current user for chairperson view:', user);
+      
+      if (user) {
+        // Check user's role from database
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        console.log('Database query result - data:', userData);
+        console.log('Database query result - error:', userError);
+      }
+      
+      // DEBUGGING: Try direct supabase query first
+      console.log('🔍 Testing direct supabase query...');
+      const { data: directData, error: directError } = await supabase
         .from('template_submissions')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+      
+      console.log('🔍 Direct query result:', { directData, directError });
+      console.log('🔍 Direct data length:', directData?.length);
+      
+      // Test with count to see if there are any records at all
+      const { count, error: countError } = await supabase
+        .from('template_submissions')
+        .select('*', { count: 'exact', head: true });
+      
+      console.log('🔍 Total count in table:', count);
+      console.log('🔍 Count error:', countError);
+      
+      // Use the proper service method for chairperson to get all submissions
+      const templateService = new TemplateSubmissionService();
+      const result = await templateService.getAllSubmissions({
+        status: statusFilter === 'all' ? undefined : statusFilter
+      });
 
-      if (error) {
-        console.error('Error fetching submissions:', error);
-        console.error('Error details:', error.message, error.details, error.hint);
-        console.error('Error code:', error.code);
-        
-        // Check if it's an RLS/permission error
-        if (error.code === 'PGRST116' || error.message.includes('permission') || error.message.includes('policy')) {
-          console.error('This appears to be a Row Level Security (RLS) policy issue');
-        }
-        
+      if (!result.success) {
+        console.error('Error fetching submissions:', result.error);
         setSubmissions([]);
-      } else {
-        console.log('Fetched data from database:', data);
-        console.log('Data type:', typeof data, 'Is array:', Array.isArray(data), 'Length:', data?.length);
+        return;
+      }
+
+      const data = result.submissions || [];
+      console.log('Fetched submissions from service:', data);
+      console.log('Data length:', data.length);
+      
+      if (data && data.length > 0) {
+        // Transform service data to match component interface
+        const transformedData: TemplateSubmission[] = data.map((item: any) => ({
+          id: item.id,
+          template_type: item.template_name,
+          original_filename: item.file_name,
+          file_url: item.file_url,
+          submitted_by: item.researcher_name,
+          submitted_at: item.submission_date || item.created_at,
+          status: item.status,
+          digital_signature_status: item.researcher_signed_at ? 'signed' : 'unsigned',
+          signature_date: item.researcher_signed_at,
+          reviewed_by: item.reviewer_name,
+          reviewed_at: item.review_date || item.review_comments,
+          reviewer_notes: item.review_comments
+        }));
         
-        if (data && data.length > 0) {
-          // Transform database data to match component interface
-          const transformedData: TemplateSubmission[] = data.map((item: any) => ({
-            id: item.id,
-            template_type: item.template_name,
-            original_filename: item.file_name,
-            file_url: item.file_url,
-            submitted_by: item.researcher_name,
-            submitted_at: item.submission_date || item.created_at,
-            status: item.status,
-            digital_signature_status: item.researcher_signed_at ? 'signed' : 'unsigned',
-            signature_date: item.researcher_signed_at,
-            reviewed_by: item.reviewer_name,
-            reviewed_at: item.review_date || item.review_comments,
-            reviewer_notes: item.review_comments
-          }));
-          
-          console.log('Transformed data:', transformedData);
-          setSubmissions(transformedData);
-          return;
-        } else {
-          console.log('No data found in database');
-          setSubmissions([]);
-        }
+        console.log('Transformed data for chairperson view:', transformedData);
+        setSubmissions(transformedData);
+      } else {
+        console.log('No submissions found');
+        setSubmissions([]);
       }
     } catch (error) {
-      console.error('Error fetching submissions:', error);
+      console.error('Error in fetchSubmissions:', error);
+      setSubmissions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
+
+  useEffect(() => {
+    fetchSubmissions();
+  }, [fetchSubmissions]);
 
   const getStatusBadge = (status: string) => {
     const styles = {
@@ -307,7 +336,7 @@ export default function TemplateSubmissions() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">
                         <Link
-                          to={`/staff/template-submissions/${submission.id}`}
+                          to={`/chairperson/template-submissions/${submission.id}`}
                           className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
                         >
                           <Eye className="w-4 h-4 mr-1" />

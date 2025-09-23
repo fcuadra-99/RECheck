@@ -36,7 +36,7 @@ export function useUserRole(user: { email?: string } | null) {
             setRole(null);
           } else {
             const r = raw.trim().toLowerCase();
-            const mapped = r === 'staff' ? 'Staff' : r === 'reviewer' ? 'Reviewer' : r === 'researcher' ? 'Researcher' : null;
+            const mapped = r === 'chairperson' ? 'Chairperson' : r === 'reviewer' ? 'Reviewer' : r === 'researcher' ? 'Researcher' : null;
             setRole(mapped);
           }
         }

@@ -15,7 +15,7 @@ interface SignatureInfo {
     documentIntegrityValid?: boolean;
     signatureImage?: string;
   };
-  staff: {
+  chairperson: {
     isValid: boolean;
     signedBy?: string;
     signedAt?: string;
@@ -147,12 +147,12 @@ export default function SignatureDisplay({
               <User className="h-5 w-5 text-blue-600 mr-2" />
               <h4 className="font-medium text-gray-900">Researcher Signature</h4>
             </div>
-            {getSignatureStatus(signatures.researcher.isValid, 'researcher')}
+                        {getSignatureStatus(signatures.chairperson.isValid, 'chairperson')}
           </div>
           
-          {signatures.researcher.isValid ? (
+                    {signatures.chairperson.isValid ? (
             <div className="space-y-3">
-              {signatures.researcher.signatureImage && (
+                            {signatures.chairperson.signatureImage && (
                 <div className="bg-gray-50 border border-gray-200 rounded p-2">
                   <p className="text-xs text-gray-600 mb-1">Signature:</p>
                   <img 
@@ -177,31 +177,31 @@ export default function SignatureDisplay({
           )}
         </div>
 
-        {/* Staff Signature */}
+        {/* Chairperson Signature */}
         <div className="border border-gray-200 rounded-lg p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center">
               <Shield className="h-5 w-5 text-purple-600 mr-2" />
-              <h4 className="font-medium text-gray-900">Staff Review Signature</h4>
+              <h4 className="font-medium text-gray-900">Chairperson Review Signature</h4>
             </div>
-            {getSignatureStatus(signatures.staff.isValid, 'staff')}
+            {getSignatureStatus(signatures.chairperson.isValid, 'chairperson')}
           </div>
           
-          {signatures.staff.isValid ? (
+          {signatures.chairperson.isValid ? (
             <div className="space-y-3">
-              {signatures.staff.signatureImage && (
+              {signatures.chairperson.signatureImage && (
                 <div className="bg-gray-50 border border-gray-200 rounded p-2">
                   <p className="text-xs text-gray-600 mb-1">Signature:</p>
                   <img 
-                    src={signatures.staff.signatureImage} 
-                    alt="Staff signature" 
+                    src={signatures.chairperson.signatureImage} 
+                    alt="Chairperson signature" 
                     className="max-h-16 border border-gray-300 rounded bg-white"
                     style={{ maxWidth: '150px' }}
                   />
                 </div>
               )}
               <div className="text-sm text-gray-600">
-                <strong>Signed:</strong> {formatDate(signatures.staff.signedAt)}
+                <strong>Signed:</strong> {formatDate(signatures.chairperson.signedAt)}
               </div>
               <div className="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded">
                 Stage 2 Complete ✓
@@ -210,7 +210,7 @@ export default function SignatureDisplay({
           ) : (
             <div className="text-sm text-gray-500">
               {signatures.researcher.isValid 
-                ? 'Ready for staff review and signature'
+                ? 'Ready for chairperson review and signature'
                 : 'Waiting for researcher signature first'
               }
             </div>
@@ -236,12 +236,12 @@ export default function SignatureDisplay({
           }`}></div>
           
           <div className={`flex items-center ${
-            signatures.staff.isValid ? 'text-green-600' : 'text-gray-400'
+            signatures.chairperson.isValid ? 'text-green-600' : 'text-gray-400'
           }`}>
             <div className={`w-3 h-3 rounded-full mr-2 ${
-              signatures.staff.isValid ? 'bg-green-600' : 'bg-gray-300'
+              signatures.chairperson.isValid ? 'bg-green-600' : 'bg-gray-300'
             }`}></div>
-            <span className="text-sm">Stage 2: Staff Review</span>
+            <span className="text-sm">Stage 2: Chairperson Review</span>
           </div>
         </div>
       </div>

@@ -63,7 +63,7 @@ export default function AnnouncementDetail() {
         // Check if user has access to this announcement
         const audiences: string[] = ['all'];
         if (role === 'researcher') audiences.push('students');
-        if (role === 'reviewer' || role === 'staff') audiences.push('committee');
+        if (role === 'reviewer' || role === 'chairperson') audiences.push('committee');
 
         if (!audiences.includes(data.audience) && data.audience !== 'all') {
           setError('You do not have access to this announcement');

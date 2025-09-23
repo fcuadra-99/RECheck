@@ -27,7 +27,7 @@ export default function Announcements() {
 
         const audiences: string[] = ['all'];
         if (role === 'researcher') audiences.push('students');
-        if (role === 'reviewer' || role === 'staff') audiences.push('committee');
+        if (role === 'reviewer' || role === 'chairperson') audiences.push('committee');
 
         const { data } = await supabase
           .from('announcements')

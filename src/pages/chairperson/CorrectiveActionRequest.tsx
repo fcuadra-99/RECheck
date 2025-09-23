@@ -74,7 +74,7 @@ export default function CorrectiveActionRequest() {
           </h1>
 
           {showSignaturePad ? (
-            // Stage 2: Staff Signature Process
+            // Stage 2: Chairperson Signature Process
             <div>
               <div className="mb-6 text-center">
                 <h2 className="text-xl font-semibold text-gray-900 mb-2">Complete Your Review</h2>
@@ -86,10 +86,10 @@ export default function CorrectiveActionRequest() {
                 <SignatureDisplay deviationReportId={deviationId} />
               </div>
               
-              {/* Staff signature pad */}
+              {/* Chairperson signature pad */}
               <DigitalSignaturePad
                 deviationReportId={deviationId}
-                userRole="staff"
+                userRole="chairperson"
                 onSignatureComplete={handleSignatureComplete}
                 onCancel={handleSignatureCancel}
               />

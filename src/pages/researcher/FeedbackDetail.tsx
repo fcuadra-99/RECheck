@@ -219,9 +219,9 @@ const FeedbackDetail = () => {
                     <div className="mt-1 p-3 bg-gray-50 rounded-lg border">{deviation.corrective_action}</div>
                 </div>
                 
-                {/* Staff Feedback Section */}
+                {/* Chairperson Feedback Section */}
                 <div className="mb-6 p-4 border-l-4 border-blue-300 bg-blue-50 rounded-r-lg">
-                    <h3 className="font-semibold text-blue-800 mb-2">Staff Feedback/Review</h3>
+                    <h3 className="font-semibold text-blue-800 mb-2">Chairperson Feedback/Review</h3>
                     <div className={`p-4 rounded-lg whitespace-pre-line ${deviation.severity === 'Major' ? 'bg-red-50 text-red-700 font-semibold' : 'bg-white text-gray-800'}`}>
                         {deviation.severity === 'Major'
                             ? (deviation.corrective_action_feedback || 'No corrective action feedback provided.')
@@ -357,13 +357,13 @@ const FeedbackDetail = () => {
                                 </div>
                             )}
 
-                            {deviation.staff_acknowledgment && (
+                            {deviation.chairperson_acknowledgment && (
                                 <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-                                    <span className="font-semibold text-green-700">Staff Acknowledgment: </span>
-                                    <div className="text-green-700">{deviation.staff_acknowledgment}</div>
-                                    {deviation.staff_acknowledgment_date && (
+                                    <span className="font-semibold text-green-700">Chairperson Acknowledgment: </span>
+                                    <div className="text-green-700">{deviation.chairperson_acknowledgment}</div>
+                                    {deviation.chairperson_acknowledgment_date && (
                                         <div className="text-sm text-green-600 mt-1">
-                                            Acknowledged on: {new Date(deviation.staff_acknowledgment_date).toLocaleDateString()}
+                                            Acknowledged on: {new Date(deviation.chairperson_acknowledgment_date).toLocaleDateString()}
                                         </div>
                                     )}
                                 </div>
@@ -387,14 +387,14 @@ const FeedbackDetail = () => {
                                 <div className="space-y-4">
                                     <div>
                                         <label className="block font-semibold text-gray-700 mb-2">
-                                            Response to Staff Feedback <span className="text-red-500">*</span>
+                                            Response to Chairperson Feedback <span className="text-red-500">*</span>
                                         </label>
                                         <textarea
                                             className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-200"
                                             rows={4}
                                             value={researcherResponse}
                                             onChange={(e) => setResearcherResponse(e.target.value)}
-                                            placeholder="Acknowledge the staff feedback and explain your understanding of the requirements..."
+                                            placeholder="Acknowledge the chairperson feedback and explain your understanding of the requirements..."
                                         />
                                     </div>
 
@@ -526,10 +526,10 @@ const FeedbackDetail = () => {
                         <div className="text-center text-gray-500">
                             <p>No resolution action is currently available for this deviation.</p>
                             {(!deviation.severity || deviation.severity.trim() === '') && (
-                                <p className="text-sm mt-2">This deviation has not been assessed by staff yet.</p>
+                                <p className="text-sm mt-2">This deviation has not been assessed by chairperson yet.</p>
                             )}
                             {deviation.severity && deviation.severity.trim() !== '' && (!deviation.review?.trim() && !deviation.corrective_action_feedback?.trim()) && (
-                                <p className="text-sm mt-2">Staff assessment is pending feedback.</p>
+                                <p className="text-sm mt-2">Chairperson assessment is pending feedback.</p>
                             )}
                         </div>
                     )}

@@ -36,7 +36,7 @@ const ResolutionDetail = () => {
                 if (data?.resolution_status === 'in_progress') {
                     setAcknowledgment('');
                 } else {
-                    setAcknowledgment(data?.staff_acknowledgment || '');
+                    setAcknowledgment(data?.chairperson_acknowledgment || '');
                 }
             }
         } catch (err) {
@@ -59,8 +59,8 @@ const ResolutionDetail = () => {
                 .from('deviation_reports')
                 .update({
                     resolution_status: 'resolved',
-                    staff_acknowledgment: acknowledgment,
-                    staff_acknowledgment_date: new Date().toISOString(),
+                    chairperson_acknowledgment: acknowledgment,
+                    chairperson_acknowledgment_date: new Date().toISOString(),
                 })
                 .eq('id', deviation.id);
 
@@ -71,8 +71,8 @@ const ResolutionDetail = () => {
                 setDeviation(prev => prev ? {
                     ...prev,
                     resolution_status: 'resolved',
-                    staff_acknowledgment: acknowledgment,
-                    staff_acknowledgment_date: new Date().toISOString(),
+                    chairperson_acknowledgment: acknowledgment,
+                    chairperson_acknowledgment_date: new Date().toISOString(),
                 } : null);
                 setTimeout(() => navigate(-1), 2000);
             }
@@ -95,8 +95,8 @@ const ResolutionDetail = () => {
                 .from('deviation_reports')
                 .update({
                     resolution_status: 'rejected',
-                    staff_acknowledgment: acknowledgment,
-                    staff_acknowledgment_date: new Date().toISOString(),
+                    chairperson_acknowledgment: acknowledgment,
+                    chairperson_acknowledgment_date: new Date().toISOString(),
                 })
                 .eq('id', deviation.id);
 
@@ -107,8 +107,8 @@ const ResolutionDetail = () => {
                 setDeviation(prev => prev ? {
                     ...prev,
                     resolution_status: 'rejected',
-                    staff_acknowledgment: acknowledgment,
-                    staff_acknowledgment_date: new Date().toISOString(),
+                    chairperson_acknowledgment: acknowledgment,
+                    chairperson_acknowledgment_date: new Date().toISOString(),
                 } : null);
                 setTimeout(() => navigate(-1), 2000);
             }
@@ -203,7 +203,7 @@ const ResolutionDetail = () => {
                     </div>
                 </div>
 
-                {/* Staff Feedback Given */}
+                {/* Chairperson Feedback Given */}
                 <div className="mb-8 p-4 border-l-4 border-blue-300 bg-blue-50 rounded-r-lg">
                     <h3 className="font-semibold text-blue-800 mb-4">Your Feedback Given</h3>
                     <div className="text-blue-800">
@@ -339,11 +339,11 @@ const ResolutionDetail = () => {
                     )}
                 </div>
 
-                {/* Staff Acknowledgment Section */}
+                {/* Chairperson Acknowledgment Section */}
                 <div className="border-t pt-6">
-                    <h3 className="text-xl font-bold mb-4 text-gray-800">Staff Review</h3>
+                    <h3 className="text-xl font-bold mb-4 text-gray-800">Chairperson Review</h3>
                     
-                    {(deviation.staff_acknowledgment && deviation.resolution_status !== 'in_progress') ? (
+                    {(deviation.chairperson_acknowledgment && deviation.resolution_status !== 'in_progress') ? (
                         <div className="mb-6 p-4 border rounded-lg bg-gray-50">
                             <div className="flex items-center justify-between mb-2">
                                 <span className="font-semibold text-gray-700">Your Assessment:</span>
@@ -354,19 +354,19 @@ const ResolutionDetail = () => {
                                     {isResolved ? 'APPROVED' : 'REVISION REQUESTED'}
                                 </span>
                             </div>
-                            <div className="p-3 bg-white rounded border">{deviation.staff_acknowledgment}</div>
-                            {deviation.staff_acknowledgment_date && (
+                            <div className="p-3 bg-white rounded border">{deviation.chairperson_acknowledgment}</div>
+                            {deviation.chairperson_acknowledgment_date && (
                                 <div className="text-sm text-gray-500 mt-2">
-                                    Reviewed on: {new Date(deviation.staff_acknowledgment_date).toLocaleDateString()}
+                                    Reviewed on: {new Date(deviation.chairperson_acknowledgment_date).toLocaleDateString()}
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {deviation.resolution_status === 'in_progress' && deviation.staff_acknowledgment && (
+                            {deviation.resolution_status === 'in_progress' && deviation.chairperson_acknowledgment && (
                                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                     <p className="text-blue-800 font-medium">Previous Review:</p>
-                                    <p className="text-blue-700 text-sm mt-1">{deviation.staff_acknowledgment}</p>
+                                    <p className="text-blue-700 text-sm mt-1">{deviation.chairperson_acknowledgment}</p>
                                     <p className="text-blue-600 text-xs mt-2">
                                         Researcher has resubmitted. Please review the updated response.
                                     </p>

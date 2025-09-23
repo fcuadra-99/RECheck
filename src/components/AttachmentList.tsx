@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Trash2, Eye, Calendar } from 'lucide-react';
 import { reviewAttachmentService } from '../services/reviewAttachmentService';
+import { reviewAttachmentServiceFallback } from '../services/reviewAttachmentServiceFallback';
 import type { ReviewAttachment } from '../services/reviewAttachmentService';
 
 interface AttachmentListProps {
   submissionId: string;
-  isStaff?: boolean; // Whether the current user is staff (can delete attachments)
+  isChairperson?: boolean; // Whether the current user is chairperson (can delete attachments)
   refreshTrigger?: number; // Use this to trigger refresh from parent
 }
 
-export default function AttachmentList({ submissionId, isStaff = false, refreshTrigger }: AttachmentListProps) {
+export default function AttachmentList({ submissionId, isChairperson = false, refreshTrigger }: AttachmentListProps) {
   const [attachments, setAttachments] = useState<ReviewAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -21,18 +22,23 @@ export default function AttachmentList({ submissionId, isStaff = false, refreshT
   const fetchAttachments = async () => {
     try {
       setLoading(true);
-      const result = isStaff 
+      
+      // Try the main service first
+      let result = isChairperson 
         ? await reviewAttachmentService.getAttachmentsBySubmission(submissionId)
         : await reviewAttachmentService.getAttachmentsForResearcher(submissionId);
+
+      // If main service fails, try the fallback
+      if (!result.success && (result.error?.includes('review_attachments') || result.error?.includes('403'))) {
+        result = await reviewAttachmentServiceFallback.getAttachmentsBySubmission(submissionId);
+      }
 
       if (result.success && result.attachments) {
         setAttachments(result.attachments);
       } else {
-        console.error('Failed to fetch attachments:', result.error);
         setAttachments([]);
       }
     } catch (error) {
-      console.error('Error fetching attachments:', error);
       setAttachments([]);
     } finally {
       setLoading(false);
@@ -46,7 +52,14 @@ export default function AttachmentList({ submissionId, isStaff = false, refreshT
 
     try {
       setDeleting(attachmentId);
-      const result = await reviewAttachmentService.deleteAttachment(attachmentId);
+      
+      // Try main service first
+      let result = await reviewAttachmentService.deleteAttachment(attachmentId);
+      
+      // If main service fails, try fallback
+      if (!result.success && (result.error?.includes('review_attachments') || result.error?.includes('403'))) {
+        result = await reviewAttachmentServiceFallback.deleteAttachment(submissionId, attachmentId);
+      }
       
       if (result.success) {
         setAttachments(prev => prev.filter(att => att.id !== attachmentId));
@@ -54,7 +67,6 @@ export default function AttachmentList({ submissionId, isStaff = false, refreshT
         alert(result.error || 'Failed to delete attachment');
       }
     } catch (error) {
-      console.error('Error deleting attachment:', error);
       alert('Failed to delete attachment');
     } finally {
       setDeleting(null);
@@ -120,7 +132,7 @@ export default function AttachmentList({ submissionId, isStaff = false, refreshT
           <FileText className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No attachments</h3>
           <p className="mt-1 text-sm text-gray-500">
-            {isStaff 
+            {isChairperson 
               ? 'No files have been attached to this review yet.'
               : 'The reviewer has not attached any files to this submission.'
             }
@@ -191,7 +203,7 @@ export default function AttachmentList({ submissionId, isStaff = false, refreshT
                   <Download className="w-3 h-3" />
                 </a>
                 
-                {isStaff && (
+                {isChairperson && (
                   <button
                     onClick={() => handleDelete(attachment.id)}
                     disabled={deleting === attachment.id}

@@ -106,7 +106,7 @@ const SDashboard: React.FC = () => {
                 const dls = await getUpcomingDeadlines(6);
                 setDeadlines(dls || []);
             } catch (err) {
-                console.error('Error loading staff dashboard', err);
+                console.error('Error loading chairperson dashboard', err);
             } finally {
                 setLoading(false);
             }
@@ -115,7 +115,7 @@ const SDashboard: React.FC = () => {
     }, []);
 
     const { user } = useAuth();
-    const displayName = (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.email?.split('@')[0] || 'Staff';
+    const displayName = (user as any)?.user_metadata?.full_name || (user as any)?.user_metadata?.name || user?.email?.split('@')[0] || 'Chairperson';
 
     return (
         <div className="p-6 space-y-6">

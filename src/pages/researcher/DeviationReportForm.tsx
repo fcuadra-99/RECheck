@@ -4,7 +4,7 @@ import { FileUploadService, UPLOAD_CONFIGS } from '../../services/fileUploadServ
 import useAuth from '@/hooks/useAuth';
 import { ClipboardList, CalendarDays, FileText, UploadCloud, AlertCircle } from 'lucide-react';
 import DigitalSignaturePad from '../../components/DigitalSignaturePad';
-import { testDatabaseConnection } from '../../utils/debugDatabase';
+// ...existing code...
 
 
 const deviationTypeOptions = [
@@ -115,10 +115,7 @@ const DeviationReportForm: React.FC = () => {
         const reportId = data[0].id;
         console.log('Report ID:', reportId); // Debug log
         
-        // Debug: Test database connection
-        testDatabaseConnection(reportId).then(result => {
-          console.log('Database test result:', result);
-        });
+        // ...existing code...
         
         setSubmittedReportId(reportId);
         setShowSignaturePad(true);

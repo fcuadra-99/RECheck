@@ -112,7 +112,7 @@ export default function TemplateSubmissionDetail() {
           status: reviewDecision,
           review_comments: reviewNotes,
           reviewer_id: user.user?.id,
-          reviewer_name: userProfile?.name || user.user?.email || 'Staff Member',
+          reviewer_name: userProfile?.name || user.user?.email || 'Chairperson',
           review_date: new Date().toISOString()
         })
         .eq('id', submission.id);
@@ -128,7 +128,7 @@ export default function TemplateSubmissionDetail() {
         ...prev,
         status: reviewDecision,
         reviewer_notes: reviewNotes,
-        reviewed_by: userProfile?.name || user.user?.email || 'Staff Member',
+        reviewed_by: userProfile?.name || user.user?.email || 'Chairperson',
         reviewed_at: new Date().toISOString()
       } : null);
 
@@ -196,7 +196,7 @@ export default function TemplateSubmissionDetail() {
         <div className="max-w-4xl mx-auto text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Submission Not Found</h1>
           <button
-            onClick={() => navigate('/staff/template-submissions')}
+            onClick={() => navigate('/chairperson/template-submissions')}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -213,7 +213,7 @@ export default function TemplateSubmissionDetail() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/staff/template-submissions')}
+            onClick={() => navigate('/chairperson/template-submissions')}
             className="mb-4 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -488,7 +488,7 @@ export default function TemplateSubmissionDetail() {
             {/* Review Attachments Display */}
             <AttachmentList 
               submissionId={submission.id} 
-              isStaff={true}
+              isChairperson={true}
               refreshTrigger={attachmentRefresh}
             />
 

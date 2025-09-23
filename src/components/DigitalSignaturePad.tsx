@@ -7,7 +7,7 @@ import { UserSignatureService } from '../services/userSignatureService';
 
 interface DigitalSignaturePadProps {
   deviationReportId: string;
-  userRole: 'researcher' | 'staff';
+  userRole: 'researcher' | 'chairperson';
   onSignatureComplete?: (success: boolean) => void;
   onCancel?: () => void;
   disabled?: boolean;
@@ -123,7 +123,7 @@ export default function DigitalSignaturePad({
           signatureData
         );
       } else {
-        result = await DigitalSignatureService.signAsStaff(
+        result = await DigitalSignatureService.signAsChairperson(
           deviationReportId,
           signatureData
         );
@@ -170,7 +170,7 @@ export default function DigitalSignaturePad({
         <div className="flex items-center">
           <Pen className="h-5 w-5 text-blue-600 mr-2" />
           <h3 className="text-lg font-semibold text-gray-900">
-            {userRole === 'researcher' ? 'Researcher Signature' : 'Staff Review Signature'}
+            {userRole === 'researcher' ? 'Researcher Signature' : 'Chairperson Review Signature'}
           </h3>
         </div>
         <div className="text-sm text-gray-500">

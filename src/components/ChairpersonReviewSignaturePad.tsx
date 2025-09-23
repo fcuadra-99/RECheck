@@ -5,19 +5,19 @@ import useAuth from '../hooks/useAuth';
 import { DigitalSignatureService } from '../services/digitalSignatureService';
 import SignatureDisplay from './SignatureDisplay';
 
-interface StaffReviewSignaturePadProps {
+interface ChairpersonReviewSignaturePadProps {
   deviationReportId: string;
   onSignatureComplete?: (success: boolean) => void;
   onCancel?: () => void;
   showReportSummary?: boolean;
 }
 
-export default function StaffReviewSignaturePad({
+export default function ChairpersonReviewSignaturePad({
   deviationReportId,
   onSignatureComplete,
   onCancel,
   showReportSummary = true
-}: StaffReviewSignaturePadProps) {
+}: ChairpersonReviewSignaturePadProps) {
   const signatureRef = useRef<SignatureCanvas>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
@@ -40,7 +40,7 @@ export default function StaffReviewSignaturePad({
       const result = await DigitalSignatureService.canUserSign(
         deviationReportId,
         user.id,
-        'staff'
+        'chairperson'
       );
       
       setCanSign(result.canSign);
@@ -92,10 +92,10 @@ export default function StaffReviewSignaturePad({
       const signatureData = {
         signatureImage: signatureDataURL,
         userId: user.id,
-        userRole: 'staff' as const
+        userRole: 'chairperson' as const
       };
 
-      const result = await DigitalSignatureService.signAsStaff(
+      const result = await DigitalSignatureService.signAsChairperson(
         deviationReportId,
         signatureData
       );
@@ -141,7 +141,7 @@ export default function StaffReviewSignaturePad({
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <div className="flex items-center mb-3">
           <Shield className="h-5 w-5 text-blue-600 mr-2" />
-          <h3 className="text-lg font-semibold text-blue-900">Staff Review Signature Required</h3>
+          <h3 className="text-lg font-semibold text-blue-900">Chairperson Review Signature Required</h3>
         </div>
         <p className="text-sm text-blue-700">
           The deviation report has been submitted by the researcher and is ready for your review signature.
@@ -180,7 +180,7 @@ export default function StaffReviewSignaturePad({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             <Shield className="h-5 w-5 text-purple-600 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Staff Review Signature</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Chairperson Review Signature</h3>
           </div>
           <div className="text-sm text-gray-500">
             Stage 2 of 2

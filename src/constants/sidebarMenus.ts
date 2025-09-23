@@ -3,15 +3,15 @@
 import { LayoutDashboard, BookCopy, User, PencilRuler, Megaphone, FileText, CheckCircle, FileCheck2, FileDown } from "lucide-react";
 
 export const sidebarMenus = {
-  Staff: [
-  { title: "Dashboard", url: "/sdash", icon: LayoutDashboard },
-  { title: "Assign Reviewer", url: "/sassign-reviewer", icon: User },
-  { title: "Review Submission", url: "/sreview-submission", icon: BookCopy },
-  { title: "Forms Submission", url: "/staff/template-submissions", icon: FileText },
-  { title: "Deviation Management", url: "/sdevi", icon: PencilRuler },
-  { title: "Resolution Reviews", url: "/staff/resolution-reviews", icon: CheckCircle },
-  { title: "Manage Final Reports", url: "/staff/manage-final-reports", icon: FileCheck2 },
-  { title: "Create Announcement", url: "/screate-announcement", icon: Megaphone },
+  Chairperson: [
+  { title: "Dashboard", url: "/chairperson/dashboard", icon: LayoutDashboard },
+  { title: "Assign Reviewer", url: "/chairperson/assign-reviewer", icon: User },
+  { title: "Review Submission", url: "/chairperson/review-submission", icon: BookCopy },
+  { title: "Forms Submission", url: "/chairperson/template-submissions", icon: FileText },
+  { title: "Deviation Reports", url: "/chairperson/deviations", icon: PencilRuler },
+  { title: "Deviation Resolutions", url: "/chairperson/resolution-reviews", icon: CheckCircle },
+  { title: "Manage Final Reports", url: "/chairperson/manage-final-reports", icon: FileCheck2 },
+  { title: "Create Announcement", url: "/chairperson/create-announcement", icon: Megaphone },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   ],
   Researcher: [

@@ -250,10 +250,10 @@ export default function ResearcherSubmissionDetail() {
               </div>
             )}
 
-            {/* Staff Attachments */}
+            {/* Chairperson Attachments */}
             <AttachmentList 
               submissionId={submission.id} 
-              isStaff={false}
+              isChairperson={false}
             />
           </div>
 

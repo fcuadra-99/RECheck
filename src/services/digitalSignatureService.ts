@@ -4,7 +4,7 @@ import CryptoJS from 'crypto-js';
 export interface SignatureData {
   signatureImage: string; // Base64 encoded signature
   userId: string;
-  userRole: 'researcher' | 'staff';
+  userRole: 'researcher' | 'chairperson';
   ipAddress?: string;
   userAgent?: string;
 }
@@ -98,9 +98,9 @@ export class DigitalSignatureService {
   }
 
   /**
-   * Stage 2: Staff signs the deviation report after review
+   * Stage 2: Chairperson signs the deviation report after review
    */
-  static async signAsStaff(
+  static async signAsChairperson(
     deviationReportId: string, 
     signatureData: SignatureData
   ): Promise<{ success: boolean; error?: string }> {
@@ -126,14 +126,14 @@ export class DigitalSignatureService {
       const clientInfo = await this.getClientInfo();
       const signatureHash = this.generateSignatureHash(signatureData.signatureImage);
       
-      // Update the deviation report with staff signature
+      // Update the deviation report with chairperson signature
       const { error: updateError } = await supabase
         .from('deviation_reports')
         .update({
-          staff_signature: signatureData.signatureImage,
-          staff_signature_date: new Date().toISOString(),
-          staff_signature_hash: signatureHash,
-          staff_ip_address: clientInfo.ipAddress,
+          chairperson_signature: signatureData.signatureImage,
+          chairperson_signature_date: new Date().toISOString(),
+          chairperson_signature_hash: signatureHash,
+          chairperson_ip_address: clientInfo.ipAddress,
           signature_status: 'both_signed'
         })
         .eq('id', deviationReportId);
@@ -148,7 +148,7 @@ export class DigitalSignatureService {
         .insert({
           deviation_report_id: deviationReportId,
           user_id: signatureData.userId,
-          user_role: 'staff',
+          user_role: 'chairperson',
           action: 'signed',
           signature_data: signatureData.signatureImage,
           signature_hash: signatureHash,
@@ -156,7 +156,7 @@ export class DigitalSignatureService {
           user_agent: clientInfo.userAgent,
           metadata: {
             stage: 2,
-            description: 'Staff completed review and signed deviation report'
+            description: 'Chairperson completed review and signed deviation report'
           }
         });
 
@@ -168,7 +168,7 @@ export class DigitalSignatureService {
     } catch (error: any) {
       return { 
         success: false, 
-        error: error.message || 'Failed to apply staff signature' 
+        error: error.message || 'Failed to apply chairperson signature' 
       };
     }
   }
@@ -178,7 +178,7 @@ export class DigitalSignatureService {
    */
   static async verifySignatures(deviationReportId: string): Promise<{
     researcher: SignatureVerification;
-    staff: SignatureVerification;
+    chairperson: SignatureVerification;
     documentIntegrity: boolean;
   }> {
     try {
@@ -188,9 +188,9 @@ export class DigitalSignatureService {
           researcher_signature,
           researcher_signature_date,
           researcher_signature_hash,
-          staff_signature,
-          staff_signature_date,
-          staff_signature_hash,
+          chairperson_signature,
+          chairperson_signature_date,
+          chairperson_signature_hash,
           signature_status
         `)
         .eq('id', deviationReportId)
@@ -214,23 +214,23 @@ export class DigitalSignatureService {
         signatureImage: report.researcher_signature
       };
 
-      // Verify staff signature
-      const staffVerification: SignatureVerification = {
-        isValid: !!report.staff_signature,
-        signedAt: report.staff_signature_date,
+      // Verify chairperson signature
+      const chairpersonVerification: SignatureVerification = {
+        isValid: !!report.chairperson_signature,
+        signedAt: report.chairperson_signature_date,
         documentIntegrityValid: documentIntegrity,
-        signatureImage: report.staff_signature
+        signatureImage: report.chairperson_signature
       };
 
       return {
         researcher: researcherVerification,
-        staff: staffVerification,
+        chairperson: chairpersonVerification,
         documentIntegrity
       };
     } catch (error: any) {
       return {
         researcher: { isValid: false },
-        staff: { isValid: false },
+        chairperson: { isValid: false },
         documentIntegrity: false
       };
     }
@@ -269,7 +269,7 @@ export class DigitalSignatureService {
   static async canUserSign(
     deviationReportId: string, 
     userId: string, 
-    userRole: 'researcher' | 'staff'
+    userRole: 'researcher' | 'chairperson'
   ): Promise<{ canSign: boolean; reason?: string }> {
     try {
       console.log('Checking permissions for:', { deviationReportId, userId, userRole }); // Debug log
@@ -277,7 +277,7 @@ export class DigitalSignatureService {
       // First, try to get the report with signature columns
       let { data: report, error } = await supabase
         .from('deviation_reports')
-        .select('signature_status, reported_by_user, researcher_signature, staff_signature')
+        .select('signature_status, reported_by_user, researcher_signature, chairperson_signature')
         .eq('id', deviationReportId)
         .single();
 
@@ -304,8 +304,8 @@ export class DigitalSignatureService {
             canSign: isOwner, 
             reason: isOwner ? undefined : 'You can only sign your own reports' 
           };
-        } else if (userRole === 'staff') {
-          // For now, allow staff to sign any report when signature columns don't exist
+        } else if (userRole === 'chairperson') {
+          // For now, allow chairperson to sign any report when signature columns don't exist
           return { canSign: true };
         }
       }
@@ -333,19 +333,19 @@ export class DigitalSignatureService {
         }
         
         return { canSign: true };
-      } else if (userRole === 'staff') {
-        // Staff can sign if researcher has already signed
+      } else if (userRole === 'chairperson') {
+        // Chairperson can sign if researcher has already signed
         const researcherSigned = !!report.researcher_signature;
-        const staffNotSigned = !report.staff_signature;
+        const chairpersonNotSigned = !report.chairperson_signature;
         
-        console.log('Staff check:', { researcherSigned, staffNotSigned }); // Debug log
+        console.log('Chairperson check:', { researcherSigned, chairpersonNotSigned }); // Debug log
         
         if (!researcherSigned) {
           return { canSign: false, reason: 'Researcher must sign first' };
         }
         
-        if (!staffNotSigned) {
-          return { canSign: false, reason: 'Staff has already signed' };
+        if (!chairpersonNotSigned) {
+          return { canSign: false, reason: 'Chairperson has already signed' };
         }
         
         return { canSign: true };

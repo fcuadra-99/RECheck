@@ -25,9 +25,9 @@ export interface TemplateSubmission {
   researcher_signature?: any;
   researcher_signature_hash?: string;
   researcher_signed_at?: string;
-  staff_signature?: any;
-  staff_signature_hash?: string;
-  staff_signed_at?: string;
+  chairperson_signature?: any;
+  chairperson_signature_hash?: string;
+  chairperson_signed_at?: string;
   document_hash?: string;
   signature_verification_status: 'pending' | 'valid' | 'invalid';
   created_at: string;
@@ -167,7 +167,7 @@ export class TemplateSubmissionService {
   }
 
   /**
-   * Get all template submissions (for staff)
+   * Get all template submissions (for chairperson)
    */
   async getAllSubmissions(filters?: {
     status?: string;
@@ -176,6 +176,8 @@ export class TemplateSubmissionService {
     search?: string;
   }): Promise<{ success: boolean; submissions?: TemplateSubmission[]; error?: string }> {
     try {
+      console.log('📋 getAllSubmissions - Starting fetch with filters:', filters);
+      
       let query = supabase
         .from('template_submissions')
         .select('*')
@@ -183,27 +185,45 @@ export class TemplateSubmissionService {
 
       // Apply filters
       if (filters?.status && filters.status !== 'all') {
+        console.log('📋 Applying status filter:', filters.status);
         query = query.eq('status', filters.status);
       }
       if (filters?.category && filters.category !== 'all') {
+        console.log('📋 Applying category filter:', filters.category);
         query = query.eq('template_category', filters.category);
       }
       if (filters?.priority && filters.priority !== 'all') {
+        console.log('📋 Applying priority filter:', filters.priority);
         query = query.eq('priority', filters.priority);
       }
       if (filters?.search) {
+        console.log('📋 Applying search filter:', filters.search);
         query = query.or(`submission_title.ilike.%${filters.search}%,researcher_name.ilike.%${filters.search}%,template_name.ilike.%${filters.search}%`);
       }
 
+      console.log('📋 Executing database query...');
       const { data, error } = await query;
 
+      console.log('📋 Query result - data:', data);
+      console.log('📋 Query result - error:', error);
+      console.log('📋 Data type:', typeof data);
+      console.log('📋 Is array:', Array.isArray(data));
+      console.log('📋 Data length:', data?.length);
+
       if (error) {
+        console.error('📋 Database error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         return { success: false, error: `Failed to fetch submissions: ${error.message}` };
       }
 
+      console.log('📋 Returning success with data length:', data?.length || 0);
       return { success: true, submissions: data };
     } catch (error) {
-      console.error('Error fetching template submissions:', error);
+      console.error('📋 Unexpected error in getAllSubmissions:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   }
@@ -322,7 +342,7 @@ export class TemplateSubmissionService {
   }
 
   /**
-   * Review a template submission (staff only)
+   * Review a template submission (chairperson only)
    */
   async reviewSubmission(submissionId: string, reviewData: ReviewTemplateSubmissionData): Promise<{ success: boolean; error?: string }> {
     try {
@@ -354,9 +374,9 @@ export class TemplateSubmissionService {
   }
 
   /**
-   * Sign a template submission as staff (approval signature)
+   * Sign a template submission as chairperson (approval signature)
    */
-  async signAsStaff(submissionId: string, signatureData: string): Promise<{ success: boolean; error?: string }> {
+  async signAsChairperson(submissionId: string, signatureData: string): Promise<{ success: boolean; error?: string }> {
     try {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) {
@@ -375,24 +395,24 @@ export class TemplateSubmissionService {
         hash: signatureHash
       };
 
-      // Update the template submission with staff signature
+      // Update the template submission with chairperson signature
       const { error } = await supabase
         .from('template_submissions')
         .update({
-          staff_signature: signatureRecord,
-          staff_signature_hash: signatureHash,
-          staff_signed_at: new Date().toISOString(),
+          chairperson_signature: signatureRecord,
+          chairperson_signature_hash: signatureHash,
+          chairperson_signed_at: new Date().toISOString(),
           status: 'approved'
         })
         .eq('id', submissionId);
 
       if (error) {
-        return { success: false, error: `Failed to update submission with staff signature: ${error.message}` };
+        return { success: false, error: `Failed to update submission with chairperson signature: ${error.message}` };
       }
 
       return { success: true };
     } catch (error) {
-      console.error('Error signing template submission as staff:', error);
+      console.error('Error signing template submission as chairperson:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   }
@@ -425,7 +445,7 @@ export class TemplateSubmissionService {
     try {
       const { data: submission, error } = await supabase
         .from('template_submissions')
-        .select('researcher_signature, staff_signature, researcher_signature_hash, staff_signature_hash')
+        .select('researcher_signature, chairperson_signature, researcher_signature_hash, chairperson_signature_hash')
         .eq('id', submissionId)
         .single();
 
@@ -443,10 +463,10 @@ export class TemplateSubmissionService {
         }
       }
 
-      // Verify staff signature if present
-      if (submission.staff_signature && submission.staff_signature_hash) {
-        const calculatedHash = this.generateSignatureHash(submission.staff_signature.signatureImage);
-        if (calculatedHash !== submission.staff_signature_hash) {
+      // Verify chairperson signature if present
+      if (submission.chairperson_signature && submission.chairperson_signature_hash) {
+        const calculatedHash = this.generateSignatureHash(submission.chairperson_signature.signatureImage);
+        if (calculatedHash !== submission.chairperson_signature_hash) {
           isValid = false;
         }
       }

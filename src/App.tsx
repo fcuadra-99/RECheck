@@ -1,7 +1,7 @@
 
         
-import ReviewSubmission from './pages/staff/ReviewSubmission';
-import AssignReviewer from './pages/staff/AssignReviewer';
+import ReviewSubmission from './pages/chairperson/ReviewSubmission';
+import AssignReviewer from './pages/chairperson/AssignReviewer';
 import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AppBreadcrumb } from './components/parts/app-breadcrumb';
@@ -10,22 +10,22 @@ import { SidebarProvider } from './components/ui/sidebar';
 import './App.css';
 import { data } from "@/Data"
 
-import CorrectiveActionRequest from './pages/staff/CorrectiveActionRequest';
-import SDashboard from './pages/staff/Dashboard';
+import CorrectiveActionRequest from './pages/chairperson/CorrectiveActionRequest';
+import SDashboard from './pages/chairperson/Dashboard';
 import CreateAnnouncement from './pages/CreateAnnouncement';
 import Message from './pages/Message';
-import SSubmissions from './pages/staff/Submissions';
-import SDeviations from './pages/staff/Deviations';
+import SSubmissions from './pages/chairperson/Submissions';
+import SDeviations from './pages/chairperson/Deviations';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
 import { MessageCircle } from 'lucide-react';
 import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
-import STrends from './pages/staff/Trends';
+import STrends from './pages/chairperson/Trends';
 import RDeviations from './pages/researcher/Deviations';
 import FeedbackDetail from './pages/researcher/FeedbackDetail';
 import RSubmissions from './pages/researcher/Submissions';
-import DeviationDetail from './pages/staff/DeviationDetail';
+import DeviationDetail from './pages/chairperson/DeviationDetail';
 import DeviationReportForm from './pages/researcher/DeviationReportForm';
 import ReviewerDashboard from './pages/reviewer/Dashboard';
 import RDashboard from './pages/researcher/Dashboard';
@@ -35,10 +35,10 @@ import Announcements from './pages/Announcements';
 import AnnouncementDetail from './pages/AnnouncementDetail';
 
 import FormsTemplates from './pages/researcher/FormsTemplates';
-import ResolutionReviews from './pages/staff/ResolutionReviews';
-import ResolutionDetail from './pages/staff/ResolutionDetail';
-import TemplateSubmissions from './pages/staff/TemplateSubmissions';
-import TemplateSubmissionDetail from './pages/staff/TemplateSubmissionDetail';
+import ResolutionReviews from './pages/chairperson/ResolutionReviews';
+import ResolutionDetail from './pages/chairperson/ResolutionDetail';
+import TemplateSubmissions from './pages/chairperson/TemplateSubmissions';
+import TemplateSubmissionDetail from './pages/chairperson/TemplateSubmissionDetail';
 import ResearcherTemplateSubmissions from './pages/researcher/TemplateSubmissions';
 import ResearcherTemplateSubmissionDetail from './pages/researcher/TemplateSubmissionDetail';
 
@@ -71,84 +71,84 @@ function App() {
             </SidebarProvider>
 
           }>
-            {/* Staff routes */}
+            {/* Chairperson routes */}
             <Route path="/" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <SDashboard />
               </ProtectedRoute>
             } />
-            <Route path="/sdash" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/dashboard" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <SDashboard />
               </ProtectedRoute>
             } />
-            <Route path="/sdash/sub1" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/trends" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <STrends />
               </ProtectedRoute>
             } />
-            <Route path="/sassign-reviewer" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/assign-reviewer" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <AssignReviewer />
               </ProtectedRoute>
             } />
-            <Route path="/sreview-submission" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/review-submission" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <ReviewSubmission />
               </ProtectedRoute>
             } />
-            <Route path="/sdevi" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/deviations" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <SDeviations />
               </ProtectedRoute>
             } />
-            <Route path="/staff/deviations/:id" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/deviations/:id" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <DeviationDetail />
               </ProtectedRoute>
             } />
-            <Route path="/ssubm" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/submissions" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <SSubmissions />
               </ProtectedRoute>
             } />
-            <Route path="/ssubm/sub1" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/submissions/detail" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <SSubmissions />
               </ProtectedRoute>
             } />
-            <Route path="/screate-announcement" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/create-announcement" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <CreateAnnouncement />
               </ProtectedRoute>
             } />
-            <Route path="/smessages" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/messages" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <Message />
               </ProtectedRoute>
             } />
-            <Route path="/staff/corrective-action-request" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/corrective-action-request" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <CorrectiveActionRequest />
               </ProtectedRoute>
             } />
-            <Route path="/staff/resolution-reviews" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/resolution-reviews" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <ResolutionReviews />
               </ProtectedRoute>
             } />
-            <Route path="/staff/resolution-detail/:id" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/resolution-detail/:id" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <ResolutionDetail />
               </ProtectedRoute>
             } />
-            <Route path="/staff/template-submissions" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/template-submissions" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <TemplateSubmissions />
               </ProtectedRoute>
             } />
-            <Route path="/staff/template-submissions/:id" element={
-              <ProtectedRoute allowedRoles={["Staff"]}>
+            <Route path="/chairperson/template-submissions/:id" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
                 <TemplateSubmissionDetail />
               </ProtectedRoute>
             } />
@@ -210,14 +210,14 @@ function App() {
                 <DeviationReportForm />
               </ProtectedRoute>
             } />
-            {/* Announcements - accessible to Staff, Researcher, Reviewer */}
+            {/* Announcements - accessible to Chairperson, Researcher, Reviewer */}
             <Route path="/announcements" element={
-              <ProtectedRoute allowedRoles={["Staff","Researcher","Reviewer"]}>
+              <ProtectedRoute allowedRoles={["Chairperson","Researcher","Reviewer"]}>
                 <Announcements />
               </ProtectedRoute>
             } />
             <Route path="/announcements/:id" element={
-              <ProtectedRoute allowedRoles={["Staff","Researcher","Reviewer"]}>
+              <ProtectedRoute allowedRoles={["Chairperson","Researcher","Reviewer"]}>
                 <AnnouncementDetail />
               </ProtectedRoute>
             } />

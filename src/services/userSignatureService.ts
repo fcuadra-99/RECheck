@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 export interface UserSignature {
   id?: string;
   user_id: string;
-  user_role: 'researcher' | 'staff';
+  user_role: 'researcher' | 'chairperson';
   signature_image: string; // Base64 signature data
   signature_hash: string;
   created_at?: string;
@@ -17,7 +17,7 @@ export class UserSignatureService {
    */
   static async saveUserSignature(
     userId: string, 
-    userRole: 'researcher' | 'staff', 
+    userRole: 'researcher' | 'chairperson', 
     signatureImage: string
   ): Promise<{ success: boolean; error?: string }> {
     try {
@@ -77,7 +77,7 @@ export class UserSignatureService {
    */
   static async getUserSignature(
     userId: string, 
-    userRole: 'researcher' | 'staff'
+    userRole: 'researcher' | 'chairperson'
   ): Promise<{ signature: UserSignature | null; error?: string }> {
     try {
       const { data, error } = await supabase
@@ -106,7 +106,7 @@ export class UserSignatureService {
    */
   static async hasUserSignature(
     userId: string, 
-    userRole: 'researcher' | 'staff'
+    userRole: 'researcher' | 'chairperson'
   ): Promise<boolean> {
     try {
       const { data } = await supabase

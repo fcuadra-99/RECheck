@@ -43,7 +43,6 @@ export class ReviewAttachmentService {
         });
 
       if (error) {
-        console.error('File upload error:', error);
         return { success: false, error: error.message };
       }
 
@@ -54,7 +53,6 @@ export class ReviewAttachmentService {
 
       return { success: true, fileUrl: urlData.publicUrl };
     } catch (error) {
-      console.error('File upload error:', error);
       return { success: false, error: 'Failed to upload file' };
     }
   }
@@ -69,16 +67,37 @@ export class ReviewAttachmentService {
         return { success: false, error: 'User not authenticated' };
       }
 
-      // Get reviewer info
-      const { data: reviewerProfile, error: profileError } = await supabase
-        .from('users')
-        .select('name, email')
-        .eq('id', user.user.id)
-        .single();
 
-      if (profileError) {
-        console.warn('Could not fetch reviewer profile:', profileError);
+
+      // Get reviewer info (try different possible column names)
+      let reviewerProfile = null;
+      
+      // Try common column names for user profile (including role!)
+      const possibleQueries = [
+        'name, email, role',
+        'full_name as name, email, role', 
+        'display_name as name, email, role',
+        'email, role',
+        'role, email',
+        '*'  // Get all columns to see what's available
+      ];
+
+      for (const selectFields of possibleQueries) {
+        const { data, error } = await supabase
+          .from('users')
+          .select(selectFields)
+          .eq('id', user.user.id)
+          .single();
+        
+        if (!error && data) {
+          reviewerProfile = data;
+          break;
+        }
       }
+
+
+
+
 
       // Upload file
       const uploadResult = await this.uploadFile(data.file, data.submission_id, user.user.id);
@@ -90,7 +109,7 @@ export class ReviewAttachmentService {
       const attachmentData = {
         submission_id: data.submission_id,
         reviewer_id: user.user.id,
-        reviewer_name: reviewerProfile?.name || user.user.email || 'Staff Member',
+        reviewer_name: (reviewerProfile as any)?.name || user.user.email || 'Chairperson',
         file_url: uploadResult.fileUrl!,
         file_name: data.file.name.replace(/[^a-zA-Z0-9.-]/g, '_'), // Sanitize filename
         original_filename: data.file.name,
@@ -107,13 +126,11 @@ export class ReviewAttachmentService {
         .single();
 
       if (insertError) {
-        console.error('Database insert error:', insertError);
         return { success: false, error: 'Failed to save attachment record' };
       }
 
       return { success: true, attachmentId: insertResult.id };
     } catch (error) {
-      console.error('Error creating attachment:', error);
       return { success: false, error: 'Failed to create attachment' };
     }
   }
@@ -130,13 +147,11 @@ export class ReviewAttachmentService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching attachments:', error);
         return { success: false, error: error.message };
       }
 
       return { success: true, attachments: data || [] };
     } catch (error) {
-      console.error('Error fetching attachments:', error);
       return { success: false, error: 'Failed to fetch attachments' };
     }
   }
@@ -174,7 +189,6 @@ export class ReviewAttachmentService {
         .eq('id', attachmentId);
 
       if (deleteError) {
-        console.error('Error deleting attachment record:', deleteError);
         return { success: false, error: 'Failed to delete attachment record' };
       }
 
@@ -193,7 +207,6 @@ export class ReviewAttachmentService {
 
       return { success: true };
     } catch (error) {
-      console.error('Error deleting attachment:', error);
       return { success: false, error: 'Failed to delete attachment' };
     }
   }
@@ -226,7 +239,6 @@ export class ReviewAttachmentService {
       // Get attachments
       return await this.getAttachmentsBySubmission(submissionId);
     } catch (error) {
-      console.error('Error fetching attachments for researcher:', error);
       return { success: false, error: 'Failed to fetch attachments' };
     }
   }

@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { Upload, X, FileText, AlertCircle, CheckCircle } from 'lucide-react';
 import { reviewAttachmentService } from '../services/reviewAttachmentService';
+import { reviewAttachmentServiceFallback } from '../services/reviewAttachmentServiceFallback';
 import type { CreateReviewAttachmentData } from '../services/reviewAttachmentService';
+
 
 interface FileAttachmentProps {
   submissionId: string;
@@ -79,6 +81,8 @@ export default function FileAttachment({ submissionId, onAttachmentAdded }: File
       setIsUploading(true);
       setUploadProgress('Uploading file...');
 
+
+
       const attachmentData: CreateReviewAttachmentData = {
         submission_id: submissionId,
         file: selectedFile,
@@ -86,7 +90,12 @@ export default function FileAttachment({ submissionId, onAttachmentAdded }: File
         attachment_purpose: attachmentPurpose
       };
 
-      const result = await reviewAttachmentService.createAttachment(attachmentData);
+      let result = await reviewAttachmentService.createAttachment(attachmentData);
+
+      // If the main service fails with table issues, try the fallback
+      if (!result.success && (result.error?.includes('review_attachments') || result.error?.includes('403') || result.error?.includes('Failed to save attachment record'))) {
+        result = await reviewAttachmentServiceFallback.createAttachment(attachmentData);
+      }
 
       if (result.success) {
         setUploadProgress('Upload successful!');
@@ -99,10 +108,22 @@ export default function FileAttachment({ submissionId, onAttachmentAdded }: File
           onAttachmentAdded();
         }, 1500);
       } else {
-        throw new Error(result.error || 'Upload failed');
+        console.error('Upload failed with error:', result.error);
+        
+        // Provide more specific error messages
+        if (result.error?.includes('review_attachments') || result.error?.includes('403')) {
+          setUploadProgress('Database not configured. Please contact admin to set up review attachments table.');
+        } else if (result.error?.includes('Failed to save attachment record')) {
+          setUploadProgress('Database error. Please check table permissions and try again.');
+        } else {
+          setUploadProgress('Upload failed. Please try again.');
+        }
+        
+        setTimeout(() => setUploadProgress(''), 5000); // Show error longer
+        return; // Don't throw to prevent additional error logging
       }
     } catch (error) {
-      console.error('Upload error:', error);
+      console.error('Upload error details:', error);
       setUploadProgress('Upload failed. Please try again.');
       setTimeout(() => setUploadProgress(''), 3000);
     } finally {
