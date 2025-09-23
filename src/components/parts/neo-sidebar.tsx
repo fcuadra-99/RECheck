@@ -125,12 +125,14 @@ export function RadixSidebarDemo({
       if (error) {
         toast.error(error.message);
       } else {
+        setTimeout(() => {
+          navigate("/login", { replace: true });
+        }, 100);
         toast.success("Logged out successfully!");
-        navigate('/login');
       }
     } catch (err) {
-      console.error('Logout error:', err);
-      toast.error('An unexpected error occurred during logout.');
+      console.error("Logout error:", err);
+      toast.error("An unexpected error occurred during logout.");
     } finally {
       toast.dismiss(loading);
     }

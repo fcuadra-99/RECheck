@@ -14,7 +14,7 @@ import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
 import { RippleButton } from './components/animate-ui/buttons/ripple';
 import { toast } from 'sonner';
 import { SReview } from './pages/staff/Submissions/Review';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { supabase } from './DB';
 import { type User } from '@supabase/supabase-js';
 import Profile from './pages/Profile';
@@ -29,6 +29,14 @@ interface SessionProfile {
   org: string;
   avatar: string;
   role: string;
+}
+
+function AuthRedirect({ user, children }: { user: User | null; children: JSX.Element }) {
+  if (user) {
+    // already logged in → redirect to root (which will handle role redirect)
+    return <Navigate to="/" replace />;
+  }
+  return children;
 }
 
 // ----------------------------
@@ -173,8 +181,24 @@ export default function App() {
     <Router>
       <Routes>
         {/* Public pages */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signu" element={<SignupPage />} />
+        {/* Public pages - blocked if logged in */}
+        <Route
+          path="/login"
+          element={
+            <AuthRedirect user={user}>
+              <LoginPage />
+            </AuthRedirect>
+          }
+        />
+        <Route
+          path="/signu"
+          element={
+            <AuthRedirect user={user}>
+              <SignupPage />
+            </AuthRedirect>
+          }
+        />
+
 
         {/* Authenticated layout */}
         <Route element={!user ? <Navigate to="/login" replace /> : <SidebarLayout profile={profile} user={user} />}>
