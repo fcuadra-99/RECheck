@@ -174,7 +174,7 @@ export default function App() {
       <Routes>
         {/* Public pages */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/signu" element={<SignupPage />} />
 
         {/* Authenticated layout */}
         <Route element={!user ? <Navigate to="/login" replace /> : <SidebarLayout profile={profile} user={user} />}>
