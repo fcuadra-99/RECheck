@@ -153,7 +153,7 @@ const DeviationDetail = () => {
                   checked={severity === 'Minor'}
                   onChange={() => {
                     setSeverity('Minor');
-                    setShowSignaturePad(true);
+                    setShowSignaturePad(false); // Don't show signature pad automatically
                   }}
                   disabled={isReviewed}
                   className="accent-blue-600"
@@ -193,7 +193,24 @@ const DeviationDetail = () => {
                   disabled={isReviewed}
                 />
                 
-                {!isReviewed && showSignaturePad && (
+                {!isReviewed && severity === 'Minor' && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => {
+                        if (!reviewText.trim()) {
+                          showNotification('Please enter deviation review before submitting.', '❌');
+                          return;
+                        }
+                        setShowSignaturePad(true);
+                      }}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+                    >
+                      Submit Review
+                    </button>
+                  </div>
+                )}
+                
+                {!isReviewed && showSignaturePad && reviewText.trim() && (
                   <div className="border-t-2 border-gray-200 pt-6 mt-6">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">
                       Chairperson Signature Required
@@ -234,20 +251,9 @@ const DeviationDetail = () => {
                 {!isReviewed && (
                   <button
                     className="text-black font-semibold w-fit mt-auto"
-                    onClick={async () => {
-                      setLoading(true);
-                      const { error } = await supabase
-                        .from('deviation_reports')
-                        .update({ severity: 'Major' })
-                        .eq('id', deviation.id);
-                      setLoading(false);
-                      if (!error) {
-                        setDeviation((prev: any) => prev ? { ...prev, severity: 'Major' } : prev);
-                        setSeverity('Major');
-                        navigate('/chairperson/corrective-action-request', { state: { deviationId: deviation.id } });
-                      } else {
-                        showNotification('Failed to update severity. Please try again.', '❌');
-                      }
+                    onClick={() => {
+                      // Don't update database here - just navigate to corrective action form
+                      navigate('/chairperson/corrective-action-request', { state: { deviationId: deviation.id } });
                     }}
                   >
                     Click Here &rarr;

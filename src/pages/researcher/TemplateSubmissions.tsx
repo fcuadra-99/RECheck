@@ -12,9 +12,18 @@ interface TemplateSubmission {
 }
 
 export default function TemplateSubmissions() {
+  // ...existing code...
+  // Chevron SVGs for pagination
+  const ChevronLeft = () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+  );
+  const ChevronRight = () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+  );
   const [submissions, setSubmissions] = useState<TemplateSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
+  const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -82,6 +91,14 @@ export default function TemplateSubmissions() {
     return submission.status.toLowerCase().replace(' ', '_') === statusFilter.toLowerCase();
   });
 
+  // Pagination logic
+  const submissionsPerPage = 5;
+  const totalPages = Math.ceil(filteredSubmissions.length / submissionsPerPage);
+  const paginatedSubmissions = filteredSubmissions.slice(
+    (currentPage - 1) * submissionsPerPage,
+    currentPage * submissionsPerPage
+  );
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -110,7 +127,7 @@ export default function TemplateSubmissions() {
                 <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
                 >
                   <option value="All">All Statuses</option>
@@ -179,7 +196,7 @@ export default function TemplateSubmissions() {
                     </td>
                   </tr>
                 ) : (
-                  filteredSubmissions.map((sub) => (
+                  paginatedSubmissions.map((sub) => (
                     <tr key={sub.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
@@ -220,6 +237,30 @@ export default function TemplateSubmissions() {
               </tbody>
             </table>
           </div>
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center py-8">
+              <button
+                className="mx-2 text-gray-400 hover:text-gray-600 disabled:text-gray-200"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                aria-label="Previous page"
+              >
+                <ChevronLeft />
+              </button>
+              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 text-gray-700 text-base font-medium select-none">
+                {currentPage}
+              </span>
+              <button
+                className="mx-2 text-gray-400 hover:text-gray-600 disabled:text-gray-200"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                aria-label="Next page"
+              >
+                <ChevronRight />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

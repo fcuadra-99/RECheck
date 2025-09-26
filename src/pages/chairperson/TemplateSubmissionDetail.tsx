@@ -416,46 +416,48 @@ export default function TemplateSubmissionDetail() {
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Attachment Emphasis */}
           <div className="space-y-6">
-            {/* Review Actions */}
-            {submission.status === 'pending' || submission.status === 'under_review' ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Review Submission</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Review Decision
-                    </label>
-                    <select
-                      value={reviewDecision}
-                      onChange={(e) => setReviewDecision(e.target.value as any)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="approved">Approve</option>
-                      <option value="needs_revision">Needs Revision</option>
-                      <option value="rejected">Reject</option>
-                    </select>
-                  </div>
+            {/* Emphasized Attachment Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-white border border-blue-200 rounded-xl shadow-md p-6 flex flex-col items-center">
+              <h3 className="text-xl font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                Send Attachments
+                <span className="inline-flex items-center justify-center w-7 h-7 bg-blue-100 text-blue-600 rounded-full">
+                  <FileText className="w-5 h-5" />
+                </span>
+              </h3>
+              <p className="text-sm text-blue-700 mb-4 text-center">Respond to this submission by sending files or feedback. This is the primary action for chairperson review.</p>
+              <FileAttachment 
+                submissionId={submission.id} 
+                onAttachmentAdded={handleAttachmentAdded}
+              />
+            </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Review Notes
-                    </label>
-                    <textarea
-                      value={reviewNotes}
-                      onChange={(e) => setReviewNotes(e.target.value)}
-                      rows={4}
-                      placeholder="Enter your review comments..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
+            {/* Review Actions - minimalist */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              {submission.status === 'pending' || submission.status === 'under_review' ? (
+                <>
+                  <h4 className="text-base font-medium text-gray-900 mb-3">Review Decision</h4>
+                  <select
+                    value={reviewDecision}
+                    onChange={(e) => setReviewDecision(e.target.value as any)}
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent mb-3"
+                  >
+                    <option value="approved">Approve</option>
+                    <option value="needs_revision">Needs Revision</option>
+                    <option value="rejected">Reject</option>
+                  </select>
+                  <textarea
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Review notes (optional)"
+                    className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent mb-3"
+                  />
                   <button
                     onClick={handleReviewSubmit}
                     disabled={reviewing}
-                    className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
+                    className="w-full px-4 py-2 rounded text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 transition"
                   >
                     {reviewing ? (
                       <div className="flex items-center justify-center">
@@ -466,53 +468,19 @@ export default function TemplateSubmissionDetail() {
                       'Submit Review'
                     )}
                   </button>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Review Complete</h3>
-                
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-700">Status</p>
-                    {getStatusBadge(submission.status)}
+                </>
+              ) : (
+                <>
+                  <h4 className="text-base font-medium text-gray-900 mb-3">Review Complete</h4>
+                  <div className="space-y-2">
+                    <div>{getStatusBadge(submission.status)}</div>
+                    {submission.reviewed_by && <div className="text-xs text-gray-500">Reviewed by {submission.reviewed_by}</div>}
+                    {submission.reviewed_at && <div className="text-xs text-gray-500">{formatDate(submission.reviewed_at)}</div>}
+                    {submission.reviewer_notes && <div className="bg-gray-50 rounded p-2 text-xs text-gray-700 whitespace-pre-wrap">{submission.reviewer_notes}</div>}
                   </div>
-                  
-                  {submission.reviewed_by && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Reviewed By</p>
-                      <p className="text-sm text-gray-600">{submission.reviewed_by}</p>
-                    </div>
-                  )}
-                  
-                  {submission.reviewed_at && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Review Date</p>
-                      <p className="text-sm text-gray-600">{formatDate(submission.reviewed_at)}</p>
-                    </div>
-                  )}
-                  
-                  {submission.reviewer_notes && (
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Review Notes</p>
-                      <div className="mt-1 bg-gray-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                          {submission.reviewer_notes}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* File Attachments Section */}
-            {(submission.status === 'pending' || submission.status === 'under_review') && (
-              <FileAttachment 
-                submissionId={submission.id} 
-                onAttachmentAdded={handleAttachmentAdded}
-              />
-            )}
+                </>
+              )}
+            </div>
 
             {/* Review Attachments Display */}
             <AttachmentList 
@@ -521,24 +489,21 @@ export default function TemplateSubmissionDetail() {
               refreshTrigger={attachmentRefresh}
             />
 
-            {/* Quick Stats */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Info</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Submission ID</span>
-                  <span className="text-sm font-mono text-gray-900">{submission.id}</span>
+            {/* Quick Stats - minimalist */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <h4 className="text-base font-medium text-gray-900 mb-3">Quick Info</h4>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Submission ID</span>
+                  <span className="font-mono text-gray-900">{submission.id}</span>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">File Size</span>
-                  <span className="text-sm text-gray-900">2.3 MB</span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">File Size</span>
+                  <span className="text-gray-900">2.3 MB</span>
                 </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Pages</span>
-                  <span className="text-sm text-gray-900">15</span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-500">Pages</span>
+                  <span className="text-gray-900">15</span>
                 </div>
               </div>
             </div>

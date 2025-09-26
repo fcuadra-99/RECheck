@@ -27,7 +27,7 @@ export default function TemplateSubmissions() {
   const [templateTypeFilter, setTemplateTypeFilter] = useState<string>('all');
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 5;
 
   const fetchSubmissions = useCallback(async () => {
     try {
