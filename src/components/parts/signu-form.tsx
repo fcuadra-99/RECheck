@@ -15,16 +15,26 @@ export function SignupForm({
     ...props
 }: React.ComponentProps<"div">) {
     const [formData, setFormData] = useState({
-        fullName: "",
+        firstName: "",
+        lastName: "",
         email: "",
+        organization: "",
         password: "",
         confirmPassword: "",
+        category: "",
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const navigate = useNavigate()
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({
+            ...formData,
+            [e.target.id]: e.target.value
+        })
+    }
+
+    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setFormData({
             ...formData,
             [e.target.id]: e.target.value
@@ -57,21 +67,26 @@ export function SignupForm({
                 password: formData.password,
                 options: {
                     data: {
-                        full_name: formData.fullName,
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        organization: formData.organization,
+                        category: formData.category,
                         // role intentionally omitted — will be assigned manually in Supabase
                     }
                 }
             })
 
             if (error) {
-                setError(error.message)
+                console.error("Signup error:", error)
+                setError(`Database error saving new user: ${error.message}`)
                 return
             }
 
             // Redirect to login after successful signup
             navigate('/login')
-        } catch (error) {
-            setError("An unexpected error occurred")
+        } catch (error: any) {
+            console.error("Unexpected signup error:", error)
+            setError(`An unexpected error occurred: ${error.message || error}`)
         } finally {
             setLoading(false)
         }
@@ -95,11 +110,19 @@ export function SignupForm({
                     </div>
                     <div className="flex flex-col gap-6">
                         <div className="grid gap-3">
-                            <Label htmlFor="fullName">Full Name</Label>
+                            <Label htmlFor="firstName">First Name</Label>
                             <Input
-                                id="fullName"
+                                id="firstName"
                                 type="text"
-                                value={formData.fullName}
+                                value={formData.firstName}
+                                onChange={handleChange}
+                                required
+                            />
+                            <Label htmlFor="lastName">Last Name</Label>
+                            <Input
+                                id="lastName"
+                                type="text"
+                                value={formData.lastName}
                                 onChange={handleChange}
                                 required
                             />
@@ -112,9 +135,14 @@ export function SignupForm({
                                 onChange={handleChange}
                                 required
                             />
-                            
-
-
+                            <Label htmlFor="organization">Organization</Label>
+                            <Input
+                                id="organization"
+                                type="text"
+                                value={formData.organization}
+                                onChange={handleChange}
+                                required
+                            />
                             <Label htmlFor="password">Password</Label>
                             <Input
                                 id="password"
@@ -131,6 +159,19 @@ export function SignupForm({
                                 onChange={handleChange}
                                 required
                             />
+                            <Label htmlFor="category">Category</Label>
+                            <select
+                                id="category"
+                                value={formData.category}
+                                onChange={handleSelectChange}
+                                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                                required
+                            >
+                                <option value="" disabled>Select category</option>
+                                <option value="Undergraduate">Undergraduate</option>
+                                <option value="Graduate">Graduate</option>
+                                <option value="External">External</option>
+                            </select>
                         </div>
                         {error && (
                             <div className="text-sm text-red-500 text-center">
