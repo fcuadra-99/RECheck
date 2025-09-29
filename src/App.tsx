@@ -59,6 +59,17 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
 }
 
 // ----------------------------
+// Simple Page Not Found
+// ----------------------------
+function PageNotFound() {
+  return (
+    <div className="flex items-center justify-center h-screen">
+      <h1 className="text-2xl font-bold text-red-600">404 - Page Not Found</h1>
+    </div>
+  );
+}
+
+// ----------------------------
 // Sidebar Layout Wrapper
 // ----------------------------
 function SidebarLayout({ profile, user }: { profile: SessionProfile | null; user: User | null }) {
@@ -200,7 +211,7 @@ export default function App() {
         {!user && (
           <>
             <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<PageNotFound />} />
           </>
         )}
 
@@ -228,11 +239,10 @@ export default function App() {
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/admin/userroles" element={<AdminUsersPage />} />
 
-            {profile && <Route path="*" element={<DefaultRedirect profile={profile} />} />}
+            <Route path="*" element={<PageNotFound />} />
           </Route>
         )}
       </Routes>
     </Router>
   );
 }
-
