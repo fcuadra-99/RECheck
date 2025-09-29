@@ -142,14 +142,9 @@ const DeviationReportForm: React.FC = () => {
     }
   };
 
+  // Remove cancel logic: signature is now required to complete submission
   const handleSignatureCancel = () => {
-    setShowSignaturePad(false);
-    // Note: The report has already been submitted to the database
-    // We're just not applying the signature at this time
-    alert('Report submitted without signature. You can sign it later from your dashboard.');
-    setInvestigator(initialInvestigator);
-    setFiles([]);
-    setSubmittedReportId('');
+    alert('Signature is required to complete submission.');
   };
 
   return (
@@ -159,7 +154,7 @@ const DeviationReportForm: React.FC = () => {
         <div className="w-full max-w-3xl mx-auto">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-semibold text-gray-900 mb-2">Complete Your Submission</h1>
-            <p className="text-gray-600">Your deviation report has been submitted successfully. Please sign to complete the process.</p>
+            <p className="text-gray-600">Your deviation report has been submitted successfully. Please sign to complete the process. <span className="text-red-500 font-semibold">Signature is required.</span></p>
           </div>
           <DigitalSignaturePad
             deviationReportId={submittedReportId}

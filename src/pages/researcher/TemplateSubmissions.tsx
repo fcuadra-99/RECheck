@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Eye, FileText, Calendar, CheckCircle, Clock, AlertCircle, User, Filter } from 'lucide-react';
+import { Eye, FileText, Calendar, CheckCircle, Clock, AlertCircle, Filter } from 'lucide-react';
 
 interface TemplateSubmission {
   id: string;
@@ -12,7 +12,7 @@ interface TemplateSubmission {
 }
 
 export default function TemplateSubmissions() {
-  // ...existing code...
+
   // Chevron SVGs for pagination
   const ChevronLeft = () => (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>

@@ -2,7 +2,20 @@ import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { FileUploadService, UPLOAD_CONFIGS } from '@/services/fileUploadService';
 import useAuth from '@/hooks/useAuth';
-import { Megaphone, Paperclip, Users, ShieldCheck, Globe2, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import {
+  Megaphone,
+  Paperclip,
+  Users,
+  ShieldCheck,
+  Globe2,
+  X,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Info,
+  Sparkles,
+  UploadCloud,
+} from 'lucide-react';
 
 type Audience = 'students' | 'committee' | 'all';
 
@@ -124,164 +137,277 @@ export default function CreateAnnouncement() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-8 py-6 flex items-center gap-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 via-white to-blue-50">
-          <div className="h-12 w-12 rounded-xl bg-blue-600/10 text-blue-700 flex items-center justify-center">
-            <Megaphone className="h-6 w-6" />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 py-12">
+      <div className="mx-auto max-w-6xl space-y-10 px-6">
+        <header className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-600 ring-1 ring-inset ring-blue-500/20">
+                <Megaphone className="h-7 w-7" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.4em] text-blue-500/70">Communication hub</p>
+                <div>
+                  <h1 className="text-3xl font-semibold text-slate-900">Create a new announcement</h1>
+                  <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                    Publish updates across cohorts and committees with attachments, targeted audiences, and rich formatting support.
+                  </p>
+                </div>
+              </div>
+            </div>
+           
           </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Create Announcement</h1>
-            <p className="text-sm text-gray-500 mt-1">Share important updates with the selected audience.</p>
-          </div>
-        </div>
+        </header>
 
-        <div className="px-8 py-8 space-y-10">
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div>
-                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  className={`w-full rounded-lg border ${errors.title ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100`}
-                  value={title}
-                  maxLength={140}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Concise headline"
-                />
-                <div className="mt-1 flex justify-between text-xs text-gray-400">
-                  <span className="text-red-500">{errors.title}</span>
-                  <span>{title.length}/140</span>
-                </div>
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50 via-white to-blue-50 px-8 py-6">
+              <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.4em] text-blue-500">
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  Draft
+                </span>
+                <span>Compose</span>
+                <span className="text-slate-300">Review</span>
+                <span className="text-slate-300">Publish</span>
               </div>
-              <div>
-                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
-                <textarea
-                  className={`w-full rounded-lg border ${errors.description ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 min-h-[140px] resize-y`}
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Provide the full announcement details."
-                />
-                <span className="mt-1 text-xs text-red-500 inline-block">{errors.description}</span>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Audience <span className="text-red-500">*</span></label>
-                <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 overflow-hidden divide-x divide-gray-300" role="radiogroup" aria-label="Audience selector">
-                  {audienceButtons.map(btn => {
-                    const active = audience === btn.key;
-                    return (
-                      <button
-                        key={btn.key}
-                        type="button"
-                        role="radio"
-                        aria-checked={active}
-                        onClick={() => setAudience(btn.key)}
-                        className={`px-4 py-2 flex items-center gap-2 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${active ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-white'}`}
-                      >
-                        {btn.icon}
-                        {btn.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <span className="mt-1 text-xs text-red-500 block">{errors.audience}</span>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Attachments</label>
+            </div>
+
+            <div className="space-y-10 px-8 py-10">
+              {message && (
                 <div
-                  className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-6 text-center hover:border-blue-400 hover:bg-blue-50 transition cursor-pointer"
-                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
-                  onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
-                  onClick={() => document.getElementById('announcement-files')?.click()}
+                  className={`flex items-start gap-3 rounded-2xl border px-5 py-4 text-sm shadow-sm ${
+                    message.includes('failed') || message.toLowerCase().includes('error')
+                      ? 'border-rose-200 bg-rose-50 text-rose-700'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  }`}
                 >
-                  <Paperclip className="h-6 w-6 mx-auto text-blue-500 mb-2" />
-                  <p className="text-xs text-gray-600">Drag & drop or click to browse</p>
-                  <p className="text-xs text-gray-500 mt-1">Max 10MB per file • PDF, Word, Excel, Images, Text</p>
-                  <input id="announcement-files" type="file" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
-                </div>
-                
-                {/* Upload Errors */}
-                {uploadErrors.length > 0 && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <div className="flex items-center gap-2 text-red-700 text-sm font-medium mb-2">
-                      <AlertCircle className="h-4 w-4" />
-                      Upload Errors
-                    </div>
-                    <ul className="text-sm text-red-600 space-y-1">
-                      {uploadErrors.map((error, index) => (
-                        <li key={index} className="flex items-start gap-1">
-                          <span className="text-red-500 mt-0.5">•</span>
-                          <span>{error}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                
-                {attachments.length > 0 && (
-                  <ul className="mt-3 bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-auto text-sm">
-                    {attachments.map((f,i) => (
-                      <li key={i} className="flex items-center gap-3 px-3 py-2">
-                        <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                        <span className="flex-1 truncate">{f.name}</span>
-                        <span className="text-xs text-gray-400">{(f.size/1024).toFixed(1)} KB</span>
-                        <button type="button" onClick={() => removeFile(i)} className="text-gray-400 hover:text-red-500 p-1"><X className="h-4 w-4" /></button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-            <div className="bg-slate-50/60 rounded-xl border border-slate-200 p-6 flex flex-col">
-              <h2 className="text-sm font-semibold text-slate-600 mb-3 tracking-wide">Live Preview</h2>
-              <div className="flex-1 rounded-lg border border-slate-200 bg-white p-5 shadow-sm relative">
-                <div className="absolute right-3 top-3 text-[10px] uppercase tracking-wider font-medium text-slate-400">Preview</div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2 break-words">{title || 'Announcement Title'}</h3>
-                <p className="text-sm text-slate-600 whitespace-pre-line leading-relaxed min-h-[80px]">{description || 'Announcement description will appear here. Provide details to inform your audience.'}</p>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
-                    <Megaphone className="h-3.5 w-3.5" />
-                    {audience ? (audience === 'students' ? 'Students' : audience === 'committee' ? 'Committee' : 'All Users') : 'Audience not set'}
-                  </span>
-                  {attachments.length > 0 && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
-                      <Paperclip className="h-3.5 w-3.5" /> {attachments.length} file(s)
-                    </span>
+                  {message.includes('failed') || message.toLowerCase().includes('error') ? (
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  ) : (
+                    <CheckCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                   )}
+                  <span>{message}</span>
                 </div>
+              )}
+
+              <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
+                <div className="space-y-8">
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Title
+                      <span className="text-rose-500">Required</span>
+                    </label>
+                    <div className={`rounded-2xl border bg-white/70 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 ${errors.title ? 'border-rose-300' : 'border-slate-200'}`}>
+                      <input
+                        type="text"
+                        className="h-12 w-full rounded-2xl border-none bg-transparent px-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                        value={title}
+                        maxLength={140}
+                        onChange={e => setTitle(e.target.value)}
+                        placeholder="Concise headline for your announcement"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-rose-500">{errors.title}</span>
+                      <span className="text-slate-400">{title.length}/140</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Description
+                      <span className="text-rose-500">Required</span>
+                    </label>
+                    <div className={`rounded-2xl border bg-white/70 shadow-sm transition focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 ${errors.description ? 'border-rose-300' : 'border-slate-200'}`}>
+                      <textarea
+                        className="min-h-[160px] w-full rounded-2xl border-none bg-transparent px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                        value={description}
+                        onChange={e => setDescription(e.target.value)}
+                        placeholder="Provide context, timelines, and any next steps your readers should know."
+                      />
+                    </div>
+                    <span className="text-xs text-rose-500">{errors.description}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Audience <span className="text-rose-500">Required</span>
+                    </label>
+                    <div
+                      className="flex w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 text-sm"
+                      role="radiogroup"
+                      aria-label="Select announcement audience"
+                    >
+                      {audienceButtons.map(btn => {
+                        const active = audience === btn.key;
+                        return (
+                          <button
+                            key={btn.key}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => setAudience(btn.key)}
+                            className={`flex-1 px-4 py-3 font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${
+                              active ? 'bg-blue-600 text-white shadow-inner' : 'text-slate-600 hover:bg-white'
+                            }`}
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              {btn.icon}
+                              {btn.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="text-xs text-rose-500">{errors.audience}</span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      <span>Attachments</span>
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Info className="h-3.5 w-3.5" /> Optional
+                      </span>
+                    </div>
+                    <div
+                      className="rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50/70 p-6 text-center transition hover:border-blue-300 hover:bg-blue-50/70"
+                      onDragOver={e => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                      }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        handleFiles(e.dataTransfer.files);
+                      }}
+                      onClick={() => document.getElementById('announcement-files')?.click()}
+                    >
+                      <Paperclip className="mx-auto h-7 w-7 text-blue-500" />
+                      <p className="mt-3 text-sm font-medium text-slate-700">Drag &amp; drop files or click to upload</p>
+                      <p className="mt-1 text-xs text-slate-400">PDF, Word, Excel, images, text • up to 10MB each</p>
+                      <input id="announcement-files" type="file" multiple className="hidden" onChange={e => handleFiles(e.target.files)} />
+                    </div>
+
+                    {uploadErrors.length > 0 && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-sm text-rose-700">
+                        <div className="mb-2 flex items-center gap-2 font-semibold">
+                          <AlertCircle className="h-4 w-4" /> Upload issues
+                        </div>
+                        <ul className="space-y-1 text-xs">
+                          {uploadErrors.map((error, index) => (
+                            <li key={index} className="flex items-start gap-2">
+                              <span className="mt-0.5 text-rose-500">•</span>
+                              <span>{error}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {attachments.length > 0 && (
+                      <ul className="space-y-2">
+                        {attachments.map((file, idx) => (
+                          <li
+                            key={`${file.name}-${idx}`}
+                            className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm"
+                          >
+                            <CheckCircle className="h-4 w-4 text-emerald-500" />
+                            <div className="flex-1 overflow-hidden">
+                              <p className="truncate font-medium text-slate-700">{file.name}</p>
+                              <p className="text-xs text-slate-400">{(file.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeFile(idx)}
+                              className="rounded-full p-1 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                              aria-label={`Remove ${file.name}`}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/70 p-6 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-slate-600 tracking-wide">Live preview</h2>
+                    <span className="rounded-full border border-slate-200 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                      Preview
+                    </span>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h3 className="text-lg font-semibold text-slate-900">{title || 'Announcement title'}</h3>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600 whitespace-pre-line">
+                      {description || 'Announcement description will appear here. Provide details to inform your audience.'}
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-700 ring-1 ring-inset ring-blue-100">
+                        <Megaphone className="h-3.5 w-3.5" />
+                        {audience ? (audience === 'students' ? 'Students' : audience === 'committee' ? 'Committee' : 'All audiences') : 'Audience not set'}
+                      </span>
+                      {attachments.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-indigo-700 ring-1 ring-inset ring-indigo-100">
+                          <Paperclip className="h-3.5 w-3.5" /> {attachments.length} file(s)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4 text-xs text-slate-500">
+                    High-contrast preview ensures readability across light and dark themes.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  Reset form
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAnnounce}
+                  disabled={loading}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {loading ? 'Publishing…' : 'Publish announcement'}
+                </button>
               </div>
             </div>
           </div>
 
-          {message && (
-            <div className={`text-sm px-4 py-3 rounded-lg border flex items-center gap-2 ${message.includes('failed') || message.toLowerCase().includes('error') ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-              {message.includes('failed') || message.toLowerCase().includes('error') ? (
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              ) : (
-                <CheckCircle className="h-4 w-4 flex-shrink-0" />
-              )}
-              {message}
+          <aside className="space-y-5 self-start">
+            <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
+                  <Info className="h-5 w-5" />
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900">Announcement guidelines</h3>
+              </div>
+              <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                <li className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  Lead with the outcome or action you want readers to take.
+                </li>
+                <li className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  Keep attachments organized and labeled for quick scanning.
+                </li>
+                <li className="flex gap-2">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  Audience selection controls visibility in the portal and email alerts.
+                </li>
+              </ul>
             </div>
-          )}
 
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={reset}
-              className="px-5 py-2.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={handleAnnounce}
-              disabled={loading}
-              className="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading ? 'Publishing…' : 'Publish Announcement'}
-            </button>
-          </div>
+          
+          </aside>
         </div>
       </div>
     </div>
