@@ -9,9 +9,7 @@ import SSubmissions from './pages/staff/Submissions';
 import SDeviations from './pages/staff/Deviations';
 import LoginPage from './pages/Login';
 import SignupPage from './pages/Signup';
-import { MessageCircle } from 'lucide-react';
 import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
-import { RippleButton } from './components/animate-ui/buttons/ripple';
 import { toast } from 'sonner';
 import { SReview } from './pages/staff/Submissions/Review';
 import { useEffect, useState, type JSX } from 'react';
@@ -21,6 +19,7 @@ import Profile from './pages/Profile';
 import RSubmissions from './pages/researcher/Submissions';
 import RDashboard from './pages/researcher/Dashboard';
 import AdminUsersPage from './pages/AdminUsersPage';
+import { ChatPopup } from './pages/researcher/ChatComp';
 
 interface SessionProfile {
   fname: string;
@@ -32,13 +31,13 @@ interface SessionProfile {
 }
 
 // ----------------------------
-// Redirect if user is logged in but not verified
+// Redirect wrapper for login/signup
 // ----------------------------
 function AuthRedirect({ user, children }: { user: User | null; children: JSX.Element }) {
   const isVerified = user?.email_confirmed_at || user?.user_metadata?.email_confirmed;
 
   if (user && !isVerified) {
-    toast.error("Please verify your email first!");
+    toast.error('Please verify your email first!');
     return <Navigate to="/login" replace />;
   }
 
@@ -50,17 +49,13 @@ function AuthRedirect({ user, children }: { user: User | null; children: JSX.Ele
 }
 
 // ----------------------------
-// Role-based redirect for root
+// Role-based redirect for "/"
 // ----------------------------
 function DefaultRedirect({ profile }: { profile: SessionProfile }) {
-  const location = useLocation();
-
-  if (location.pathname === "/") {
-    if (profile.role === "researcher") return <Navigate to="/sdash/sub2" replace />;
-    return <Navigate to="/sdash/sub1" replace />;
+  if (profile.role === 'researcher') {
+    return <Navigate to="/sdash/sub2" replace />;
   }
-
-  return <div className="p-10 text-center">Page not found</div>;
+  return <Navigate to="/sdash/sub1" replace />;
 }
 
 // ----------------------------
@@ -68,8 +63,8 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
 // ----------------------------
 function SidebarLayout({ profile, user }: { profile: SessionProfile | null; user: User | null }) {
   return (
-    <SidebarProvider className='overflow-x-clip'>
-      <div className='w-64 fixed h-screen'>
+    <SidebarProvider className="overflow-x-clip">
+      <div className="w-64 fixed h-screen">
         <AppSidebar
           fname={profile?.fname ?? ''}
           lname={profile?.lname ?? ''}
@@ -79,23 +74,15 @@ function SidebarLayout({ profile, user }: { profile: SessionProfile | null; user
           userId={user?.id ?? ''}
         />
       </div>
-      <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
-        <div className='py-3 px-5 pb-3 border-b-2 fixed w-full pointer-events-none pl-15'>
+      <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
+        <div className="py-3 px-5 border-b-2 fixed w-full pointer-events-none">
           <AppBreadcrumb />
         </div>
-        <div className='pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50'>
+        <div className="pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50">
           <Outlet />
         </div>
       </div>
-
-      <RippleButton
-        variant="secondary"
-        size="icon"
-        className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5"
-        onClick={() => { toast.success("Test") }}
-      >
-        <MessageCircle />
-      </RippleButton>
+      <ChatPopup userId={user?.id ?? ''} />
     </SidebarProvider>
   );
 }
@@ -106,7 +93,7 @@ export default function App() {
   const [profile, setProfile] = useState<SessionProfile | null>(null);
 
   // ----------------------------
-  // Get session + auth listener
+  // Get session + listen for auth
   // ----------------------------
   useEffect(() => {
     let mounted = true;
@@ -130,7 +117,7 @@ export default function App() {
   }, []);
 
   // ----------------------------
-  // Fetch profile
+  // Fetch profile if logged in
   // ----------------------------
   useEffect(() => {
     let mounted = true;
@@ -175,7 +162,9 @@ export default function App() {
     };
 
     fetchProfile();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   if (loading) {
@@ -199,7 +188,7 @@ export default function App() {
           }
         />
         <Route
-          path="/signu"
+          path="/signup"
           element={
             <AuthRedirect user={user}>
               <SignupPage />
@@ -207,32 +196,43 @@ export default function App() {
           }
         />
 
+        {/* Not logged in → always go to /login */}
+        {!user && (
+          <>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        )}
+
         {/* Authenticated layout */}
-        <Route
-          element={
-            !user || !(user.email_confirmed_at || user.user_metadata?.email_confirmed)
-              ? <Navigate to="/login" replace />
-              : <SidebarLayout profile={profile} user={user} />
-          }
-        >
-          {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
+        {user && (
+          <Route
+            element={
+              !(user.email_confirmed_at || user.user_metadata?.email_confirmed)
+                ? <Navigate to="/login" replace />
+                : <SidebarLayout profile={profile} user={user} />
+            }
+          >
+            {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
 
-          <Route path="/sdash" element={<SDashboard />} />
-          <Route path="/sdash/sub1" element={<SDashboard />} />
-          <Route path="/sdash/sub2" element={<RDashboard />} />
-          <Route path="/profile" element={<Profile />} />
+            <Route path="/sdash" element={<SDashboard />} />
+            <Route path="/sdash/sub1" element={<SDashboard />} />
+            <Route path="/sdash/sub2" element={<RDashboard />} />
+            <Route path="/profile" element={<Profile />} />
 
-          <Route path="/ssubm" element={<SSubmissions />} />
-          <Route path="/ssubm/sub1" element={<SSubmissions />} />
-          <Route path="/ssubm/sub1/sreview" element={<SReview />} />
-          <Route path="/ssubm/sub2" element={<RSubmissions />} />
+            <Route path="/ssubm" element={<SSubmissions />} />
+            <Route path="/ssubm/sub1" element={<SSubmissions />} />
+            <Route path="/ssubm/sub1/sreview" element={<SReview />} />
+            <Route path="/ssubm/sub2" element={<RSubmissions />} />
 
-          <Route path="/sdevi" element={<SDeviations />} />
-          <Route path="/admin/userroles" element={<AdminUsersPage />} />
+            <Route path="/sdevi" element={<SDeviations />} />
+            <Route path="/admin/userroles" element={<AdminUsersPage />} />
 
-          {profile && <Route path="*" element={<DefaultRedirect profile={profile} />} />}
-        </Route>
+            {profile && <Route path="*" element={<DefaultRedirect profile={profile} />} />}
+          </Route>
+        )}
       </Routes>
     </Router>
   );
 }
+
