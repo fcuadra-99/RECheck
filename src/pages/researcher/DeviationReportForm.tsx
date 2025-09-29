@@ -142,229 +142,238 @@ const DeviationReportForm: React.FC = () => {
     }
   };
 
-  // Remove cancel logic: signature is now required to complete submission
+  // If researcher cancels signature, return to deviation form with previous data
   const handleSignatureCancel = () => {
-    alert('Signature is required to complete submission.');
+    setShowSignaturePad(false);
+    // Do not reset form, just go back to the form view
   };
 
   return (
-    <div className="min-h-screen w-full bg-gray-50 py-10 px-4">
-      {showSignaturePad ? (
-        // Stage 1: Signature Process
-        <div className="w-full max-w-3xl mx-auto">
-          <div className="mb-6 text-center">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-2">Complete Your Submission</h1>
-            <p className="text-gray-600">Your deviation report has been submitted successfully. Please sign to complete the process. <span className="text-red-500 font-semibold">Signature is required.</span></p>
-          </div>
-          <DigitalSignaturePad
-            deviationReportId={submittedReportId}
-            userRole="researcher"
-            onSignatureComplete={handleSignatureComplete}
-            onCancel={handleSignatureCancel}
-          />
-        </div>
-      ) : (
-        // Form UI
-        <form
-          className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-200 px-8 py-10 relative"
-          onSubmit={handleSubmit}
-        >
-        <header className="mb-10 flex items-start gap-4">
-          <div className="h-12 w-12 rounded-xl bg-blue-600/10 text-blue-700 flex items-center justify-center">
-            <ClipboardList className="h-6 w-6" />
-          </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Protocol Deviation Report</h1>
-            <p className="text-sm text-gray-500 mt-1 leading-relaxed">Provide accurate details about the deviation. All fields marked with <span className="text-red-500">*</span> are required.</p>
-          </div>
-        </header>
-
-        <section className="space-y-8">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Study Title <span className="text-red-500">*</span></label>
-              <input
-                className={`w-full rounded-lg border ${errors.protocolTitle ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm`}
-                name="protocolTitle"
-                value={investigator.protocolTitle}
-                onChange={handleInvestigatorChange}
-                placeholder="e.g. Impact of X on Y"
-                required
-                aria-invalid={!!errors.protocolTitle}
-              />
-              <ErrorMsg msg={errors.protocolTitle} />
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-white to-gray-100 py-12 px-4 flex items-center justify-center">
+      <div className="w-full max-w-3xl">
+        {showSignaturePad ? (
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-200 px-10 py-12 animate-fade-in">
+            <div className="mb-8 text-center">
+              <h1 className="text-3xl font-bold text-blue-800 mb-3 tracking-tight">Complete Your Submission</h1>
+              <p className="text-lg text-gray-600">Your deviation report has been submitted successfully.<br />Please sign to complete the process. <span className="text-red-500 font-semibold">Signature is required.</span></p>
             </div>
-            <div>
-              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Protocol Number <span className="text-red-500">*</span></label>
-              <input
-                className={`w-full rounded-lg border ${errors.protocolCode ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm`}
-                name="protocolCode"
-                value={investigator.protocolCode}
-                onChange={handleInvestigatorChange}
-                placeholder="e.g. PROT-2025-001"
-                required
-                aria-invalid={!!errors.protocolCode}
-              />
-              <ErrorMsg msg={errors.protocolCode} />
-            </div>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Date of Deviation <span className="text-red-500">*</span></label>
-              <div className="relative">
-                <CalendarDays className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  className={`w-full rounded-lg border pl-9 ${errors.deviationDate ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm`}
-                  name="deviationDate"
-                  type="date"
-                  value={investigator.deviationDate}
-                  onChange={handleInvestigatorChange}
-                  required
-                  aria-invalid={!!errors.deviationDate}
-                />
-              </div>
-              <ErrorMsg msg={errors.deviationDate} />
-            </div>
-            <div>
-              <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Submission Date <span className="text-red-500">*</span></label>
-              <div className="relative">
-                <CalendarDays className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  className={`w-full rounded-lg border pl-9 ${errors.reportSubmissionDate ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm`}
-                  name="reportSubmissionDate"
-                  type="date"
-                  value={investigator.reportSubmissionDate}
-                  onChange={handleInvestigatorChange}
-                  required
-                  aria-invalid={!!errors.reportSubmissionDate}
-                />
-              </div>
-              <ErrorMsg msg={errors.reportSubmissionDate} />
-            </div>
-          </div>
-
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Deviation Type <span className="text-red-500">*</span></label>
-            <select
-              className={`w-full rounded-lg border ${errors.type ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm`}
-              name="type"
-              value={investigator.type}
-              onChange={(e) => setInvestigator(prev => ({ ...prev, type: e.target.value }))}
-              required
-              aria-invalid={!!errors.type}
-            >
-              <option value="">Select deviation type</option>
-              {deviationTypeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-            </select>
-            <ErrorMsg msg={errors.type} />
-          </div>
-
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Detailed Description <span className="text-red-500">*</span></label>
-            <textarea
-              className={`w-full rounded-lg border ${errors.deviationDescription ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm min-h-[110px]`}
-              name="deviationDescription"
-              value={investigator.deviationDescription}
-              onChange={handleInvestigatorChange}
-              placeholder="Provide a concise, factual description of what occurred."
-              required
-              aria-invalid={!!errors.deviationDescription}
+            <DigitalSignaturePad
+              deviationReportId={submittedReportId}
+              userRole="researcher"
+              onSignatureComplete={handleSignatureComplete}
+              onCancel={handleSignatureCancel}
             />
-            <ErrorMsg msg={errors.deviationDescription} />
           </div>
+        ) : (
+          <form
+            className="bg-white rounded-3xl shadow-xl border border-gray-200 px-10 py-12 animate-fade-in"
+            onSubmit={handleSubmit}
+          >
+            <header className="mb-12 flex items-center gap-5">
+              <div className="h-14 w-14 rounded-2xl bg-blue-600/10 text-blue-700 flex items-center justify-center shadow-sm">
+                <ClipboardList className="h-7 w-7" />
+              </div>
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-blue-800 tracking-tight mb-1">Protocol Deviation Report</h1>
+                <p className="text-base text-gray-500 leading-relaxed">Provide accurate details about the deviation. All fields marked with <span className="text-red-500">*</span> are required.</p>
+              </div>
+            </header>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Rationale <span className="text-red-500">*</span></label>
-                <textarea
-                  className={`w-full rounded-lg border ${errors.rationale ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm min-h-[90px]`}
-                  name="rationale"
-                  value={investigator.rationale || ''}
-                  onChange={e => setInvestigator({ ...investigator, rationale: e.target.value })}
-                  placeholder="Explain why the deviation happened."
-                  required
-                  aria-invalid={!!errors.rationale}
-                />
-                <ErrorMsg msg={errors.rationale} />
-              </div>
-              <div>
-                <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Impact <span className="text-red-500">*</span></label>
-                <textarea
-                  className={`w-full rounded-lg border ${errors.impact ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm min-h-[90px]`}
-                  name="impact"
-                  value={investigator.impact || ''}
-                  onChange={e => setInvestigator({ ...investigator, impact: e.target.value })}
-                  placeholder="Describe participant / study impact."
-                  required
-                  aria-invalid={!!errors.impact}
-                />
-                <ErrorMsg msg={errors.impact} />
-              </div>
+            <div className="space-y-10">
+              {/* Section: Study Details */}
+              <section>
+                <h2 className="text-lg font-semibold text-gray-700 mb-6 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-blue-500" /> Study Details</h2>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Study Title <span className="text-red-500">*</span></label>
+                    <input
+                      className={`w-full rounded-xl border-2 ${errors.protocolTitle ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                      name="protocolTitle"
+                      value={investigator.protocolTitle}
+                      onChange={handleInvestigatorChange}
+                      placeholder="e.g. Impact of X on Y"
+                      required
+                      aria-invalid={!!errors.protocolTitle}
+                    />
+                    <ErrorMsg msg={errors.protocolTitle} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Protocol Number <span className="text-red-500">*</span></label>
+                    <input
+                      className={`w-full rounded-xl border-2 ${errors.protocolCode ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                      name="protocolCode"
+                      value={investigator.protocolCode}
+                      onChange={handleInvestigatorChange}
+                      placeholder="e.g. PROT-2025-001"
+                      required
+                      aria-invalid={!!errors.protocolCode}
+                    />
+                    <ErrorMsg msg={errors.protocolCode} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Section: Dates */}
+              <section>
+                <h2 className="text-lg font-semibold text-gray-700 mb-6 flex items-center gap-2"><CalendarDays className="h-5 w-5 text-blue-500" /> Dates</h2>
+                <div className="grid md:grid-cols-2 gap-8">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Date of Deviation <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <CalendarDays className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        className={`w-full rounded-xl border-2 pl-10 ${errors.deviationDate ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                        name="deviationDate"
+                        type="date"
+                        value={investigator.deviationDate}
+                        onChange={handleInvestigatorChange}
+                        required
+                        aria-invalid={!!errors.deviationDate}
+                      />
+                    </div>
+                    <ErrorMsg msg={errors.deviationDate} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Submission Date <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <CalendarDays className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        className={`w-full rounded-xl border-2 pl-10 ${errors.reportSubmissionDate ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                        name="reportSubmissionDate"
+                        type="date"
+                        value={investigator.reportSubmissionDate}
+                        onChange={handleInvestigatorChange}
+                        required
+                        aria-invalid={!!errors.reportSubmissionDate}
+                      />
+                    </div>
+                    <ErrorMsg msg={errors.reportSubmissionDate} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Section: Deviation Details */}
+              <section>
+                <h2 className="text-lg font-semibold text-gray-700 mb-6 flex items-center gap-2"><AlertCircle className="h-5 w-5 text-blue-500" /> Deviation Details</h2>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Deviation Type <span className="text-red-500">*</span></label>
+                  <select
+                    className={`w-full rounded-xl border-2 ${errors.type ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                    name="type"
+                    value={investigator.type}
+                    onChange={(e) => setInvestigator(prev => ({ ...prev, type: e.target.value }))}
+                    required
+                    aria-invalid={!!errors.type}
+                  >
+                    <option value="">Select deviation type</option>
+                    {deviationTypeOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                  <ErrorMsg msg={errors.type} />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Detailed Description <span className="text-red-500">*</span></label>
+                  <textarea
+                    className={`w-full rounded-xl border-2 ${errors.deviationDescription ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base min-h-[110px] transition-all`}
+                    name="deviationDescription"
+                    value={investigator.deviationDescription}
+                    onChange={handleInvestigatorChange}
+                    placeholder="Provide a concise, factual description of what occurred."
+                    required
+                    aria-invalid={!!errors.deviationDescription}
+                  />
+                  <ErrorMsg msg={errors.deviationDescription} />
+                </div>
+                <div className="grid md:grid-cols-2 gap-8 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Rationale <span className="text-red-500">*</span></label>
+                    <textarea
+                      className={`w-full rounded-xl border-2 ${errors.rationale ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base min-h-[90px] transition-all`}
+                      name="rationale"
+                      value={investigator.rationale || ''}
+                      onChange={e => setInvestigator({ ...investigator, rationale: e.target.value })}
+                      placeholder="Explain why the deviation happened."
+                      required
+                      aria-invalid={!!errors.rationale}
+                    />
+                    <ErrorMsg msg={errors.rationale} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Impact <span className="text-red-500">*</span></label>
+                    <textarea
+                      className={`w-full rounded-xl border-2 ${errors.impact ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base min-h-[90px] transition-all`}
+                      name="impact"
+                      value={investigator.impact || ''}
+                      onChange={e => setInvestigator({ ...investigator, impact: e.target.value })}
+                      placeholder="Describe participant / study impact."
+                      required
+                      aria-invalid={!!errors.impact}
+                    />
+                    <ErrorMsg msg={errors.impact} />
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Proposed Corrective Actions <span className="text-red-500">*</span></label>
+                  <textarea
+                    className={`w-full rounded-xl border-2 ${errors.correctiveAction ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base min-h-[90px] transition-all`}
+                    name="correctiveAction"
+                    value={investigator.correctiveAction}
+                    onChange={handleInvestigatorChange}
+                    placeholder="Describe immediate and preventive actions."
+                    required
+                    aria-invalid={!!errors.correctiveAction}
+                  />
+                  <ErrorMsg msg={errors.correctiveAction} />
+                </div>
+              </section>
+
+              {/* Section: Supporting Documents */}
+              <section>
+                <h2 className="text-lg font-semibold text-gray-700 mb-6 flex items-center gap-2"><UploadCloud className="h-5 w-5 text-blue-500" /> Supporting Documents</h2>
+                <div className="rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-all">
+                  <UploadCloud className="h-10 w-10 mx-auto text-blue-500 mb-4" />
+                  <p className="text-base text-gray-600 mb-3">Drag & drop files here, or click to browse</p>
+                  <input
+                    type="file"
+                    multiple
+                    className="block mx-auto text-base text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-base file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
+                    onChange={e => { if (e.target.files) setFiles(Array.from(e.target.files)); }}
+                  />
+                  {files.length > 0 && (
+                    <ul className="mt-5 text-left text-sm max-h-36 overflow-auto divide-y divide-gray-100 bg-white rounded-md border border-gray-200 shadow-sm">
+                      {files.map((file, idx) => (
+                        <li key={idx} className="px-4 py-2 flex items-center gap-3 text-gray-700">
+                          <FileText className="h-5 w-5 text-blue-500" />
+                          <span className="truncate flex-1">{file.name}</span>
+                          <span className="text-gray-400 text-xs uppercase tracking-wide">{(file.size / 1024).toFixed(1)} KB</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </section>
             </div>
 
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-1">Proposed Corrective Actions <span className="text-red-500">*</span></label>
-            <textarea
-              className={`w-full rounded-lg border ${errors.correctiveAction ? 'border-red-400' : 'border-gray-300'} bg-white px-3 py-2 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm min-h-[90px]`}
-              name="correctiveAction"
-              value={investigator.correctiveAction}
-              onChange={handleInvestigatorChange}
-              placeholder="Describe immediate and preventive actions."
-              required
-              aria-invalid={!!errors.correctiveAction}
-            />
-            <ErrorMsg msg={errors.correctiveAction} />
-          </div>
+            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-12" />
 
-          <div>
-            <label className="flex items-center justify-between text-sm font-medium text-gray-700 mb-2">Supporting Documents</label>
-            <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center hover:border-blue-400 hover:bg-blue-50 transition">
-              <UploadCloud className="h-8 w-8 mx-auto text-blue-500 mb-3" />
-              <p className="text-sm text-gray-600 mb-2">Drag & drop files here, or click to browse</p>
-              <input
-                type="file"
-                multiple
-                className="block mx-auto text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer"
-                onChange={e => { if (e.target.files) setFiles(Array.from(e.target.files)); }}
-              />
-              {files.length > 0 && (
-                <ul className="mt-4 text-left text-xs max-h-36 overflow-auto divide-y divide-gray-100 bg-white rounded-md border border-gray-200">
-                  {files.map((file, idx) => (
-                    <li key={idx} className="px-3 py-2 flex items-center gap-2 text-gray-700">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="truncate flex-1">{file.name}</span>
-                      <span className="text-gray-400 text-[10px] uppercase tracking-wide">{(file.size / 1024).toFixed(1)} KB</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="flex items-center justify-end gap-4 mt-8">
+              <button
+                type="reset"
+                onClick={() => { setInvestigator(initialInvestigator); setFiles([]); setErrors({}); }}
+                className="px-6 py-3 rounded-xl border border-gray-300 text-gray-600 text-base font-medium hover:bg-gray-100 transition-all shadow-sm"
+              >
+                Reset
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-8 py-3 rounded-xl bg-blue-600 text-white text-base font-semibold shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Submitting...' : 'Submit Report'}
+              </button>
             </div>
-          </div>
-
-          {/* Submitted By field removed; ownership captured via auth uid server-side */}
-        </section>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent my-10" />
-
-        <div className="flex items-center justify-end gap-4">
-          <button
-            type="reset"
-            onClick={() => { setInvestigator(initialInvestigator); setFiles([]); setErrors({}); }}
-            className="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-100 transition"
-          >
-            Reset
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-7 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 transition disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Submitting...' : 'Submit Report'}
-          </button>
-        </div>
-        </form>
-      )}
+          </form>
+        )}
+      </div>
     </div>
   );
 };

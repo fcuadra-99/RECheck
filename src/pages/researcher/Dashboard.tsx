@@ -195,67 +195,113 @@ const RDashboard = () => {
     }, [user]);
 
     return (
-        <div className="max-w-5xl mx-auto py-10 px-4">
+        <div className="max-w-6xl mx-auto py-12 px-6">
             {/* Header */}
-            <header className="mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-                <div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-gray-900 mb-2">{displayName}</h1>
-                    <p className="text-sm text-gray-600 max-w-xl">Overview of your deviation submissions, review progress and latest system updates.</p>
+            <header className="mb-12 flex flex-col md:flex-row md:items-start md:justify-between gap-8">
+                <div className="space-y-4">
+                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        Researcher Dashboard
+                    </div>
+                    <div>
+                        <h1 className="text-4xl font-semibold tracking-tight text-gray-900 mb-3">{displayName}</h1>
+                        <p className="text-base text-gray-500 max-w-xl leading-relaxed">Overview of your deviation submissions, review progress and latest system updates.</p>
+                    </div>
                 </div>
-                <div className="flex gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {stats.map(s => (
-                        <div key={s.label} className="min-w-[140px] rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-                            <div className="text-[11px] uppercase tracking-wide text-gray-500 font-medium">{s.label}</div>
-                            <div className="text-xl font-semibold text-gray-900 mt-1">{s.value}</div>
+                        <div key={s.label} 
+                            className={`min-w-[160px] rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm hover:shadow-md transition-shadow duration-200 ${s.color.includes('emerald') ? 'bg-gradient-to-br from-emerald-50 to-white' : s.color.includes('amber') ? 'bg-gradient-to-br from-amber-50 to-white' : 'bg-gradient-to-br from-pink-50 to-white'}`}>
+                            <div className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-2">{s.label}</div>
+                            <div className="text-2xl font-bold text-gray-900">{s.value}</div>
                         </div>
                     ))}
                 </div>
             </header>
 
             {/* My Submissions */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-semibold text-lg text-gray-900">My Submissions</h2>
-                    <button onClick={() => navigate('/researcher/submissions')} className="hidden md:inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900">
+            <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <h2 className="font-semibold text-xl text-gray-900">My Submissions</h2>
+                        <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">{submissions.length} Total</span>
+                    </div>
+                    <button 
+                        onClick={() => navigate('/researcher/submissions')} 
+                        className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-50 text-gray-700 hover:bg-gray-100 transition-colors duration-200 text-sm font-medium">
                         View all
-                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
                     </button>
                 </div>
-                <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
-                    <div className="w-full overflow-x-auto max-h-[26rem]">
+                <div className="border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+                    <div className="w-full overflow-x-auto max-h-[28rem] scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
                         {loading ? (
-                            <div className="p-8 text-center text-gray-400 text-sm">Loading submissions...</div>
+                            <div className="flex items-center justify-center p-12">
+                                <div className="flex items-center gap-3 text-gray-500">
+                                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                    <span>Loading submissions...</span>
+                                </div>
+                            </div>
                         ) : submissions.length === 0 ? (
-                            <div className="p-8 text-center text-gray-400 text-sm">No submissions yet. Start by creating a new deviation report.</div>
+                            <div className="flex flex-col items-center justify-center p-12 text-center">
+                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                    <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                                        <path d="M12 5v14M5 12h14"/>
+                                    </svg>
+                                </div>
+                                <p className="text-gray-500 mb-2">No submissions yet</p>
+                                <span className="text-sm text-gray-400">Start by creating a new deviation report</span>
+                            </div>
                         ) : (
                             <table className="w-full text-left text-sm min-w-[680px]">
                                 <thead className="bg-gray-50 sticky top-0 z-10">
                                     <tr>
-                                        <th className="px-5 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">ID</th>
-                                        <th className="px-5 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">Project Title</th>
-                                        <th className="px-5 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">Status</th>
-                                        <th className="px-5 py-2 font-medium text-gray-500 text-xs uppercase tracking-wide">Submitted</th>
+                                        <th className="px-6 py-3.5 font-medium text-gray-500 text-xs uppercase tracking-wider">ID</th>
+                                        <th className="px-6 py-3.5 font-medium text-gray-500 text-xs uppercase tracking-wider">Project Title</th>
+                                        <th className="px-6 py-3.5 font-medium text-gray-500 text-xs uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-3.5 font-medium text-gray-500 text-xs uppercase tracking-wider">Submitted</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    {submissions.map((sub, idx) => (
-                                        <tr key={sub.id} className={`group transition ${idx % 2 === 1 ? 'bg-gray-50' : 'bg-white'} hover:bg-gray-100/60`}> 
-                                            <td className="px-5 py-3 font-mono text-[11px] text-gray-600 align-top">{sub.id}</td>
-                                            <td className="px-5 py-3 align-top">
-                                                <span className="text-gray-800 group-hover:text-gray-900 font-medium leading-snug line-clamp-2">{sub.protocol_title}</span>
+                                <tbody className="divide-y divide-gray-100">
+                                    {submissions.map((sub) => (
+                                        <tr key={sub.id} className="group transition-colors hover:bg-gray-50/80"> 
+                                            <td className="px-6 py-4">
+                                                <div className="font-mono text-xs text-gray-500">{sub.id}</div>
                                             </td>
-                                            <td className="px-5 py-3 align-top">
+                                            <td className="px-6 py-4">
+                                                <div className="text-gray-900 group-hover:text-gray-950 font-medium leading-relaxed line-clamp-2 max-w-md">
+                                                    {sub.protocol_title}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
                                                 {sub.severity && sub.severity !== '' ? (
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 text-green-700 px-2.5 py-1 text-[11px] font-medium">Reviewed
-                                                        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 10l3 3 7-7" /></svg>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/10 px-3 py-1 text-xs font-medium">
+                                                        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M5 10l3 3 7-7" />
+                                                        </svg>
+                                                        Reviewed
                                                     </span>
                                                 ) : (
-                                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 px-2.5 py-1 text-[11px] font-medium">Pending
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6v6l4 2" /></svg>
+                                                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-600/10 px-3 py-1 text-xs font-medium">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <path d="M12 6v6l4 2" />
+                                                        </svg>
+                                                        Pending
                                                     </span>
                                                 )}
                                             </td>
-                                            <td className="px-5 py-3 text-gray-600 align-top whitespace-nowrap">{new Date(sub.report_submission_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="text-gray-500 text-sm whitespace-nowrap">
+                                                    {new Date(sub.report_submission_date).toLocaleDateString(undefined, { 
+                                                        year: 'numeric', 
+                                                        month: 'short', 
+                                                        day: 'numeric' 
+                                                    })}
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -269,42 +315,82 @@ const RDashboard = () => {
             </div>
 
             {/* Recent Activities (announcements + reviewed deviations + other notifications) */}
-            <div className="mb-10">
-                <div className="flex items-center justify-between mb-3">
-                    <h2 className="font-semibold text-lg text-gray-900">Recent Activities</h2>
-                    <span className="text-[11px] font-medium text-gray-500">Latest updates</span>
+            <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <h2 className="font-semibold text-xl text-gray-900">Recent Activities</h2>
+                        <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            Live Updates
+                        </div>
+                    </div>
                 </div>
-                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                     {notifLoading && (
-                        <div className="text-gray-500 text-sm">Loading activities...</div>
+                        <div className="flex items-center justify-center py-8">
+                            <div className="flex items-center gap-3 text-gray-500">
+                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                </svg>
+                                <span>Loading activities...</span>
+                            </div>
+                        </div>
                     )}
                     {!notifLoading && activities.length === 0 && (
-                        <div className="text-gray-500 text-sm">No recent activities.</div>
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                                <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                                    <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <p className="text-gray-500">No recent activities</p>
+                        </div>
                     )}
                     {activities.map((act) => {
                         const isRemoving = removingIds.includes(act.id);
+                        let iconBg = 'bg-gray-100';
+                        let icon = '🔔';
+                        
+                        if (act.type === 'announcement') {
+                            iconBg = 'bg-blue-50 text-blue-600';
+                            icon = '📣';
+                        } else if (act.type === 'reviewed') {
+                            iconBg = 'bg-emerald-50 text-emerald-600';
+                            icon = '✔️';
+                        }
+                        
                         return (
                             <div
                                 key={act.id}
-                                className={`flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5 shadow-sm transition-all duration-300 ${isRemoving ? 'opacity-0 translate-x-6' : 'opacity-100 translate-x-0'} hover:bg-gray-50`}
+                                className={`group flex items-start gap-4 bg-white border border-gray-100 rounded-xl px-5 py-4 shadow-sm transition-all duration-300 
+                                ${isRemoving ? 'opacity-0 translate-x-6' : 'opacity-100 translate-x-0'} 
+                                hover:shadow-md hover:border-gray-200`}
                             >
-                                <span className={`flex-none w-7 h-7 rounded-md flex items-center justify-center text-sm bg-gray-100 text-gray-600`}> 
-                                    {act.type === 'announcement' ? '📣' : act.type === 'reviewed' ? '✔️' : '🔔'}
+                                <span className={`flex-none w-9 h-9 rounded-full flex items-center justify-center text-base ${iconBg}`}> 
+                                    {icon}
                                 </span>
-                                <div className="flex-1">
-                                    <div className="font-medium text-gray-800 text-sm leading-snug truncate">{act.title}</div>
-                                    <div className="text-[11px] text-gray-500 flex items-center gap-2 mt-0.5">
-                                        <span>{relativeTime(act.date)}</span>
+                                <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-gray-900 text-sm leading-relaxed mb-1 line-clamp-2">{act.title}</div>
+                                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                                        <span className="font-medium">{relativeTime(act.date)}</span>
                                         <span className="inline-block w-1 h-1 rounded-full bg-gray-300" />
-                                        <span>{new Date(act.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                        <span>{new Date(act.date).toLocaleDateString(undefined, { 
+                                            month: 'short', 
+                                            day: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit'
+                                        })}</span>
                                     </div>
                                 </div>
                                 <button
                                     aria-label="Remove"
-                                    className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
+                                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-all duration-200"
                                     onClick={() => handleRemoveActivity(act.id)}
                                 >
-                                    &times;
+                                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M4 4l8 8m0-8l-8 8"/>
+                                    </svg>
                                 </button>
                             </div>
                         );
@@ -327,19 +413,7 @@ const RDashboard = () => {
                         </button>
                     </div>
                 </div>
-                <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm flex flex-col gap-3">
-                    <h3 className="font-medium text-gray-900 flex items-center gap-2 text-sm">
-                        <span className="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-xs">📘</span>
-                        Research Ethics Committee
-                    </h3>
-                    <p className="text-xs text-gray-600 leading-relaxed">Learn about oversight processes, compliance and how reviews ensure ethical integrity.</p>
-                    <div>
-                        <button className="text-xs font-medium text-gray-700 hover:text-gray-900 inline-flex items-center gap-1">
-                            Learn more
-                            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M13 5l7 7-7 7"/></svg>
-                        </button>
-                    </div>
-                </div>
+              
             </div>
         </div>
     );
