@@ -20,6 +20,7 @@ import RSubmissions from './pages/researcher/Submissions';
 import RDashboard from './pages/researcher/Dashboard';
 import AdminUsersPage from './pages/AdminUsersPage';
 import { ChatPopup } from './pages/researcher/ChatComp';
+import Testa from './pages/Testa';
 
 interface SessionProfile {
   fname: string;
@@ -199,7 +200,7 @@ export default function App() {
           }
         />
         <Route
-          path="/signup"
+          path="/signu"
           element={
             <AuthRedirect user={user}>
               <SignupPage />
@@ -231,10 +232,14 @@ export default function App() {
             <Route path="/sdash/sub2" element={<RDashboard />} />
             <Route path="/profile" element={<Profile />} />
 
+            <Route path="/sdevi/sub2" element={<Testa />} />
+
             <Route path="/ssubm" element={<SSubmissions />} />
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
+
+            {/* <Route path="/sdevi/sub1" element={<Testa />} /> */}
 
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/admin/userroles" element={<AdminUsersPage />} />
