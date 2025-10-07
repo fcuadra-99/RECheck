@@ -928,7 +928,7 @@ export default function SubmissionsPage() {
                                             key={phase.title}
                                             value={`${idx}`}
                                             disabled={isUpcoming}
-                                            className={`flex items-center justify-center gap-2 min-w-[10px] whitespace-nowrap ${isActive ? "phase-active" : ""} ${isComplete ? "phase-complete" : ""} ${isUpcoming ? "phase-upcoming text-white" : ""}`}
+                                            className={`flex items-center justify-center gap-2 min-w-[10px] whitespace-nowrap ${isActive ? "phase-active" : ""} ${isComplete ? "phase-complete" : ""} ${isUpcoming ? "phase-upcoming text-white" : "text-gray-800"}`}
                                         >
                                             {(() => { const Icon = phaseIcons[idx]; return Icon ? <Icon className="w-4 h-4 shrink-0" /> : null; })()}
                                             <span className="truncate text-sm sm:text-[0.95rem]">{phase.title}</span>

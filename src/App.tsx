@@ -21,6 +21,7 @@ import RDashboard from './pages/researcher/Dashboard';
 import AdminUsersPage from './pages/AdminUsersPage';
 import { ChatPopup } from './pages/researcher/ChatComp';
 import Testa from './pages/Testa';
+import Testb from './pages/Testb';
 
 interface SessionProfile {
   fname: string;
@@ -232,7 +233,8 @@ export default function App() {
             <Route path="/sdash/sub2" element={<RDashboard />} />
             <Route path="/profile" element={<Profile />} />
 
-            <Route path="/sdevi/sub2" element={<Testa />} />
+            <Route path="/sdevi/sub1" element={<Testa />} />
+            <Route path="/sdevi/sub2" element={<Testb />} />
 
             <Route path="/ssubm" element={<SSubmissions />} />
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
