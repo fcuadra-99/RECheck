@@ -228,9 +228,9 @@ export default function App() {
           >
             {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
 
-            <Route path="/sdash" element={<SDashboard />} />
-            <Route path="/sdash/sub1" element={<SDashboard />} />
-            <Route path="/sdash/sub2" element={<RDashboard />} />
+            <Route path="/sdash" element={<SDashboard user={user} profile={profile}/>} />
+            <Route path="/sdash/sub1" element={<SDashboard user={user} profile={profile}/>} />
+            <Route path="/sdash/sub2" element={<RDashboard user={user} profile={profile}/>} />
             <Route path="/profile" element={<Profile />} />
 
             <Route path="/sdevi/sub1" element={<Testa />} />
@@ -240,8 +240,6 @@ export default function App() {
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
-
-            {/* <Route path="/sdevi/sub1" element={<Testa />} /> */}
 
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/admin/userroles" element={<AdminUsersPage />} />

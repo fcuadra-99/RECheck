@@ -1,10 +1,20 @@
 import ProposalsTable from "@/components/parts/proposals/comp";
+import {FileStack} from "lucide-react";
 
 const SSubmissions = () => {
-    return <>
-        <h1 className="text-[30px] font-medium mt-3 m-0">Submissions</h1>
+    return <div className="p-5">
+        
+        <div className="flex items-center gap-3 mb-2">
+            <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
+                <FileStack className="w-5 h-5" />
+            </div>
+            <div>
+                <h1 className="text-2xl font-semibold">Submissions</h1>
+            </div>
+        </div>
+
         <ProposalsTable />
-    </>;
+    </div>;
 };
 
 export default SSubmissions;
