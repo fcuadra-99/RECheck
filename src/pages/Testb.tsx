@@ -129,14 +129,14 @@ export default function AdminPhases() {
         setEditingPhase({ ...editingPhase, statuses: updated });
     };
 
-    const toggleFile = (fileId: string) => {
-        if (!editingPhase) return;
-        const exists = editingPhase.required_files.find((f) => f.file_id === fileId);
-        const updatedFiles = exists
-            ? editingPhase.required_files.filter((f) => f.file_id !== fileId)
-            : [...editingPhase.required_files, { file_id: fileId, required: true }];
-        setEditingPhase({ ...editingPhase, required_files: updatedFiles });
-    };
+    // const toggleFile = (fileId: string) => {
+    //     if (!editingPhase) return;
+    //     const exists = editingPhase.required_files.find((f) => f.file_id === fileId);
+    //     const updatedFiles = exists
+    //         ? editingPhase.required_files.filter((f) => f.file_id !== fileId)
+    //         : [...editingPhase.required_files, { file_id: fileId, required: true }];
+    //     setEditingPhase({ ...editingPhase, required_files: updatedFiles });
+    // };
 
     const filteredFiles = pdfFiles.filter((f) => f.name.toLowerCase().includes(fileSearch.toLowerCase()));
 
