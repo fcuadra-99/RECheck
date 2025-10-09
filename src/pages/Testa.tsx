@@ -142,6 +142,10 @@ export default function MultiPDFAnnotator(): JSX.Element {
                 const pdf = await loadingTask.promise;
                 if (cancelled) return;
 
+                if (!activePdf.numPages || activePdf.numPages !== pdf.numPages) {
+                    setPdfFiles(prev => prev.map(p => p.id === activePdf.id ? { ...p, numPages: pdf.numPages } : p));
+                }
+
                 const pageNumber = Math.max(1, Math.min(currentPage, pdf.numPages));
                 const page = await pdf.getPage(pageNumber);
 
@@ -638,7 +642,7 @@ export default function MultiPDFAnnotator(): JSX.Element {
             </div>
 
             {/* Viewer */}
-            <div className="flex-1 flex flex-col bg-gray-100 overflow-y-auto">
+            <div className="flex-1 flex flex-col bg-gray-100 overflow-y-auto z-10">
                 {activePdf && activePdf.numPages && (
                     <div className="sticky top-0 z-20 bg-white border-b py-2 flex justify-center items-center gap-4 shadow-sm">
                         <button
