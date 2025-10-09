@@ -16,7 +16,6 @@ import {
     GraduationCap,
     Users,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { ChartLineMultiple } from '@/components/parts/chart-line-multi';
 import {
     Dialog,
@@ -73,8 +72,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
     const [actionsPage, setActionsPage] = useState(0);
     const [actionsLoading, setActionsLoading] = useState(false);
     const ACTIONS_PER_PAGE = 5;
-
-    const navigate = useNavigate();
 
     const role = profile?.role?.toLowerCase() ?? '';
 

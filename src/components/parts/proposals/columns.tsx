@@ -15,7 +15,6 @@ import { supabase } from "@/DB"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableRow, TableBody, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
 
 type StatusParam =
   | "Resend Manuscript"

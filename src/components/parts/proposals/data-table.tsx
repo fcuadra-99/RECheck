@@ -35,7 +35,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { DataTablePagination } from "@/components/parts/pagination"
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, FileCheck, AlertTriangle, ClipboardCheck, Upload, ListCheck } from "lucide-react"
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, ListCheck } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useEffect } from "react"
@@ -119,6 +119,8 @@ export function DataTable<TData, TValue>({
 
   const [phases, setPhases] = React.useState<Phase[]>([]);
   const [loadingPhases, setLoadingPhases] = React.useState(true);
+
+  loadingPhases;
 
   useEffect(() => {
     const fetchPhases = async () => {

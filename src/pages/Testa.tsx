@@ -38,8 +38,6 @@ interface PDFFile {
     numPages?: number;
 }
 
-const SCALE = 1.5; // canvas scale (viewport scale) - used for export logic
-
 export default function MultiPDFAnnotator(): JSX.Element {
     // app state
     const [pdfFiles, setPdfFiles] = useState<PDFFile[]>([]);

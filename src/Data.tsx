@@ -2,7 +2,6 @@ import {
   BookCopy,
   GalleryVerticalEnd,
   LayoutDashboard,
-  PencilRuler,
   Settings,
   UserCheck,
   type LucideIcon,
