@@ -72,10 +72,10 @@ const navConfig = {
     url: "/sdash",
     icon: LayoutDashboard,
     items: [
-      { title: "Dashboard Staff", url: "/sdash", role: "Admin Assistant" },
-      { title: "Dashboard Researcher", url: "/sdash/sub2", role: "Researcher" },
-      { title: "Dashboard Reviewer", url: "/sdash/reviewer", role: "Reviewer" },
-      { title: "Dashboard Chairperson", url: "/sdash/chair", role: "Chairperson" },
+      { title: "Dashboard", url: "/sdash", role: "Admin Assistant" },
+      { title: "Dashboard", url: "/sdash/sub2", role: "Researcher" },
+      { title: "Dashboard", url: "/sdash/sub2", role: "Reviewer" },
+      { title: "Dashboard", url: "/sdash", role: "Chairperson" },
     ],
   },
   submissions: {
@@ -86,18 +86,6 @@ const navConfig = {
       { title: "Submissions Staff", url: "/ssubm/sub1", role: "Admin Assistant" },
       { title: "Submissions Researcher", url: "/ssubm/sub2", role: "Researcher" },
       { title: "Submissions Reviewer", url: "/ssubm/reviewer", role: "Reviewer" },
-      { title: "Submissions Chairperson", url: "/ssubm/chair", role: "Chairperson" },
-    ],
-  },
-  deviations: {
-    title: "Deviations",
-    url: "/sdevi",
-    icon: PencilRuler,
-    items: [
-      { title: "Deviations Staff", url: "/sdevi/sub1", role: "Admin Assistant" },
-      { title: "Deviations Researcher", url: "/sdevi/sub2", role: "Researcher" },
-      { title: "Deviations Reviewer", url: "/sdevi/reviewer", role: "Reviewer" },
-      { title: "Deviations Chairperson", url: "/sdevi/chair", role: "Chairperson" },
     ],
   },
   admin: {
@@ -106,6 +94,9 @@ const navConfig = {
     icon: UserCheck,
     items: [
       { title: "User Management", url: "/admin/userroles", role: "Admin" },
+      { title: "Phase Management", url: "/sdevi/sub2", role: "Researcher" },
+      { title: "Files Management", url: "/sdevi/sub1", role: "Admin Assistant" },
+
     ],
   },
 };

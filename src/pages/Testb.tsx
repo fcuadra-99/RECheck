@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, Edit, Trash2, Search } from "lucide-react";
+import { Plus, X, Edit, Trash2, Search, Workflow, Book, CheckSquare, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -28,6 +28,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { RippleButton } from "@/components/animate-ui/buttons/ripple";
+import { FileText, BadgeCheck, Settings } from "lucide-react";
 
 /* Types */
 interface PdfFile {
@@ -41,7 +43,7 @@ interface Phase {
     title: string;
     description?: string | null;
     statuses: { name: string; sort_order: number; actor: string }[];
-    required_files: { file_id: string; required: boolean }[];
+    required_files: { file_id: string; required: boolean; user_upload?: boolean }[]
 }
 
 export default function AdminPhases() {
@@ -142,10 +144,19 @@ export default function AdminPhases() {
         <div className="p-6 bg-background min-h-screen">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-foreground">Phases Admin</h1>
-                <Button onClick={openNewPhaseDialog} className="flex items-center gap-1">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
+                        <Workflow className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-semibold text-foreground">Phases Management</h1>
+                        <p className="text-sm text-gray-500">Organize and control proposal workflow phases</p>
+                    </div>
+                </div>
+
+                <RippleButton onClick={openNewPhaseDialog} className="flex items-center gap-1">
                     <Plus className="h-4 w-4" /> New Phase
-                </Button>
+                </RippleButton>
             </div>
 
             {/* Phase Table */}
@@ -161,11 +172,27 @@ export default function AdminPhases() {
                 <Table className="border border-border">
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="border border-border">Title</TableHead>
-                            <TableHead className="border border-border">Statuses</TableHead>
-                            <TableHead className="border border-border w-24">Actions</TableHead>
+                            <TableHead className="border border-border">
+                                <div className="flex items-center gap-2">
+                                    <FileText className="w-4 h-4 text-primary" />
+                                    <span>Title</span>
+                                </div>
+                            </TableHead>
+                            <TableHead className="border border-border">
+                                <div className="flex items-center gap-2">
+                                    <BadgeCheck className="w-4 h-4 text-primary" />
+                                    <span>Statuses</span>
+                                </div>
+                            </TableHead>
+                            <TableHead className="border border-border w-24">
+                                <div className="flex items-center gap-2">
+                                    <Settings className="w-4 h-4 text-primary" />
+                                    <span>Actions</span>
+                                </div>
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
+
                     <TableBody>
                         {phases.map((p) => (
                             <TableRow key={p.id}>
@@ -314,10 +341,11 @@ export default function AdminPhases() {
                         </div>
 
                         {/* Required Files */}
+                        {/* Required Files */}
                         <div>
                             <Label>Required Files</Label>
                             <div className="mt-2">
-                                <div className="flex mb-2 gap-2">
+                                <div className="flex mb-5 gap-2">
                                     <Input
                                         placeholder="Search files..."
                                         value={fileSearch}
@@ -330,29 +358,82 @@ export default function AdminPhases() {
                                 <Table className="border border-border overflow-y-auto max-h-64">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="border border-border w-10"></TableHead>
-                                            <TableHead className="border border-border">File Name</TableHead>
+                                            <TableHead className="border border-border w-1/12">
+                                                <div className="flex items-center gap-2">
+                                                    <CheckSquare className="w-4 h-4 text-primary" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="border border-border w-1/12 self-center">
+                                                <div className="flex items-center gap-2">
+                                                    <Upload className="w-4 h-4 text-primary" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="border border-border">
+                                                <div className="flex items-center gap-2">
+                                                    <Book className="w-4 h-4 text-primary" />
+                                                    <span>File Name</span>
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
+
                                     <TableBody>
                                         {filteredFiles.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={2} className="text-sm text-foreground/50 italic border border-border">
+                                                <TableCell colSpan={3} className="text-sm text-foreground/50 italic border border-border">
                                                     No files available.
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            filteredFiles.map((f) => (
-                                                <TableRow key={f.id}>
-                                                    <TableCell className="border border-border">
-                                                        <Checkbox
-                                                            checked={editingPhase?.required_files.some((rf) => rf.file_id === f.id)}
-                                                            onCheckedChange={() => toggleFile(f.id)}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="border border-border">{f.name}</TableCell>
-                                                </TableRow>
-                                            ))
+                                            filteredFiles.map((f) => {
+                                                const fileEntry = editingPhase?.required_files.find(rf => rf.file_id === f.id);
+
+                                                return (
+                                                    <TableRow key={f.id}>
+                                                        {/* Required */}
+                                                        <TableCell className="border border-border">
+                                                            <Checkbox
+                                                                checked={!!fileEntry}
+                                                                onCheckedChange={() => {
+                                                                    if (!editingPhase) return;
+                                                                    if (fileEntry) {
+                                                                        setEditingPhase({
+                                                                            ...editingPhase,
+                                                                            required_files: editingPhase.required_files.filter(rf => rf.file_id !== f.id),
+                                                                        });
+                                                                    } else {
+                                                                        setEditingPhase({
+                                                                            ...editingPhase,
+                                                                            required_files: [...editingPhase.required_files, { file_id: f.id, required: true, user_upload: false }],
+                                                                        });
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* User Upload */}
+                                                        <TableCell className="border border-border">
+                                                            {fileEntry && (
+                                                                <Checkbox
+                                                                    checked={!!fileEntry.user_upload}
+                                                                    onCheckedChange={() => {
+                                                                        if (!editingPhase) return;
+                                                                        setEditingPhase({
+                                                                            ...editingPhase,
+                                                                            required_files: editingPhase.required_files.map(rf =>
+                                                                                rf.file_id === f.id ? { ...rf, user_upload: !rf.user_upload } : rf
+                                                                            ),
+                                                                        });
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* File Name */}
+                                                        <TableCell className="border border-border">{f.name}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
                                         )}
                                     </TableBody>
                                 </Table>

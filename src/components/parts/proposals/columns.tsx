@@ -15,9 +15,22 @@ import { supabase } from "@/DB"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableRow, TableBody, TableCell } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
 
-function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessment" | "Forms Check" | "Deploy Queue") {
-  let awa = {
+type StatusParam =
+  | "Resend Manuscript"
+  | "Check Manuscript"
+  | "Risk Assessment"
+  | "Resend Forms"
+  | "Forms Check"
+  | "Deploy Queue";
+
+type StatusValue = "Pending" | "Check" | "Assess" | "View";
+
+function stat(params: StatusParam | null | undefined): StatusValue {
+  if (!params) return "Pending"; // default for empty status
+
+  let awa: Record<StatusParam, StatusValue> = {
     "Resend Manuscript": "Pending",
     "Check Manuscript": "Pending",
     "Risk Assessment": "Pending",
@@ -26,7 +39,7 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
     "Deploy Queue": "Pending",
   }
 
-  if (data.user.role == "Admin Assistant") {
+  if (data.user.role === "Admin Assistant") {
     awa = {
       "Resend Manuscript": "Check",
       "Check Manuscript": "Check",
@@ -37,7 +50,7 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
     }
   }
 
-  if (data.user.role == "Chairperson") {
+  if (data.user.role === "Chairperson") {
     awa = {
       "Resend Manuscript": "Assess",
       "Check Manuscript": "Check",
@@ -48,7 +61,7 @@ function stat(params: "Resend Manuscript" | "Check Manuscript" | "Risk Assessmen
     }
   }
 
-  return awa[params]
+  return awa[params] ?? "Pending"; // fallback if unknown
 }
 
 function formatDate(unformatted: string) {
@@ -124,7 +137,7 @@ export const columns: ColumnDef<SubmTable>[] = [
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {status === "Pending" ? "Awaiting previous steps" : `Click to ${status.toLowerCase()}`}
+                  {status === "Pending" ? "Awaiting previous steps" : `Click to ${status}`}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -159,8 +172,8 @@ export const columns: ColumnDef<SubmTable>[] = [
     accessorKey: "researcher",
     header: ({ }) => (
       <>
-      <UserRound className="h-4 w-4 text-gray-500" />
-      Researcher
+        <UserRound className="h-4 w-4 text-gray-500" />
+        Researcher
       </>
 
     ),
@@ -182,7 +195,7 @@ export const columns: ColumnDef<SubmTable>[] = [
         ? fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
         : "?"
 
-      console.log(fname,lname);
+      console.log(fname, lname);
 
       // ✅ Only fetch avatar/details when dialog opens
       useEffect(() => {

@@ -38,11 +38,21 @@ import { DataTablePagination } from "@/components/parts/pagination"
 import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, FileCheck, AlertTriangle, ClipboardCheck, Upload, ListCheck } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { useEffect } from "react"
+import { supabase } from "@/DB"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   isLoading?: boolean
+}
+
+interface Phase {
+  id: string;
+  title: string;
+  description?: string | null;
+  statuses: { name: string; sort_order: number; actor: string }[];
+  required_files: { file_id: string; required: boolean; user_upload?: boolean }[]
 }
 
 export function DataTable<TData, TValue>({
@@ -105,15 +115,42 @@ export function DataTable<TData, TValue>({
     },
   })
 
-  const statuses = ["Check Manuscript", "Risk Assessment", "Forms Check", "Deploy Queue"]
-  const [activeStatus, setActiveStatus] = React.useState(statuses[0])
 
-  const handleStatusFilter = (status: string) => {
-    if (table.getColumn("status")?.getFilterValue() !== status) {
-      table.getColumn("status")?.setFilterValue(status)
-      setActiveStatus(status)
+
+  const [phases, setPhases] = React.useState<Phase[]>([]);
+  const [loadingPhases, setLoadingPhases] = React.useState(true);
+
+  useEffect(() => {
+    const fetchPhases = async () => {
+      setLoadingPhases(true);
+      try {
+        const { data } = await supabase.from("phases").select("*");
+        setPhases(data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingPhases(false);
+      }
+    };
+    fetchPhases();
+  }, []);
+
+  const statuses: string[] = phases.flatMap(p => p.statuses.map((s: { name: any }) => s.name));
+  const [activeStatus, setActiveStatus] = React.useState(statuses[0])
+  const uniqueStatuses = Array.from(new Set(statuses));
+
+  useEffect(() => {
+    if (uniqueStatuses.length > 0 && !activeStatus) {
+      setActiveStatus(uniqueStatuses[0]);
+      table.getColumn("status")?.setFilterValue(uniqueStatuses[0]);
     }
-  }
+  }, [uniqueStatuses, activeStatus, table]);
+
+  // Status filter handler
+  const handleStatusFilter = (status: string) => {
+    setActiveStatus(status); // update the state
+    table.getColumn("status")?.setFilterValue(status); // update the table filter
+  };
 
   // 🔑 hide review_type if activeStatus is "Check Manuscript"
   React.useEffect(() => {
@@ -186,7 +223,7 @@ export function DataTable<TData, TValue>({
       <div className="mb-6">
         <ToggleGroup
           variant="outline"
-          defaultValue={statuses[0]}
+          defaultValue={activeStatus}
           type="single"
           className="flex items-center justify-between gap-2 overflow-x-auto self-center w-auto bg-white/50 p-1 rounded-lg border"
         >
@@ -205,18 +242,7 @@ export function DataTable<TData, TValue>({
               )}
               title={status} // Show full text on hover
             >
-              {/* Icons - always visible */}
-              <span className="flex-shrink-0">
-                {status === "Check Manuscript" && <FileCheck className="w-4 h-4" />}
-                {status === "Risk Assessment" && <AlertTriangle className="w-4 h-4" />}
-                {status === "Forms Check" && <ClipboardCheck className="w-4 h-4" />}
-                {status === "Deploy Queue" && <Upload className="w-4 h-4" />}
-              </span>
-
-              {/* Text - hidden on small screens, visible on medium+ */}
-              <span className="hidden sm:block ml-2 max-w-[120px] truncate">
-                {status}
-              </span>
+              {status}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>

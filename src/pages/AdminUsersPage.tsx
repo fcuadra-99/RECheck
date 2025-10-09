@@ -3,7 +3,7 @@
 import { useState, useEffect, type JSX } from "react";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Layers, Search, Trash2, User } from "lucide-react";
+import { Building2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ImageIcon, Layers, Mail, Search, Settings, Trash2, User } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  isLoading  
+  isLoading
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -160,7 +160,15 @@ export default function AdminUsersPage() {
 
   return (
     <div className="p-6">
-      <h1 className="text-[30px] font-medium mb-4">User Management</h1>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
+          <Users className="w-5 h-5" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold">User Management</h1>
+          <p className="text-sm text-gray-500">Manage all user accounts and permissions</p>
+        </div>
+      </div>
 
       {/* Search & Filters */}
       <div className="flex flex-col gap-4 mb-4">
@@ -224,12 +232,42 @@ export default function AdminUsersPage() {
         <Table className="border border-gray-300">
           <TableHeader>
             <TableRow className="border-b border-gray-300">
-              <TableHead className="border-r border-gray-300">Avatar</TableHead>
-              <TableHead className="border-r border-gray-300">Name</TableHead>
-              <TableHead className="border-r border-gray-300">Email</TableHead>
-              <TableHead className="border-r border-gray-300">Organization</TableHead>
-              <TableHead className="border-r border-gray-300">Role</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="border-r border-gray-300">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-primary" />
+                  <span>Avatar</span>
+                </div>
+              </TableHead>
+              <TableHead className="border-r border-gray-300">
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-primary" />
+                  <span>Name</span>
+                </div>
+              </TableHead>
+              <TableHead className="border-r border-gray-300">
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-primary" />
+                  <span>Email</span>
+                </div>
+              </TableHead>
+              <TableHead className="border-r border-gray-300">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <span>Organization</span>
+                </div>
+              </TableHead>
+              <TableHead className="border-r border-gray-300">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <span>Role</span>
+                </div>
+              </TableHead>
+              <TableHead>
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-primary" />
+                  <span>Actions</span>
+                </div>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
