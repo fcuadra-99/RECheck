@@ -21,7 +21,7 @@ export const sidebarMenus = {
       icon: LayoutDashboard,
     },
     {
-      title: "Submissions",
+      title: "Deviation Submitted",
   url: "/researcher/submissions",
       icon: BookCopy,
     },
@@ -34,6 +34,11 @@ export const sidebarMenus = {
       title: "Submitted Forms",
       url: "/researcher/template-submissions",
       icon: FileDown,
+    },
+    {
+      title: "Final Report Submission",
+      url: "/researcher/final-reports",
+      icon: FileCheck2,
     },
   { title: "Deviation Reports", url: "/rdevi1", icon: PencilRuler },
   { title: "Announcements", url: "/announcements", icon: Megaphone },

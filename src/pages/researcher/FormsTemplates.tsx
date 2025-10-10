@@ -22,7 +22,7 @@ export default function FormsTemplates() {
 
   if (selectedAction === 'upload' && selectedTemplate) {
     // Find the selected template details
-    const templateDetails = TemplateDownloadService.getAllTemplates().find(t => t.name === selectedTemplate);
+    const templateDetails = TemplateDownloadService.getUploadableTemplates().find(t => t.name === selectedTemplate);
     
     return (
       <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -61,6 +61,11 @@ export default function FormsTemplates() {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Download official research form templates to fill out offline, then upload and sign digitally for authentication and compliance.
           </p>
+          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-3xl mx-auto">
+            <p className="text-sm text-amber-900">
+              <span className="font-semibold">Note:</span> You can download the "Protocol Final Report" template here, but it must be submitted through the dedicated "Final Report Submission" page, not uploaded here.
+            </p>
+          </div>
         </div>
 
         {!selectedAction && (
@@ -105,7 +110,7 @@ export default function FormsTemplates() {
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       >
                         <option value="">Select form type...</option>
-                        {TemplateDownloadService.getAllTemplates().map((template) => (
+                        {TemplateDownloadService.getUploadableTemplates().map((template) => (
                           <option key={template.id} value={template.name}>
                             {template.name}
                           </option>

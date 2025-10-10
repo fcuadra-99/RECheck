@@ -107,6 +107,11 @@ export class TemplateDownloadService {
     return formTemplates;
   }
 
+  // Get templates that can be uploaded through the forms section (excludes Protocol Final Report)
+  static getUploadableTemplates(): FormTemplate[] {
+    return formTemplates.filter(template => template.id !== 'protocol-final-report');
+  }
+
   static getTemplateById(id: string): FormTemplate | undefined {
     return formTemplates.find(template => template.id === id);
   }

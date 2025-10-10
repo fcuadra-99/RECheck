@@ -41,6 +41,8 @@ import TemplateSubmissions from './pages/chairperson/TemplateSubmissions';
 import TemplateSubmissionDetail from './pages/chairperson/TemplateSubmissionDetail';
 import ResearcherTemplateSubmissions from './pages/researcher/TemplateSubmissions';
 import ResearcherTemplateSubmissionDetail from './pages/researcher/TemplateSubmissionDetail';
+import ManageFinalReports from './pages/chairperson/ManageFinalReports';
+import FinalReportSubmission from './pages/researcher/FinalReportSubmission';
 
 
 function App() {
@@ -152,6 +154,11 @@ function App() {
                 <TemplateSubmissionDetail />
               </ProtectedRoute>
             } />
+            <Route path="/chairperson/manage-final-reports" element={
+              <ProtectedRoute allowedRoles={["Chairperson"]}>
+                <ManageFinalReports />
+              </ProtectedRoute>
+            } />
             {/* Reviewer routes */}
             <Route path="/reviewer/dashboard" element={
               <ProtectedRoute allowedRoles={["Reviewer"]}>
@@ -197,6 +204,11 @@ function App() {
             <Route path="/researcher/template-submissions/:id" element={
               <ProtectedRoute allowedRoles={["Researcher"]}>
                 <ResearcherTemplateSubmissionDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/researcher/final-reports" element={
+              <ProtectedRoute allowedRoles={["Researcher"]}>
+                <FinalReportSubmission />
               </ProtectedRoute>
             } />
             {/* Researcher deviation routes */}
