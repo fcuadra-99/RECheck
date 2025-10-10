@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,10 @@ interface DocumentItem {
     name: string;
     templateUrl: string;
     required: boolean;
+    needsSignature?: boolean;  // Can need both signature and answers
+    needsAnswer?: boolean;
+    signStatus?: 'pending' | 'completed';
+    answerStatus?: 'pending' | 'completed';
 }
 
 interface HistoryEntry {
@@ -139,34 +143,34 @@ const getActionLabel = (status: string) => {
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
     if (["Send Manuscript", "Resend Manuscript"].includes(submission.status)) {
         return [
-            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.docx", required: true },
-            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.docx", required: true },
-            { name: "Updated CV", templateUrl: "/templates/cv.docx", required: true },
-            { name: "All Grades", templateUrl: "/templates/grades.docx", required: true },
+            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true },
+            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: true, needsSignature: true },
+            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: true },
+            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: true, needsAnswer: true },
             submission.category === "Graduate"
-                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.docx", required: true }
+                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: true }
                 : null,
             submission.category === "External"
-                ? { name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.docx", required: true }
+                ? { name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.pdf", required: true, needsSignature: true }
                 : null,
         ].filter(Boolean) as DocumentItem[];
     }
 
     if (["Send Forms", "Resend Forms"].includes(submission.status)) {
         const docs: DocumentItem[] = [
-            { name: "Routing Form", templateUrl: "/templates/routing.docx", required: true },
-            { name: "Ethics Checklist", templateUrl: "/templates/checklist.docx", required: true },
-            { name: "Application Form", templateUrl: "/templates/application.docx", required: true },
-            { name: "Study Protocol Info", templateUrl: "/templates/protocol.docx", required: true },
-            { name: "Informed Consent Checklist", templateUrl: "/templates/consent_checklist.docx", required: true },
-            { name: "Informed Consent Form", templateUrl: "/templates/consent_form.docx", required: true },
-            { name: "Sample Informed Consent", templateUrl: "/templates/sample_consent.docx", required: false },
-            { name: "Sample Assent Form", templateUrl: "/templates/sample_assent.docx", required: false },
-            { name: "Sample MOA", templateUrl: "/templates/moa.docx", required: false },
-            { name: "Payment Receipt", templateUrl: "/templates/payment.docx", required: true },
+            { name: "REC_FO_0032_EthicsProtocolChecklist", templateUrl: "/REC_FO_0032_EthicsProtocolChecklist.pdf", required: true, needsSignature: true, needsAnswer: true },
+            { name: "Ethics Checklist", templateUrl: "/templates/checklist.pdf", required: true, needsAnswer: true },
+            { name: "Application Form", templateUrl: "/templates/application.pdf", required: true },
+            { name: "Study Protocol Info", templateUrl: "/templates/protocol.pdf", required: true },
+            { name: "Informed Consent Checklist", templateUrl: "/templates/consent_checklist.pdf", required: true, needsAnswer: true },
+            { name: "Informed Consent Form", templateUrl: "/templates/consent_form.pdf", required: true },
+            { name: "Sample Informed Consent", templateUrl: "/templates/sample_consent.pdf", required: false },
+            { name: "Sample Assent Form", templateUrl: "/templates/sample_assent.pdf", required: false },
+            { name: "Sample MOA", templateUrl: "/templates/moa.pdf", required: false },
+            { name: "Payment Receipt", templateUrl: "/templates/payment.pdf", required: true },
         ];
         if (submission.category === "Graduate") {
-            docs.push({ name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.docx", required: true });
+            docs.push({ name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.pdf", required: true, needsSignature: true });
         }
         return docs;
     }
@@ -213,13 +217,15 @@ export default function SubmissionsPage() {
     // user + uploads
     const [userId, setUserId] = useState<string | null>(null);
     const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
+    const [answeredDocuments, setAnsweredDocuments] = useState<{ [key: string]: boolean }>({});
     const [signedDocuments, setSignedDocuments] = useState<{ [key: string]: boolean }>({});
 
-    // preview dialog
+    // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+    const [answerDialogOpen, setAnswerDialogOpen] = useState(false);
     const [activeDocument, setActiveDocument] = useState<string | null>(null);
 
     // new proposal modal
@@ -281,6 +287,7 @@ export default function SubmissionsPage() {
     useEffect(() => {
         setUploadedFiles({});
         setSignedDocuments({});
+        setAnsweredDocuments({});
         setHistoryFiles(null);
         setLatestComment(null);
         setActiveTab(0);
@@ -296,7 +303,7 @@ export default function SubmissionsPage() {
                     try {
                         const parsed = typeof hist.affected_files === "string" ? JSON.parse(hist.affected_files) : hist.affected_files;
                         setHistoryFiles(
-                            parsed.map((f: any) => ({ name: f.name, required: f.required, templateUrl: "/templates/unknown.docx" }))
+                            parsed.map((f: any) => ({ name: f.name, required: f.required, templateUrl: "/templates/unknown.pdf" }))
                         );
                         setLatestComment(hist.comment || null);
                     } catch (err) {
@@ -444,7 +451,7 @@ export default function SubmissionsPage() {
                         file_path: path,
                     });
                     if (dbError) throw new Error(dbError.message);
-                } else if (doc.required && !uploadedFiles[doc.name]) {
+                } else if (doc.required && !uploadedFiles[doc.name] && !doc.needsSignature && !doc.needsAnswer) {
                     throw new Error(`Required file "${doc.name}" missing`);
                 }
             }
@@ -494,147 +501,220 @@ export default function SubmissionsPage() {
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = historyFiles || getPhaseDocuments(submission);
         return (
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {docs.map((doc) => (
-                    <div key={doc.name} className="flex items-start gap-4 border p-3 rounded">
-                        <div className="flex-shrink-0 w-[200px]">
-                            <div className="font-medium break-words line-clamp-2 min-h-[48px]" title={doc.name}>{doc.name}</div>
-                            <div className="text-xs text-gray-500 mt-1">{doc.required ? "Required" : "Optional"}</div>
-                        </div>
-
-                        <div className="flex-1 flex gap-4">
-                            <div
-                                className={cn(
-                                    "relative flex-1 min-h-[120px] border-2 border-dashed rounded-lg p-4 transition-colors",
-                                    uploadedFiles[doc.name]
-                                        ? "border-primary bg-primary/5"
-                                        : "border-gray-200 hover:border-gray-300"
-                                )}
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                }}
-                                onDrop={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const file = e.dataTransfer.files[0];
-                                    if (!file) return;
-                                    if (file.type !== "application/pdf") {
-                                        toast.error("Only PDF files are allowed");
-                                        return;
-                                    }
-                                    if (file.size > 25 * 1024 * 1024) {
-                                        toast.error("File size must be under 25MB");
-                                        return;
-                                    }
-                                    handleFileSelect(doc.name, file);
-                                }}
-                            >
-                                <Input
-                                    type="file"
-                                    accept="application/pdf"
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onChange={(e) => {
-                                        const file = e.target.files ? e.target.files[0] : null;
-                                        if (!file) return;
-                                        if (file.type !== "application/pdf") {
-                                            toast.error("Only PDF files are allowed");
-                                            (e.target as HTMLInputElement).value = "";
-                                            return;
-                                        }
-                                        if (file.size > 25 * 1024 * 1024) {
-                                            toast.error("File size must be under 25MB");
-                                            (e.target as HTMLInputElement).value = "";
-                                            return;
-                                        }
-                                        handleFileSelect(doc.name, file);
-                                    }}
-                                />
-                                <div className="text-center flex flex-col items-center justify-center h-full">
-                                    <FileUp className="h-8 w-8 text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-500 max-w-full truncate px-2">
-                                        {uploadedFiles[doc.name]
-                                            ? uploadedFiles[doc.name]?.name
-                                            : "Drop PDF here or click to upload"}
-                                    </p>
+                    <div key={doc.name} className="border rounded-lg p-4 bg-white shadow-sm">
+                        {/* Horizontal layout: Title | Upload Area | Buttons */}
+                        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
+                            {/* Document Info - Left side */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-start gap-3">
+                                    <FileText className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="font-medium text-gray-900 break-words">{doc.name}</h3>
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            <Badge variant={doc.required ? "default" : "secondary"} className="text-xs">
+                                                {doc.required ? "Required" : "Optional"}
+                                            </Badge>
+                                            {doc.needsSignature && (
+                                                <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                                    Needs Signature
+                                                </Badge>
+                                            )}
+                                            {doc.needsAnswer && (
+                                                <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                                    Needs Answer
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="flex-shrink-0 flex flex-col gap-2">
-                                <TooltipProvider delayDuration={200}>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <a href={doc.templateUrl} download>
-                                                <RippleButton variant="outline" size="sm" className="w-9 h-9 p-0">
-                                                    <Download className="h-4 w-4" />
-                                                </RippleButton>
-                                            </a>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left">
-                                            <p>Download Template</p>
-                                        </TooltipContent>
-                                    </Tooltip>
+                            {/* Upload Area - Middle */}
+                            <div className="w-full lg:w-48 flex-shrink-0">
+                                <div className="relative">
+                                    <div
+                                        className={cn(
+                                            "relative w-full min-h-[80px] border-2 border-dashed rounded-lg p-3 transition-colors cursor-pointer",
+                                            uploadedFiles[doc.name]
+                                                ? "border-primary bg-primary/5"
+                                                : "border-gray-300 hover:border-gray-400"
+                                        )}
+                                        onClick={() => document.getElementById(`file-${doc.name}`)?.click()}
+                                    >
+                                        <Input
+                                            id={`file-${doc.name}`}
+                                            type="file"
+                                            accept="application/pdf"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onChange={(e) => {
+                                                const file = e.target.files ? e.target.files[0] : null;
+                                                if (!file) return;
+                                                if (file.type !== "application/pdf") {
+                                                    toast.error("Only PDF files are allowed");
+                                                    (e.target as HTMLInputElement).value = "";
+                                                    return;
+                                                }
+                                                if (file.size > 25 * 1024 * 1024) {
+                                                    toast.error("File size must be under 25MB");
+                                                    (e.target as HTMLInputElement).value = "";
+                                                    return;
+                                                }
+                                                handleFileSelect(doc.name, file);
+                                            }}
+                                        />
+                                        <div className="text-center flex flex-col items-center justify-center h-full">
+                                            <FileUp className="h-6 w-6 text-gray-400 mb-1" />
+                                            <p className="text-xs text-gray-500 truncate max-w-full">
+                                                {uploadedFiles[doc.name]
+                                                    ? uploadedFiles[doc.name]?.name
+                                                    : "Click to upload PDF"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="w-9 h-9 p-0"
-                                                disabled={!uploadedFiles[doc.name]}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    if (uploadedFiles[doc.name]) {
-                                                        const url = URL.createObjectURL(uploadedFiles[doc.name]!);
-                                                        setPreviewUrl(url);
-                                                        setPreviewTitle(doc.name);
-                                                        setPreviewOpen(true);
-                                                    }
-                                                }}
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left">
-                                            <p>Preview Document</p>
-                                        </TooltipContent>
-                                    </Tooltip>
+                            {/* Action Buttons - Right side */}
+                            <div className="flex flex-col gap-2 w-full lg:w-[140px]">
+                                {/* Template Download - if available */}
+                                {doc.templateUrl && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <a href={doc.templateUrl} download className="block w-full">
+                                                    <Button variant="outline" size="sm" className="w-full">
+                                                        <Download className="h-4 w-4 mr-2" />
+                                                        Template
+                                                    </Button>
+                                                </a>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Download Template</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className={cn(
-                                                    "w-9 h-9 p-0",
-                                                    doc.required && !signedDocuments[doc.name] && uploadedFiles[doc.name] ? "animate-pulse border-pink-500" : "",
-                                                    signedDocuments[doc.name] ? "border-green-500 text-green-500" : "",
-                                                    "transition-colors"
-                                                )}
-                                                disabled={!uploadedFiles[doc.name]}
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    setActiveDocument(doc.name);
-                                                    setSignatureDialogOpen(true);
-                                                }}
-                                            >
-                                                <PenLine className="h-4 w-4" />
-                                            </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left">
-                                            <p>Add Signature</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
+                                {/* Sign Document Button */}
+                                {doc.needsSignature && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant={signedDocuments[doc.name] ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={cn(
+                                                        "w-full",
+                                                        signedDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
+                                                    )}
+                                                    onClick={() => {
+                                                        setActiveDocument(doc.name);
+                                                        setSignatureDialogOpen(true);
+                                                    }}
+                                                >
+                                                    {signedDocuments[doc.name] ? (
+                                                        <>
+                                                            <Check className="h-4 w-4 mr-2" />
+                                                            Signed
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <PenLine className="h-4 w-4 mr-2" />
+                                                            Sign
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{signedDocuments[doc.name] ? 'Document Signed' : 'Sign Document'}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+
+                                {/* Answer Questions Button */}
+                                {doc.needsAnswer && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant={answeredDocuments[doc.name] ? "default" : "outline"}
+                                                    size="sm"
+                                                    className={cn(
+                                                        "w-full",
+                                                        answeredDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
+                                                    )}
+                                                    onClick={() => {
+                                                        setActiveDocument(doc.name);
+                                                        setAnswerDialogOpen(true);
+                                                    }}
+                                                >
+                                                    {answeredDocuments[doc.name] ? (
+                                                        <>
+                                                            <Check className="h-4 w-4 mr-2" />
+                                                            Answered
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <FileText className="h-4 w-4 mr-2" />
+                                                            Fill Out
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{answeredDocuments[doc.name] ? 'Questions Answered' : 'Answer Questions'}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
+
+                                {/* Preview Button - Only show if file is uploaded */}
+                                {uploadedFiles[doc.name] && (
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="w-full"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        if (uploadedFiles[doc.name]) {
+                                                            const url = URL.createObjectURL(uploadedFiles[doc.name]!);
+                                                            setPreviewUrl(url);
+                                                            setPreviewTitle(doc.name);
+                                                            setPreviewOpen(true);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Eye className="h-4 w-4 mr-2" />
+                                                    Preview
+                                                </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>Preview Document</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )}
                             </div>
                         </div>
                     </div>
                 ))}
 
-                <div>
+                <div className="pt-4">
                     <RippleButton
                         onClick={() => uploadAndAdvancePhase(submission)}
-                        disabled={!docs.every((d) => !d.required || (uploadedFiles[d.name] && signedDocuments[d.name]))}
+                        disabled={!docs.every((d) => {
+                            if (!d.required) return true;
+                            if (d.needsSignature) return signedDocuments[d.name];
+                            if (d.needsAnswer) return answeredDocuments[d.name];
+                            return uploadedFiles[d.name];
+                        })}
+                        className="w-full sm:w-auto"
                     >
                         Submit Phase
                     </RippleButton>
@@ -648,7 +728,6 @@ export default function SubmissionsPage() {
             prev?.proposal_id === submission.proposal_id ? null : submission
         );
     };
-
 
     // Helper: map submission status to active phase index
     const getActivePhaseIndex = (status: string) => {
@@ -664,9 +743,6 @@ export default function SubmissionsPage() {
         };
         return phaseMap[status] ?? 0;
     };
-
-
-    /* wrapper used when the user clicks Submit on the active card; ensures activeSubmission present */
 
     /* Past-phase list component */
     function PastPhaseFilesList({ phaseIndex }: { phaseIndex: number }) {
@@ -691,8 +767,8 @@ export default function SubmissionsPage() {
         return (
             <div className="space-y-2">
                 {storedFiles.map((f) => (
-                    <div key={f.name} className="flex items-center justify-between border p-2 rounded">
-                        <div className="truncate">{f.name}</div>
+                    <div key={f.name} className="flex flex-col sm:flex-row sm:items-center justify-between border p-3 rounded gap-2 sm:gap-0">
+                        <div className="font-medium truncate">{f.name}</div>
                         <div className="flex gap-2">
                             <Button variant="outline" size="sm" onClick={() => openPreview(activeSubmission!.proposal_id, phaseIndex, f.name, f.name)}>
                                 View
@@ -713,14 +789,14 @@ export default function SubmissionsPage() {
 
     /* ---------- UI ---------- */
     return (
-        <div className="p-8 space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
             {/* header */}
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
                     <FileStack className="w-5 h-5" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-semibold">Submissions</h1>
+                    <h1 className="text-xl sm:text-2xl font-semibold">Submissions</h1>
                     <p className="text-sm text-gray-500">
                         {userSubmissions.length}/3 Proposals Available
                     </p>
@@ -728,14 +804,14 @@ export default function SubmissionsPage() {
             </div>
 
             {/* bottom table (up to 3) */}
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="border">Title</TableHead>
-                            <TableHead className="border">Status</TableHead>
-                            <TableHead className="border">Date</TableHead>
-                            <TableHead className="border w-1 whitespace-nowrap text-center">
+                            <TableHead className="border min-w-[200px]">Title</TableHead>
+                            <TableHead className="border min-w-[120px]">Status</TableHead>
+                            <TableHead className="border min-w-[100px]">Date</TableHead>
+                            <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
                                 Action
                             </TableHead>
                         </TableRow>
@@ -766,7 +842,7 @@ export default function SubmissionsPage() {
                                         <TableCell className="border">
                                             <div className="flex items-center gap-2">
                                                 <FileText className="w-4 h-4 text-gray-500" />
-                                                <span className="font-medium">{submission.proposal_title}</span>
+                                                <span className="font-medium truncate">{submission.proposal_title}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="border">
@@ -781,7 +857,7 @@ export default function SubmissionsPage() {
                                                 {submission.status.includes("Resend") && <RefreshCcw className="w-3 h-3 mr-1" />}
                                                 {submission.status.includes("Check") && <Clock className="w-3 h-3 mr-1" />}
                                                 {submission.status === "Deploy Queue" && <Check className="w-3 h-3 mr-1" />}
-                                                {submission.status}
+                                                <span className="truncate">{submission.status}</span>
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="border text-gray-600">
@@ -857,28 +933,28 @@ export default function SubmissionsPage() {
             </div>
 
             {/* top card */}
-            <div className="bg-white border rounded-lg p-6 shadow-sm">
+            <div className="bg-white border rounded-lg p-4 sm:p-6 shadow-sm">
                 {!activeSubmission ? (
                     <div className="text-center py-8 text-gray-500">No submission selected</div>
                 ) : (
                     <>
-                        <div className="md:flex md:items-start md:justify-between mb-6 gap-6">
-                            <div className="flex-1">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-6 gap-4">
+                            <div className="flex-1 min-w-0">
                                 <h2 className="text-lg font-semibold break-words pr-2">{activeSubmission.proposal_title}</h2>
                                 <div className="text-sm text-gray-600 mt-1 mb-3">
                                     {getProfileName(activeSubmission.researcher)} • <span className="text-muted-foreground">{activeSubmission.category}</span>
                                 </div>
                             </div>
 
-                            <div className="w-full md:w-64 mt-4 md:mt-0 flex-shrink-0">
-                                <div className="flex items-center justify-between md:block">
-                                    <div className="text-xs md:text-sm text-gray-500 uppercase tracking-wide">Status</div>
+                            <div className="w-full lg:w-64 flex-shrink-0">
+                                <div className="flex items-center justify-between lg:block">
+                                    <div className="text-xs lg:text-sm text-gray-500 uppercase tracking-wide">Status</div>
                                 </div>
-                                <div className="mt-1 md:mt-1 max-w-full">
+                                <div className="mt-1 max-w-full">
                                     <Badge
                                         variant={activeSubmission.status.includes("Resend") ? "destructive" : "outline"}
                                         className={cn(
-                                            "inline-flex items-center gap-1 max-w-full px-2 py-1 md:px-2 md:py-1",
+                                            "inline-flex items-center gap-1 max-w-full px-2 py-1",
                                             activeSubmission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
                                             activeSubmission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
                                         )}
@@ -912,8 +988,8 @@ export default function SubmissionsPage() {
                         {/* tabs */}
                         {latestComment && (
                             <div className="mb-4 p-3 border rounded bg-amber-50 text-amber-800 flex items-start gap-2">
-                                <Clock className="w-4 h-4 mt-0.5" />
-                                <div className="text-sm">
+                                <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm min-w-0">
                                     <div className="font-medium">Reviewer comment</div>
                                     <div className="whitespace-pre-wrap break-words">{latestComment}</div>
                                 </div>
@@ -921,7 +997,7 @@ export default function SubmissionsPage() {
                         )}
 
                         <Tabs value={`${activeTab}`} onValueChange={(v) => setActiveTab(Number(v))}>
-                            <TabsList className="flex w-full gap-2">
+                            <TabsList className="flex w-full gap-1 sm:gap-2 py-0.5">
                                 {phases.map((phase, idx) => {
                                     const activeIdx = getActivePhaseIndex(activeSubmission?.status || "");
                                     const isActive = idx === activeIdx;
@@ -933,15 +1009,25 @@ export default function SubmissionsPage() {
                                             key={phase.title}
                                             value={`${idx}`}
                                             disabled={isUpcoming}
-                                            className={`flex items-center justify-center gap-2 min-w-[10px] whitespace-nowrap ${isActive ? "phase-active" : ""} ${isComplete ? "phase-complete" : ""} ${isUpcoming ? "phase-upcoming text-white" : "text-gray-800"}`}
+                                            className={`
+          flex items-center justify-center gap-2
+          flex-1 min-w-0
+          px-2 py-1
+          whitespace-nowrap text-ellipsis overflow-hidden
+          text-xs sm:text-sm
+          transition-all duration-200 ease-in-out
+          ${isActive ? "" : ""}
+          ${isComplete ? "phase-complete" : ""}
+          ${isUpcoming ? "phase-upcoming text-white" : "text-gray-800"}
+        `}
                                         >
-                                            {(() => { const Icon = phaseIcons[idx]; return Icon ? <Icon className="w-4 h-4 shrink-0" /> : null; })()}
-                                            <span className="truncate text-sm sm:text-[0.95rem]">{phase.title}</span>
+                                            {(() => { const Icon = phaseIcons[idx]; return Icon ? <Icon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> : null; })()}
+                                            <span className="truncate hidden sm:inline">{phase.title}</span>
+                                            <span className="truncate sm:hidden">Phase {idx + 1}</span>
                                         </TabsTrigger>
                                     );
                                 })}
                             </TabsList>
-
 
                             {phases.map((phase, idx) => {
                                 const activeIdx = getActivePhaseIndex(activeSubmission.status);
@@ -1068,9 +1154,8 @@ export default function SubmissionsPage() {
                     </DialogHeader>
 
                     {/* SIGNATURE MODULE PLACEHOLDER */}
-                    {/* Place your signature module implementation here */}
                     <div className="h-[300px] flex items-center justify-center border rounded text-gray-500">
-                        Signature module placeholder
+                        Signature module for {activeDocument}
                     </div>
 
                     <DialogFooter>
@@ -1085,6 +1170,39 @@ export default function SubmissionsPage() {
                             }
                         }}>
                             Save Signature
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Answer Dialog */}
+            <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
+                <DialogContent className="w-full max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Answer Questions - {activeDocument}</DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="text-sm text-gray-600">
+                            Please review and answer the questions for {activeDocument}.
+                        </div>
+                        <div className="h-[200px] flex items-center justify-center border rounded text-gray-500">
+                            Question form for {activeDocument}
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setAnswerDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button onClick={() => {
+                            if (activeDocument) {
+                                setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
+                                setAnswerDialogOpen(false);
+                                toast.success("Questions answered successfully");
+                            }
+                        }}>
+                            Submit Answers
                         </Button>
                     </DialogFooter>
                 </DialogContent>

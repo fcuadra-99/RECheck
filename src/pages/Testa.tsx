@@ -469,7 +469,7 @@ export default function MultiPDFAnnotator(): JSX.Element {
         <div className="flex h-[90vh] bg-gray-50 mt-5">
             {/* Sidebar */}
             <div
-                className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg border-r border-gray-200 p-4 space-y-4 transform transition-transform duration-300 z-30 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg border-r border-gray-200 p-4 space-y-4 transform transition-transform duration-300 z-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
                     } md:translate-x-0`}
             >
                 <div className="flex justify-between items-center">
@@ -640,7 +640,7 @@ export default function MultiPDFAnnotator(): JSX.Element {
             </div>
 
             {/* Viewer */}
-            <div className="flex-1 flex flex-col bg-gray-100 overflow-y-auto z-10">
+            <div className="flex-1 flex flex-col bg-gray-100 overflow-y-auto z-0">
                 {activePdf && activePdf.numPages && (
                     <div className="sticky top-0 z-20 bg-white border-b py-2 flex justify-center items-center gap-4 shadow-sm">
                         <button

@@ -52,8 +52,24 @@ interface Phase {
   title: string;
   description?: string | null;
   statuses: { name: string; sort_order: number; actor: string }[];
-  required_files: { file_id: string; required: boolean; user_upload?: boolean }[]
+  required_files: { file_id: string; required: boolean; user_upload?: boolean }[];
+  created_at: string;
+  updated_at?: string;
 }
+
+// Helper functions for localStorage
+const getStoredActiveStatus = (): string | null => {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem("dataTable-activeStatus");
+  }
+  return null;
+};
+
+const setStoredActiveStatus = (status: string): void => {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("dataTable-activeStatus", status);
+  }
+};
 
 export function DataTable<TData, TValue>({
   columns,
@@ -66,8 +82,8 @@ export function DataTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
     researcher_full_name: false,
     researcher_email: false,
-    status: false, // 👈 hide status by default
-    review_type: true, // visible by default
+    status: false,
+    review_type: true,
   })
 
   const table = useReactTable({
@@ -91,7 +107,7 @@ export function DataTable<TData, TValue>({
         size: 0,
       },
       {
-        accessorKey: "status", // 👈 keep status in data, but hidden
+        accessorKey: "status",
         enableHiding: false,
         enableColumnFilter: false,
         header: () => null,
@@ -115,10 +131,9 @@ export function DataTable<TData, TValue>({
     },
   })
 
-
-
   const [phases, setPhases] = React.useState<Phase[]>([]);
   const [loadingPhases, setLoadingPhases] = React.useState(true);
+  const [hasInitialized, setHasInitialized] = React.useState(false);
 
   loadingPhases;
 
@@ -137,24 +152,43 @@ export function DataTable<TData, TValue>({
     fetchPhases();
   }, []);
 
-  const statuses: string[] = phases.flatMap(p => p.statuses.map((s: { name: any }) => s.name));
-  const [activeStatus, setActiveStatus] = React.useState(statuses[0])
-  const uniqueStatuses = Array.from(new Set(statuses));
+  const statuses: string[] = React.useMemo(() => phases
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    .flatMap(p =>
+      (p.statuses || [])
+        .filter(s => ["Admin Assistant", "Chairperson"].includes(s.actor))
+        .sort((a, b) => a.sort_order - b.sort_order)
+    )
+    .map(s => s.name), [phases]);
 
+  const uniqueStatuses = [...new Set(statuses)];
+  
+  // Initialize activeStatus from localStorage or use the first available status
+  const [activeStatus, setActiveStatus] = React.useState<string>("");
+
+  // Initialize active status once when phases are loaded
   useEffect(() => {
-    if (uniqueStatuses.length > 0 && !activeStatus) {
-      setActiveStatus(uniqueStatuses[0]);
-      table.getColumn("status")?.setFilterValue(uniqueStatuses[0]);
+    if (uniqueStatuses.length > 0 && !hasInitialized) {
+      const storedStatus = getStoredActiveStatus();
+      const initialStatus = storedStatus && uniqueStatuses.includes(storedStatus) 
+        ? storedStatus 
+        : uniqueStatuses[0];
+      
+      setActiveStatus(initialStatus);
+      table.getColumn("status")?.setFilterValue(initialStatus);
+      setStoredActiveStatus(initialStatus);
+      setHasInitialized(true);
     }
-  }, [uniqueStatuses, activeStatus, table]);
+  }, [uniqueStatuses, hasInitialized, table]);
 
   // Status filter handler
   const handleStatusFilter = (status: string) => {
-    setActiveStatus(status); // update the state
-    table.getColumn("status")?.setFilterValue(status); // update the table filter
+    setActiveStatus(status);
+    table.getColumn("status")?.setFilterValue(status);
+    setStoredActiveStatus(status);
   };
 
-  // 🔑 hide review_type if activeStatus is "Check Manuscript"
+  // Hide review_type if activeStatus is "Check Manuscript"
   React.useEffect(() => {
     const reviewTypeCol = table.getColumn("review_type")
     if (!reviewTypeCol) return
@@ -165,10 +199,6 @@ export function DataTable<TData, TValue>({
       reviewTypeCol.toggleVisibility(true)
     }
   }, [activeStatus, table])
-
-  React.useEffect(() => {
-    handleStatusFilter(statuses[0])
-  }, [])
 
   const skeletonRows = Array.from({ length: 5 })
 
@@ -204,7 +234,7 @@ export function DataTable<TData, TValue>({
                   column.getCanHide() &&
                   column.id !== "researcher_full_name" &&
                   column.id !== "researcher_email" &&
-                  column.id !== "status" && // 👈 exclude from dropdown
+                  column.id !== "status" &&
                   !(activeStatus === "Check Manuscript" && column.id === "review_type")
               )
               .map((column) => (
@@ -222,33 +252,35 @@ export function DataTable<TData, TValue>({
       </div>
 
       {/* Status filter toggle group */}
-      <div className="mb-6">
-        <ToggleGroup
-          variant="outline"
-          defaultValue={activeStatus}
-          type="single"
-          className="flex items-center justify-between gap-2 overflow-x-auto self-center w-auto bg-white/50 p-1 rounded-lg border"
-        >
-          {statuses.map((status) => (
-            <ToggleGroupItem
-              key={status}
-              variant={activeStatus === status ? "default" : "outline"}
-              value={status}
-              onClick={() => handleStatusFilter(status)}
-              className={cn(
-                "flex items-center justify-center text-sm z-50 overflow-hidden rounded-md border-0 font-medium hover:text-white transition-all",
-                "min-h-9 px-2 sm:px-3", // Responsive padding
-                activeStatus === status
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "hover:bg-muted text-muted-foreground"
-              )}
-              title={status} // Show full text on hover
-            >
-              {status}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-      </div>
+      {statuses.length > 0 && (
+        <div className="mb-6">
+          <ToggleGroup
+            variant="outline"
+            value={activeStatus}
+            type="single"
+            className="flex items-center justify-between gap-2 overflow-x-auto self-center w-auto bg-white/50 p-1 rounded-lg border"
+          >
+            {statuses.map((status) => (
+              <ToggleGroupItem
+                key={status}
+                variant={activeStatus === status ? "default" : "outline"}
+                value={status}
+                onClick={() => handleStatusFilter(status)}
+                className={cn(
+                  "flex items-center justify-center text-sm z-50 overflow-hidden rounded-md border-0 font-medium hover:text-white transition-all",
+                  "min-h-9 px-2 sm:px-3",
+                  activeStatus === status
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+                title={status}
+              >
+                {status}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border bg-white/50 overflow-hidden">

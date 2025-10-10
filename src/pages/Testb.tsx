@@ -391,7 +391,7 @@ export default function AdminPhases() {
                                                 return (
                                                     <TableRow key={f.id}>
                                                         {/* Required */}
-                                                        <TableCell className="border border-border">
+                                                        <TableCell className="border border-border ">
                                                             <Checkbox
                                                                 checked={!!fileEntry}
                                                                 onCheckedChange={() => {
@@ -430,7 +430,7 @@ export default function AdminPhases() {
                                                         </TableCell>
 
                                                         {/* File Name */}
-                                                        <TableCell className="border border-border">{f.name}</TableCell>
+                                                        <TableCell className="border border-border max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{f.name}</TableCell>
                                                     </TableRow>
                                                 );
                                             })

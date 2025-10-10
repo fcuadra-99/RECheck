@@ -82,9 +82,9 @@ const navConfig = {
     url: "/ssubm",
     icon: BookCopy,
     items: [
-      { title: "Submissions Staff", url: "/ssubm/sub1", role: "Admin Assistant" },
-      { title: "Submissions Researcher", url: "/ssubm/sub2", role: "Researcher" },
-      { title: "Submissions Reviewer", url: "/ssubm/reviewer", role: "Reviewer" },
+      { title: "Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
+      { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
+      { title: "Submissions", url: "/ssubm/reviewer", role: "Reviewer" },
     ],
   },
   admin: {
