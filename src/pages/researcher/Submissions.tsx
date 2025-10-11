@@ -1382,42 +1382,41 @@ export default function SubmissionsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Answer Dialog */}
-            <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
-                <DialogContent className="w-full max-w-7xl h-[90vh] flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle>Answer Form - {activeDocument}</DialogTitle>
-                    </DialogHeader>
+            {/* Answer overlay (full screen) */}
+            {answerDialogOpen && (
+                <div className="fixed inset-0 bg-background z-50 flex flex-col">
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <div className="font-semibold text-lg">Answer Form - {activeDocument}</div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                setAnswerDialogOpen(false);
+                            }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
 
-                            <div className="flex flex-1 gap-4 min-h-0">
-                                {/* PDF Preview */}
-                                <div className="flex-1 relative border rounded-lg overflow-hidden bg-gray-50">
-                                    <div className="absolute inset-0">
-                                        {activeDocument && (
-                                            <PdfFormViewer
-                                                document={activeDocument}
-                                                onAnswersSubmit={(answers: Record<string, string>) => {
-                                                    console.log('Form answers:', answers);
-                                                    setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
-                                                    setAnswerDialogOpen(false);
-                                                    toast.success("Form answers saved successfully");
-                                                }}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            </div>                    <DialogFooter className="mt-4">
-                        <Button variant="outline" onClick={() => setAnswerDialogOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button onClick={() => {
-                            // This will be triggered by the PdfFormViewer component
-                        }}>
-                            Save Answers
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    <div className="flex-1 relative">
+                        {activeDocument ? (
+                            <PdfFormViewer
+                                document={activeDocument}
+                                onAnswersSubmit={(answers: Record<string, string>) => {
+                                    console.log('Form answers:', answers);
+                                    setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
+                                    setAnswerDialogOpen(false);
+                                    toast.success("Form answers saved successfully");
+                                }}
+                            />
+                        ) : (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-gray-500">No document selected</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
