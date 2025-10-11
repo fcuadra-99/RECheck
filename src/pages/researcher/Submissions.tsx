@@ -63,13 +63,13 @@ interface Placeholder {
     height: number;
 }
 
-interface PdfFile {
-    id: string;
-    name: string;
-    placeholders: Placeholder[];
-    created_at: string;
-    updated_at: string;
-}
+// interface PdfFile {
+//     id: string;
+//     name: string;
+//     placeholders: Placeholder[];
+//     created_at: string;
+//     updated_at: string;
+// }
 
 interface DocumentItem {
     name: string;
@@ -82,13 +82,13 @@ interface DocumentItem {
     pdfFileId?: string;  // Reference to the pdf_files table
 }
 
-interface DocumentSubmission {
-    document_id?: number;
-    proposal_id: number;
-    doc_type: string;
-    file_path: string;
-    uploaded_at?: string;
-}
+// interface DocumentSubmission {
+//     document_id?: number;
+//     proposal_id: number;
+//     doc_type: string;
+//     file_path: string;
+//     uploaded_at?: string;
+// }
 
 interface HistoryEntry {
     history_id: number;
@@ -119,11 +119,11 @@ const phases = [
 // icon mapping for phases (1: Manuscript, 2: Risk, 3: Forms, 4: Deploy)
 const phaseIcons = [FileText, Shield, ClipboardList, Rocket];
 
-const normalizeStatus = (status: string) => {
-    if (status === "Resend Manuscript") return "Send Manuscript";
-    if (status === "Resend Forms") return "Send Forms";
-    return status;
-};
+// const normalizeStatus = (status: string) => {
+//     if (status === "Resend Manuscript") return "Send Manuscript";
+//     if (status === "Resend Forms") return "Send Forms";
+//     return status;
+// };
 
 const getNextStatus = (status: string) => {
     switch (status) {
@@ -643,25 +643,25 @@ export default function SubmissionsPage() {
     };
 
     /* fetch PDF file details from database */
-    const getPdfFileDetails = async (filename: string): Promise<PdfFile | null> => {
-        try {
-            const { data, error } = await supabase
-                .from('pdf_files')
-                .select('*')
-                .eq('name', filename)
-                .single();
+    // const getPdfFileDetails = async (filename: string): Promise<PdfFile | null> => {
+    //     try {
+    //         const { data, error } = await supabase
+    //             .from('pdf_files')
+    //             .select('*')
+    //             .eq('name', filename)
+    //             .single();
 
-            if (error) {
-                console.error('Error fetching PDF file:', error);
-                return null;
-            }
+    //         if (error) {
+    //             console.error('Error fetching PDF file:', error);
+    //             return null;
+    //         }
 
-            return data as PdfFile;
-        } catch (err) {
-            console.error('Failed to fetch PDF file details:', err);
-            return null;
-        }
-    };
+    //         return data as PdfFile;
+    //     } catch (err) {
+    //         console.error('Failed to fetch PDF file details:', err);
+    //         return null;
+    //     }
+    // };
 
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
