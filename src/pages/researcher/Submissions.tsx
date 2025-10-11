@@ -52,16 +52,16 @@ interface Profile {
     category?: string | null;
 }
 
-interface Placeholder {
-    x: number;
-    y: number;
-    id: number;
-    name: string;
-    page: number;
-    type: 'text';
-    width: number;
-    height: number;
-}
+// interface Placeholder {
+//     x: number;
+//     y: number;
+//     id: number;
+//     name: string;
+//     page: number;
+//     type: 'text';
+//     width: number;
+//     height: number;
+// }
 
 // interface PdfFile {
 //     id: string;
