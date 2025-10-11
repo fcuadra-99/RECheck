@@ -22,7 +22,10 @@ import {
   Shield,
   Zap,
   Ban,
-} from "lucide-react"; // Importing icons
+  Check,
+  X,
+  Badge,
+} from "lucide-react";
 
 type Status =
   | "Check Manuscript"
@@ -85,6 +88,9 @@ export const SReview = () => {
   const [tog, setTog] = React.useState("");
   const [msg, setMsg] = React.useState("");
   const [selectedFiles, setSelectedFiles] = React.useState<string[]>([]);
+  const [selectedReviewer, setSelectedReviewer] = React.useState<string>("");
+  const [reviewers, setReviewers] = React.useState<any[]>([]);
+  const [isLoadingReviewers, setIsLoadingReviewers] = React.useState(false);
 
   const [id] = React.useState(ide.toString());
   const [title] = React.useState(titlee || "Unknown");
@@ -102,6 +108,47 @@ export const SReview = () => {
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
+
+  // Fetch reviewers for Assign status
+  React.useEffect(() => {
+    if (type === "Assign") {
+      fetchReviewers();
+    }
+  }, [type]);
+
+  const fetchReviewers = async () => {
+    setIsLoadingReviewers(true);
+    try {
+      const { data: reviewersData, error } = await supabase
+        .from('profiles')
+        .select('id, fname, lname, email')
+        .eq('role', 'Reviewer')
+
+      if (error) throw error;
+
+      // Get assignment counts for each reviewer
+      const reviewersWithCounts = await Promise.all(
+        (reviewersData || []).map(async (reviewer) => {
+          const { count } = await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .eq('reviewer', reviewer.id)
+            .eq('status', 'Assigned');
+
+          return {
+            ...reviewer,
+            assignedCount: count || 0
+          };
+        })
+      );
+
+      setReviewers(reviewersWithCounts);
+    } catch (error: any) {
+      toast.error("Failed to fetch reviewers: " + error.message);
+    } finally {
+      setIsLoadingReviewers(false);
+    }
+  };
 
   // Fetch documents from bucket dynamically
   React.useEffect(() => {
@@ -215,6 +262,36 @@ export const SReview = () => {
         });
 
         toast.success(`Risk assessment saved as "${tog}"`);
+      } else if (type === "Assign") {
+        if (!selectedReviewer) {
+          toast.error("Please select a reviewer before submitting.");
+          return;
+        }
+
+        const { error } = await supabase
+          .from("proposals")
+          .update({
+            reviewer: selectedReviewer,
+            status: "Assigned",
+            updated_on: new Date().toISOString(),
+          })
+          .eq("proposal_id", id);
+
+        if (error) throw error;
+
+        const reviewer = reviewers.find(r => r.id === selectedReviewer);
+        const reviewerName = reviewer ? `${reviewer.fname} ${reviewer.lname}` : 'Unknown Reviewer';
+
+        await supabase.from("history").insert({
+          history_type: "assignment",
+          paper_id: id,
+          comment: `Assigned to reviewer: ${reviewerName}`,
+          actor: actorId,
+          action: "Assign Reviewer",
+          history_date: new Date().toISOString(),
+        });
+
+        toast.success(`Assigned to ${reviewerName}`);
       } else if (tog === "deny") {
         const { error } = await supabase
           .from("proposals")
@@ -435,6 +512,87 @@ export const SReview = () => {
           </div>
         </section>
 
+        {/* Reviewer Assignment - NEW SECTION */}
+        <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
+          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+            <User className="text-primary w-5 h-5" /> Assign Reviewer
+          </h2>
+          
+          {isLoadingReviewers ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 border rounded-lg">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviewers.map((reviewer) => (
+                <div
+                  key={reviewer.id}
+                  className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${
+                    selectedReviewer === reviewer.id
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                      : "hover:border-gray-300 hover:bg-gray-50"
+                  } ${
+                    reviewer.assignedCount >= 3 ? "opacity-60 cursor-not-allowed" : ""
+                  }`}
+                  onClick={() => {
+                    if (reviewer.assignedCount < 3) {
+                      setSelectedReviewer(reviewer.id);
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center h-12 w-12 bg-gray-100 rounded-full">
+                      <User className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-sm">
+                        {reviewer.fname} {reviewer.lname}
+                      </h3>
+                      <p className="text-xs text-gray-500">{reviewer.email}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      className={
+                        reviewer.assignedCount >= 3
+                          ? "bg-red-50 text-red-700 border-red-300"
+                          : reviewer.assignedCount >= 2
+                          ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                          : "bg-green-50 text-green-700 border-green-300"
+                      }
+                    >
+                      {reviewer.assignedCount}/3 assigned
+                    </Badge>
+                    
+                    {selectedReviewer === reviewer.id ? (
+                      <Check className="h-5 w-5 text-primary" />
+                    ) : reviewer.assignedCount >= 3 ? (
+                      <X className="h-5 w-5 text-red-500" />
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+              
+              {reviewers.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <User className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No reviewers available</p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* Status Management */}
         <section hidden={type !== "Check"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
@@ -562,7 +720,10 @@ export const SReview = () => {
             type="submit"
             className="w-24 z-50"
             hidden={type === "Pending" || type === "View"}
-            disabled={tog === ""}
+            disabled={
+              (type === "Check" || type === "Assess") ? tog === "" :
+              (type === "Assign") ? !selectedReviewer : false
+            }
           >
             Submit
           </RippleButton>

@@ -84,7 +84,7 @@ const navConfig = {
     items: [
       { title: "Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
       { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
-      { title: "Submissions", url: "/ssubm/reviewer", role: "Reviewer" },
+      { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
     ],
   },
   admin: {

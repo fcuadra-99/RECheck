@@ -1396,7 +1396,6 @@ export default function SubmissionsPage() {
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
-
                     <div className="flex-1 relative">
                         {activeDocument && activeSubmission ? (
                             <PdfFormViewer

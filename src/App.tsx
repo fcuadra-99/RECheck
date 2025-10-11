@@ -22,6 +22,7 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import { ChatPopup } from './pages/researcher/ChatComp';
 import Testa from './pages/Testa';
 import Testb from './pages/Testb';
+import ReviewerPage from './pages/reviewer/Submissions';
 
 interface SessionProfile {
   fname: string;
@@ -248,6 +249,7 @@ export default function App() {
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
+            <Route path="/ssubm/sub3" element={<ReviewerPage />} />
 
             <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/admin/userroles" element={<AdminUsersPage />} />

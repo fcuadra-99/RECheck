@@ -24,7 +24,7 @@ type StatusParam =
   | "Forms Check"
   | "Deploy Queue";
 
-type StatusValue = "Pending" | "Check" | "Assess" | "View";
+type StatusValue = "Pending" | "Check" | "Assess" | "View" | "Assign";
 
 function stat(params: StatusParam | null | undefined): StatusValue {
   if (!params) return "Pending"; // default for empty status
@@ -56,7 +56,7 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Risk Assessment": "Assess",
       "Resend Forms": "Check",
       "Forms Check": "Check",
-      "Deploy Queue": "View",
+      "Deploy Queue": "Assign",
     }
   }
 
@@ -108,9 +108,10 @@ export const columns: ColumnDef<SubmTable>[] = [
                   className={cn(
                     "h-8 px-3 rounded-md text-sm font-medium",
                     status === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
-                    status === "Check" && "text-white",
-                    status === "Assess" && "text-white",
-                    status === "View" && "text-gray-600"
+                    status === "Check" && " text-white ",
+                    status === "Assess" && " text-white ",
+                    status === "View" && "text-gray-600",
+                    status === "Assign" && "text-white "
                   )}
                   onClick={() => {
                     handleCheck(
@@ -131,6 +132,7 @@ export const columns: ColumnDef<SubmTable>[] = [
                   {status === "Assess" && <Scale className="h-4 w-4 mr-2" />}
                   {status === "View" && <Eye className="h-4 w-4 mr-2" />}
                   {status === "Pending" && <Clock className="h-4 w-4 mr-2" />}
+                  {status === "Assign" && <UserRound className="h-4 w-4 mr-2" />}
                   {status}
                 </RippleButton>
               </TooltipTrigger>
