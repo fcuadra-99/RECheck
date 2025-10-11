@@ -933,7 +933,6 @@ export default function SubmissionsPage() {
 
         const title = activeSubmission.proposal_title || "(untitled)";
         const review = activeSubmission.review_type || "Unknown";
-        toast(`Active proposal: ${title} — Review: ${review}`);
     }, [activeSubmission?.proposal_id]);
 
     // Helper: map submission status to active phase index
@@ -1399,15 +1398,16 @@ export default function SubmissionsPage() {
                     </div>
 
                     <div className="flex-1 relative">
-                        {activeDocument ? (
+                        {activeDocument && activeSubmission ? (
                             <PdfFormViewer
                                 document={activeDocument}
                                 onAnswersSubmit={(answers: Record<string, string>) => {
                                     console.log('Form answers:', answers);
                                     setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
                                     setAnswerDialogOpen(false);
-                                    toast.success("Form answers saved successfully");
                                 }}
+                                proposalId={activeSubmission.proposal_id}
+                                status={activeSubmission.status}
                             />
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center">
