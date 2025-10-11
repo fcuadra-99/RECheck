@@ -1,12 +1,12 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Table,
     TableHeader,
@@ -22,6 +22,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,14 +52,42 @@ interface Profile {
     category?: string | null;
 }
 
+interface Placeholder {
+    x: number;
+    y: number;
+    id: number;
+    name: string;
+    page: number;
+    type: 'text';
+    width: number;
+    height: number;
+}
+
+interface PdfFile {
+    id: string;
+    name: string;
+    placeholders: Placeholder[];
+    created_at: string;
+    updated_at: string;
+}
+
 interface DocumentItem {
     name: string;
     templateUrl: string;
     required: boolean;
-    needsSignature?: boolean;  // Can need both signature and answers
-    needsAnswer?: boolean;
+    needsSignature?: boolean;  // All forms need signatures
+    needsAnswer?: boolean;     // All forms need to be filled out
     signStatus?: 'pending' | 'completed';
     answerStatus?: 'pending' | 'completed';
+    pdfFileId?: string;  // Reference to the pdf_files table
+}
+
+interface DocumentSubmission {
+    document_id?: number;
+    proposal_id: number;
+    doc_type: string;
+    file_path: string;
+    uploaded_at?: string;
 }
 
 interface HistoryEntry {
@@ -142,37 +171,99 @@ const getActionLabel = (status: string) => {
 
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
     if (["Send Manuscript", "Resend Manuscript"].includes(submission.status)) {
+        // Manuscript phase - all documents are uploadable
         return [
-            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true },
-            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: true, needsSignature: true },
-            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: true },
-            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: true, needsAnswer: true },
+            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: true, needsSignature: false, needsAnswer: false },
             submission.category === "Graduate"
-                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: true }
-                : null,
-            submission.category === "External"
-                ? { name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.pdf", required: true, needsSignature: true }
+                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: true, needsSignature: false, needsAnswer: false }
                 : null,
         ].filter(Boolean) as DocumentItem[];
     }
 
     if (["Send Forms", "Resend Forms"].includes(submission.status)) {
-        const docs: DocumentItem[] = [
-            { name: "REC_FO_0032_EthicsProtocolChecklist", templateUrl: "/REC_FO_0032_EthicsProtocolChecklist.pdf", required: true, needsSignature: true, needsAnswer: true },
-            { name: "Ethics Checklist", templateUrl: "/templates/checklist.pdf", required: true, needsAnswer: true },
-            { name: "Application Form", templateUrl: "/templates/application.pdf", required: true },
-            { name: "Study Protocol Info", templateUrl: "/templates/protocol.pdf", required: true },
-            { name: "Informed Consent Checklist", templateUrl: "/templates/consent_checklist.pdf", required: true, needsAnswer: true },
-            { name: "Informed Consent Form", templateUrl: "/templates/consent_form.pdf", required: true },
-            { name: "Sample Informed Consent", templateUrl: "/templates/sample_consent.pdf", required: false },
-            { name: "Sample Assent Form", templateUrl: "/templates/sample_assent.pdf", required: false },
-            { name: "Sample MOA", templateUrl: "/templates/moa.pdf", required: false },
-            { name: "Payment Receipt", templateUrl: "/templates/payment.pdf", required: true },
-        ];
-        if (submission.category === "Graduate") {
-            docs.push({ name: "Ethics Endorsement Form", templateUrl: "/templates/ethics.pdf", required: true, needsSignature: true });
+        const isExternal = submission.category === "External";
+        const isGrad = submission.category === "Graduate";
+        // normalize review type for robust comparisons
+        const reviewTypeRaw = (submission.review_type || "").toString();
+        const reviewType = reviewTypeRaw.trim().toLowerCase() || "exempt"; // default to exempt when missing
+
+        // Common document properties
+        const makeDoc = (name: string): DocumentItem => ({
+            name,
+            templateUrl: "", // No template URL as these are forms to be filled out directly
+            required: true,
+            needsSignature: true,
+            needsAnswer: true,
+        });
+
+        if (isExternal) {
+            if (reviewType === "exempt") {
+                return [
+                    makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+                    makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
+                    makeDoc("REC_FO_0036_MOA for external.pdf"),
+                ];
+            }
+
+            return [
+                makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+                makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
+                makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
+                makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
+                makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
+                makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+                makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+                makeDoc("REC_FO_0036_MOA for external.pdf"),
+            ];
         }
-        return docs;
+
+        if (isGrad) {
+            if (reviewType === "exempt") {
+                return [
+                    makeDoc("REC_ENDORSMENT_FORM.pdf"),
+                    makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+                    makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
+                    makeDoc("REC_FO_0035_Ethics Memorandum of Agreement for Authorship.pdf"),
+                ];
+            }
+
+            // EXPEDITED and FULL BOARD use same documents
+            return [
+                makeDoc("REC_ENDORSMENT_FORM.pdf"),
+                makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+                makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
+                makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
+                makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
+                makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
+                makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+                makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+                makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            ];
+        }
+
+        // UNDERGRAD
+        if (reviewType === "exempt") {
+            return [
+                makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+                makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
+                makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            ];
+        }
+
+        // EXPEDITED and FULL BOARD use same documents
+        return [
+            makeDoc("REC_FO_0026_EthicsProtocolChecklist.pdf"),
+            makeDoc("REC_FO_0027_EthicsApplicationProcedure.pdf"),
+            makeDoc("REC_FO_0028_EthicsStudyProtocolInformationForm.pdf"),
+            makeDoc("REC_FO_0029_EthicsInformedConsentCHECKLIST.pdf"),
+            makeDoc("REC_FO_0030_EthicsInformedConsentFormwhenQuestionnaireareUsed.pdf"),
+            makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
+            makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+        ];
     }
 
     return [];
@@ -429,30 +520,84 @@ export default function SubmissionsPage() {
         setUploadedFiles((prev) => ({ ...prev, [docName]: file }));
     };
 
-    /* upload & advance phase (full implementation) */
+    /* submit completed forms & advance phase */
     const uploadAndAdvancePhase = async (submission: Submission) => {
         const docs = historyFiles || getPhaseDocuments(submission);
-        const loadingId = toast.loading("Uploading files...");
+        const loadingId = toast.loading("Submitting forms...");
 
         try {
+            // Verify all required documents for this phase are completed according to their flags
+            const incomplete = docs.filter(doc => {
+                if (!doc.required) return false;
+                const needsSig = !!doc.needsSignature;
+                const needsAns = !!doc.needsAnswer;
+
+                // If both signature and answers are required, require both
+                if (needsSig && needsAns) return !(signedDocuments[doc.name] && answeredDocuments[doc.name]);
+                if (needsSig) return !signedDocuments[doc.name];
+                if (needsAns) return !answeredDocuments[doc.name];
+
+                // Default for manuscript-like docs: require uploaded file
+                return !uploadedFiles[doc.name];
+            });
+
+            if (incomplete.length > 0) {
+                const missing = incomplete.map(doc => {
+                    const issues: string[] = [];
+                    if (doc.needsSignature && !signedDocuments[doc.name]) issues.push("signature");
+                    if (doc.needsAnswer && !answeredDocuments[doc.name]) issues.push("answers");
+                    if (!doc.needsSignature && !doc.needsAnswer && !uploadedFiles[doc.name]) issues.push("upload");
+                    return `${doc.name} (missing ${issues.join(" and ")})`;
+                });
+                throw new Error(`Please complete all required documents:\n${missing.join("\n")}`);
+            }
+
+            // Record form submissions in database and upload any files
             for (const doc of docs) {
-                if (doc.required && uploadedFiles[doc.name]) {
-                    const file = uploadedFiles[doc.name]!;
-                    const ext = (file.name.split(".").pop() || "pdf").replace(/[^a-z0-9]/gi, "");
-                    const safeDocName = doc.name.replace(/\s+/g, "_");
-                    const path = `${submission.proposal_id}/${normalizeStatus(submission.status)}/${safeDocName}.${ext}`;
+                let filePath: string | null = null;
 
-                    const { error: storageError } = await supabase.storage.from("documents").upload(path, file as unknown as Blob, { upsert: true });
-                    if (storageError) throw new Error(storageError.message);
+                // If user uploaded a file for this doc, upload it to storage
+                const uploadStatus = phaseUploadStatus(getActivePhaseIndex(submission.status));
+                if (uploadedFiles[doc.name]) {
+                    try {
+                        const file = uploadedFiles[doc.name]!;
 
-                    const { error: dbError } = await supabase.from("proposal_documents").insert({
-                        proposal_id: submission.proposal_id,
-                        doc_type: doc.name,
-                        file_path: path,
-                    });
-                    if (dbError) throw new Error(dbError.message);
-                } else if (doc.required && !uploadedFiles[doc.name] && !doc.needsSignature && !doc.needsAnswer) {
-                    throw new Error(`Required file "${doc.name}" missing`);
+                        // generate storage filename from document name
+                        const slugify = (s: string) => s
+                            .toLowerCase()
+                            .replace(/\.pdf$/i, '')
+                            .replace(/[^a-z0-9]+/g, '_')
+                            .replace(/^_+|_+$/g, '');
+
+                        const storageFilename = doc.name === 'All Grades' ? 'all_files.pdf' : `${slugify(doc.name)}.pdf`;
+                        const path = `${submission.proposal_id}/${uploadStatus || 'other'}/${storageFilename}`;
+
+                        // Create a new File with the storage filename so the uploaded object has the normalized name
+                        const renamedFile = new File([file], storageFilename, { type: file.type });
+
+                        // upload (upsert true to replace existing)
+                        const { error: uploadError } = await supabase.storage.from('documents').upload(path, renamedFile, { upsert: true });
+                        if (uploadError) throw uploadError;
+
+                        filePath = path;
+                    } catch (uploadErr: any) {
+                        console.error('File upload failed for', doc.name, uploadErr);
+                        throw new Error(`Failed to upload file for ${doc.name}: ${uploadErr.message || uploadErr}`);
+                    }
+                }
+
+                // Insert a record about the document submission. Use only fields we know exist in your schema.
+                const record: any = {
+                    proposal_id: submission.proposal_id,
+                    doc_type: doc.name,
+                    file_path: filePath || "",
+                    uploaded_at: filePath ? new Date().toISOString() : null,
+                };
+
+                const { error: dbError } = await supabase.from('proposal_documents').insert(record);
+                if (dbError) {
+                    console.error('Failed to insert proposal_documents record for', doc.name, dbError);
+                    throw new Error(dbError.message || 'Failed to record document submission');
                 }
             }
 
@@ -497,6 +642,27 @@ export default function SubmissionsPage() {
         }
     };
 
+    /* fetch PDF file details from database */
+    const getPdfFileDetails = async (filename: string): Promise<PdfFile | null> => {
+        try {
+            const { data, error } = await supabase
+                .from('pdf_files')
+                .select('*')
+                .eq('name', filename)
+                .single();
+
+            if (error) {
+                console.error('Error fetching PDF file:', error);
+                return null;
+            }
+
+            return data as PdfFile;
+        } catch (err) {
+            console.error('Failed to fetch PDF file details:', err);
+            return null;
+        }
+    };
+
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = historyFiles || getPhaseDocuments(submission);
@@ -531,48 +697,68 @@ export default function SubmissionsPage() {
                                 </div>
                             </div>
 
-                            {/* Upload Area - Middle */}
+                            {/* Upload/Status Area - Middle */}
                             <div className="w-full lg:w-48 flex-shrink-0">
                                 <div className="relative">
-                                    <div
-                                        className={cn(
-                                            "relative w-full min-h-[80px] border-2 border-dashed rounded-lg p-3 transition-colors cursor-pointer",
-                                            uploadedFiles[doc.name]
-                                                ? "border-primary bg-primary/5"
-                                                : "border-gray-300 hover:border-gray-400"
-                                        )}
-                                        onClick={() => document.getElementById(`file-${doc.name}`)?.click()}
-                                    >
-                                        <Input
-                                            id={`file-${doc.name}`}
-                                            type="file"
-                                            accept="application/pdf"
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            onChange={(e) => {
-                                                const file = e.target.files ? e.target.files[0] : null;
-                                                if (!file) return;
-                                                if (file.type !== "application/pdf") {
-                                                    toast.error("Only PDF files are allowed");
-                                                    (e.target as HTMLInputElement).value = "";
-                                                    return;
-                                                }
-                                                if (file.size > 25 * 1024 * 1024) {
-                                                    toast.error("File size must be under 25MB");
-                                                    (e.target as HTMLInputElement).value = "";
-                                                    return;
-                                                }
-                                                handleFileSelect(doc.name, file);
-                                            }}
-                                        />
-                                        <div className="text-center flex flex-col items-center justify-center h-full">
-                                            <FileUp className="h-6 w-6 text-gray-400 mb-1" />
-                                            <p className="text-xs text-gray-500 truncate max-w-full">
-                                                {uploadedFiles[doc.name]
-                                                    ? uploadedFiles[doc.name]?.name
-                                                    : "Click to upload PDF"}
-                                            </p>
+                                    {/* Show upload area for manuscript phase */}
+                                    {["Send Manuscript", "Resend Manuscript"].includes(submission.status) ? (
+                                        <>
+                                            <div className="mb-2 text-xs text-gray-500">Only upload is required for this phase.</div>
+                                            <div
+                                                className={cn(
+                                                    "relative w-full min-h-[80px] border-2 border-dashed rounded-lg p-3 transition-colors",
+                                                    uploadedFiles[doc.name]
+                                                        ? "border-primary bg-primary/5"
+                                                        : "border-gray-300"
+                                                )}
+                                            >
+                                                <Input
+                                                    id={`file-${doc.name}`}
+                                                    type="file"
+                                                    accept="application/pdf"
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer hover:cursor-pointer"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files ? e.target.files[0] : null;
+                                                        if (!file) return;
+                                                        if (file.type !== "application/pdf") {
+                                                            toast.error("Only PDF files are allowed");
+                                                            (e.target as HTMLInputElement).value = "";
+                                                            return;
+                                                        }
+                                                        if (file.size > 25 * 1024 * 1024) {
+                                                            toast.error("File size must be under 25MB");
+                                                            (e.target as HTMLInputElement).value = "";
+                                                            return;
+                                                        }
+                                                        handleFileSelect(doc.name, file);
+                                                    }}
+                                                />
+                                                <div className="text-center flex flex-col items-center justify-center h-full">
+                                                    <FileUp className="h-6 w-6 text-gray-400 mb-1" />
+                                                    <p className="text-xs text-gray-500 truncate max-w-full">
+                                                        {uploadedFiles[doc.name]
+                                                            ? uploadedFiles[doc.name]?.name
+                                                            : "Click to upload PDF"}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        /* Show status area for forms phase */
+                                        <div className="relative w-full min-h-[80px] border-2 rounded-lg p-3 bg-gray-50">
+                                            <div className="text-center flex flex-col items-center justify-center h-full">
+                                                <Pen className="h-6 w-6 text-gray-400 mb-1" />
+                                                <p className="text-xs text-gray-500">
+                                                    Form to be filled out
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-1">
+                                                    {(answeredDocuments[doc.name] ? "✓ " : "• ") + "Answers"}
+                                                    {" | "}
+                                                    {(signedDocuments[doc.name] ? "✓ " : "• ") + "Signature"}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -710,9 +896,14 @@ export default function SubmissionsPage() {
                         onClick={() => uploadAndAdvancePhase(submission)}
                         disabled={!docs.every((d) => {
                             if (!d.required) return true;
-                            if (d.needsSignature) return signedDocuments[d.name];
-                            if (d.needsAnswer) return answeredDocuments[d.name];
-                            return uploadedFiles[d.name];
+                            const needsSig = !!d.needsSignature;
+                            const needsAns = !!d.needsAnswer;
+                            // If both signature and answers are required, require both
+                            if (needsSig && needsAns) return !!signedDocuments[d.name] && !!answeredDocuments[d.name];
+                            if (needsSig) return !!signedDocuments[d.name];
+                            if (needsAns) return !!answeredDocuments[d.name];
+                            // default: require uploaded file
+                            return !!uploadedFiles[d.name];
                         })}
                         className="w-full sm:w-auto"
                     >
@@ -728,6 +919,22 @@ export default function SubmissionsPage() {
             prev?.proposal_id === submission.proposal_id ? null : submission
         );
     };
+
+    // Show a toast when the active submission changes (skip initial auto-selection)
+    const _firstActiveToast = useRef(true);
+    useEffect(() => {
+        // skip on initial mount/default selection
+        if (_firstActiveToast.current) {
+            _firstActiveToast.current = false;
+            return;
+        }
+
+        if (!activeSubmission) return;
+
+        const title = activeSubmission.proposal_title || "(untitled)";
+        const review = activeSubmission.review_type || "Unknown";
+        toast(`Active proposal: ${title} — Review: ${review}`);
+    }, [activeSubmission?.proposal_id]);
 
     // Helper: map submission status to active phase index
     const getActivePhaseIndex = (status: string) => {
@@ -1072,40 +1279,40 @@ export default function SubmissionsPage() {
                 )}
             </div>
 
-            {/* Preview dialog (iframe) */}
-            <Dialog open={previewOpen} onOpenChange={(open) => {
-                if (!open) setPreviewUrl(null);
-                setPreviewOpen(open);
-            }}>
-                <DialogContent className="w-full max-w-5xl h-[80vh] flex flex-col">
-                    <DialogHeader className="flex-shrink-0">
-                        <DialogTitle>{previewTitle}</DialogTitle>
-                    </DialogHeader>
+            {/* Full screen preview overlay */}
+            {previewOpen && (
+                <div className="fixed inset-0 bg-background z-50 flex flex-col">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <div className="font-semibold text-lg">{previewTitle}</div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                setPreviewOpen(false);
+                                setPreviewUrl(null);
+                            }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
 
-                    {/* Main iframe container */}
-                    <div className="flex-1 overflow-hidden mt-2">
+                    {/* Main content */}
+                    <div className="flex-1 relative">
                         {previewUrl ? (
                             <iframe
                                 src={previewUrl}
-                                className="w-full h-full border rounded"
+                                className="absolute inset-0 w-full h-full border-0"
                                 title={previewTitle}
                             />
                         ) : (
-                            <div className="flex items-center justify-center h-full">
+                            <div className="absolute inset-0 flex items-center justify-center">
                                 <div className="text-gray-500">Loading preview...</div>
                             </div>
                         )}
                     </div>
-
-                    <DialogFooter className="flex-shrink-0 mt-2">
-                        <Button
-                            onClick={() => { setPreviewOpen(false); setPreviewUrl(null); }}
-                        >
-                            Close
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </div>
+            )}
 
             {/* New Proposal Dialog */}
             <Dialog open={newProposalOpen} onOpenChange={setNewProposalOpen}>
@@ -1177,32 +1384,36 @@ export default function SubmissionsPage() {
 
             {/* Answer Dialog */}
             <Dialog open={answerDialogOpen} onOpenChange={setAnswerDialogOpen}>
-                <DialogContent className="w-full max-w-3xl">
+                <DialogContent className="w-full max-w-7xl h-[90vh] flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Answer Questions - {activeDocument}</DialogTitle>
+                        <DialogTitle>Answer Form - {activeDocument}</DialogTitle>
                     </DialogHeader>
 
-                    <div className="space-y-4">
-                        <div className="text-sm text-gray-600">
-                            Please review and answer the questions for {activeDocument}.
-                        </div>
-                        <div className="h-[200px] flex items-center justify-center border rounded text-gray-500">
-                            Question form for {activeDocument}
-                        </div>
-                    </div>
-
-                    <DialogFooter>
+                            <div className="flex flex-1 gap-4 min-h-0">
+                                {/* PDF Preview */}
+                                <div className="flex-1 relative border rounded-lg overflow-hidden bg-gray-50">
+                                    <div className="absolute inset-0">
+                                        {activeDocument && (
+                                            <PdfFormViewer
+                                                document={activeDocument}
+                                                onAnswersSubmit={(answers: Record<string, string>) => {
+                                                    console.log('Form answers:', answers);
+                                                    setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
+                                                    setAnswerDialogOpen(false);
+                                                    toast.success("Form answers saved successfully");
+                                                }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>                    <DialogFooter className="mt-4">
                         <Button variant="outline" onClick={() => setAnswerDialogOpen(false)}>
                             Cancel
                         </Button>
                         <Button onClick={() => {
-                            if (activeDocument) {
-                                setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
-                                setAnswerDialogOpen(false);
-                                toast.success("Questions answered successfully");
-                            }
+                            // This will be triggered by the PdfFormViewer component
                         }}>
-                            Submit Answers
+                            Save Answers
                         </Button>
                     </DialogFooter>
                 </DialogContent>
