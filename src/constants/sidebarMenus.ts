@@ -1,6 +1,6 @@
 
 
-import { LayoutDashboard, BookCopy, User, PencilRuler, Megaphone, FileText, CheckCircle, FileCheck2, FileDown } from "lucide-react";
+import { LayoutDashboard, BookCopy, User, PencilRuler, Megaphone, FileText, FileCheck2, FolderOpen } from "lucide-react";
 
 export const sidebarMenus = {
   Chairperson: [
@@ -8,8 +8,21 @@ export const sidebarMenus = {
   { title: "Assign Reviewer", url: "/chairperson/assign-reviewer", icon: User },
   { title: "Review Submission", url: "/chairperson/review-submission", icon: BookCopy },
   { title: "Forms Submission", url: "/chairperson/template-submissions", icon: FileText },
-  { title: "Deviation Reports", url: "/chairperson/deviations", icon: PencilRuler },
-  { title: "Deviation Resolutions", url: "/chairperson/resolution-reviews", icon: CheckCircle },
+  { 
+    title: "Deviations", 
+    url: "#", 
+    icon: FolderOpen,
+    items: [
+      {
+        title: "Deviation Reports",
+        url: "/chairperson/deviations",
+      },
+      {
+        title: "Deviation Resolutions",
+        url: "/chairperson/resolution-reviews",
+      },
+    ],
+  },
   { title: "Manage Final Reports", url: "/chairperson/manage-final-reports", icon: FileCheck2 },
   { title: "Create Announcement", url: "/chairperson/create-announcement", icon: Megaphone },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
@@ -26,14 +39,19 @@ export const sidebarMenus = {
       icon: BookCopy,
     },
     {
-      title: "Post Approval Forms",
-      url: "/researcher/forms-templates",
-      icon: FileText,
-    },
-    {
-      title: "Submitted Forms",
-      url: "/researcher/template-submissions",
-      icon: FileDown,
+      title: "Forms",
+      url: "#",
+      icon: FolderOpen,
+      items: [
+        {
+          title: "Post Approval Forms",
+          url: "/researcher/forms-templates",
+        },
+        {
+          title: "Submitted Forms",
+          url: "/researcher/template-submissions",
+        },
+      ],
     },
     {
       title: "Final Report Submission",

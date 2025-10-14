@@ -22,8 +22,13 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/animate-ui/radix/sidebar';
+import { 
+  Collapsible, 
+  CollapsibleTrigger, 
+  CollapsibleContent 
+} from '@/components/animate-ui/radix/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/animate-ui/radix/dropdown-menu';
-import { BadgeCheck, ChevronsUpDown } from 'lucide-react';
+import { BadgeCheck, ChevronsUpDown, ChevronRight } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Link } from 'react-router-dom';
@@ -78,12 +83,37 @@ export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sideb
               <SidebarMenu>
                 {menu.map((item: NavItem) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild tooltip={item.title}>
-                      <Link to={item.url} className="flex items-center gap-2 w-full">
-                        {item.icon && <item.icon />}
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
+                    {item.items && item.items.length > 0 ? (
+                      <Collapsible defaultOpen={false}>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="w-full">
+                            {item.icon && <item.icon />}
+                            <span>{item.title}</span>
+                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenu className="pl-4 mt-1">
+                            {item.items.map((subItem) => (
+                              <SidebarMenuItem key={subItem.title}>
+                                <SidebarMenuButton asChild>
+                                  <Link to={subItem.url} className="flex items-center gap-2 w-full">
+                                    <span>{subItem.title}</span>
+                                  </Link>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            ))}
+                          </SidebarMenu>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ) : (
+                      <SidebarMenuButton asChild tooltip={item.title}>
+                        <Link to={item.url} className="flex items-center gap-2 w-full">
+                          {item.icon && <item.icon />}
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
