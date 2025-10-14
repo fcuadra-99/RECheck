@@ -19,6 +19,10 @@ const deviationTypeOptions = [
 type InvestigatorState = {
   protocolCode: string;
   protocolTitle: string;
+  ethicalClearanceEffectivity: string;
+  studySite: string;
+  telephone: string;
+  mobile: string;
   deviationDate: string;
   deviationDescription: string;
   correctiveAction: string;
@@ -31,6 +35,10 @@ type InvestigatorState = {
 const initialInvestigator: InvestigatorState = {
   protocolCode: '',
   protocolTitle: '',
+  ethicalClearanceEffectivity: '',
+  studySite: '',
+  telephone: '',
+  mobile: '',
   deviationDate: '',
   deviationDescription: '',
   correctiveAction: '',
@@ -59,6 +67,10 @@ const DeviationReportForm: React.FC = () => {
     const newErrors: Record<string,string> = {};
     if (!investigator.protocolCode) newErrors.protocolCode = 'Required';
     if (!investigator.protocolTitle) newErrors.protocolTitle = 'Required';
+    if (!investigator.ethicalClearanceEffectivity) newErrors.ethicalClearanceEffectivity = 'Required';
+    if (!investigator.studySite) newErrors.studySite = 'Required';
+    if (!investigator.telephone) newErrors.telephone = 'Required';
+    if (!investigator.mobile) newErrors.mobile = 'Required';
     if (!investigator.deviationDate) newErrors.deviationDate = 'Required';
     if (!investigator.deviationDescription) newErrors.deviationDescription = 'Required';
     if (!investigator.rationale) newErrors.rationale = 'Required';
@@ -97,6 +109,10 @@ const DeviationReportForm: React.FC = () => {
       const { data, error } = await submitDeviationReport({
         protocolTitle: investigator.protocolTitle,
         protocolCode: investigator.protocolCode,
+        ethicalClearanceEffectivity: investigator.ethicalClearanceEffectivity,
+        studySite: investigator.studySite,
+        telephone: investigator.telephone,
+        mobile: investigator.mobile,
         deviationDate: investigator.deviationDate,
         deviationDescription: investigator.deviationDescription,
         rationale: investigator.rationale,
@@ -209,6 +225,63 @@ const DeviationReportForm: React.FC = () => {
                       aria-invalid={!!errors.protocolCode}
                     />
                     <ErrorMsg msg={errors.protocolCode} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Ethical Clearance Effectivity Period <span className="text-red-500">*</span></label>
+                    <div className="relative">
+                      <CalendarDays className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        className={`w-full rounded-xl border-2 pl-10 ${errors.ethicalClearanceEffectivity ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                        name="ethicalClearanceEffectivity"
+                        type="date"
+                        value={investigator.ethicalClearanceEffectivity}
+                        onChange={handleInvestigatorChange}
+                        required
+                        aria-invalid={!!errors.ethicalClearanceEffectivity}
+                      />
+                    </div>
+                    <ErrorMsg msg={errors.ethicalClearanceEffectivity} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Study Site <span className="text-red-500">*</span></label>
+                    <input
+                      className={`w-full rounded-xl border-2 ${errors.studySite ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                      name="studySite"
+                      value={investigator.studySite}
+                      onChange={handleInvestigatorChange}
+                      placeholder="e.g. University Medical Center"
+                      required
+                      aria-invalid={!!errors.studySite}
+                    />
+                    <ErrorMsg msg={errors.studySite} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Telephone <span className="text-red-500">*</span></label>
+                    <input
+                      className={`w-full rounded-xl border-2 ${errors.telephone ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                      name="telephone"
+                      type="tel"
+                      value={investigator.telephone}
+                      onChange={handleInvestigatorChange}
+                      placeholder="e.g. (123) 456-7890"
+                      required
+                      aria-invalid={!!errors.telephone}
+                    />
+                    <ErrorMsg msg={errors.telephone} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Mobile <span className="text-red-500">*</span></label>
+                    <input
+                      className={`w-full rounded-xl border-2 ${errors.mobile ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                      name="mobile"
+                      type="tel"
+                      value={investigator.mobile}
+                      onChange={handleInvestigatorChange}
+                      placeholder="e.g. (123) 456-7890"
+                      required
+                      aria-invalid={!!errors.mobile}
+                    />
+                    <ErrorMsg msg={errors.mobile} />
                   </div>
                 </div>
               </section>

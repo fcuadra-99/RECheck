@@ -200,6 +200,22 @@ const FeedbackDetail = () => {
                         <span className="font-semibold text-gray-700">Type: </span>
                         <span>{deviation.type}</span>
                     </div>
+                    <div className="mb-4">
+                        <span className="font-semibold text-gray-700">Ethical Clearance Effectivity: </span>
+                        <span>{deviation.ethical_clearance_effectivity || '-'}</span>
+                    </div>
+                    <div className="mb-4">
+                        <span className="font-semibold text-gray-700">Study Site: </span>
+                        <span>{deviation.study_site || '-'}</span>
+                    </div>
+                    <div className="mb-4">
+                        <span className="font-semibold text-gray-700">Telephone: </span>
+                        <span>{deviation.telephone || '-'}</span>
+                    </div>
+                    <div className="mb-4">
+                        <span className="font-semibold text-gray-700">Mobile: </span>
+                        <span>{deviation.mobile || '-'}</span>
+                    </div>
                 </div>
 
                 <div className="mb-4">

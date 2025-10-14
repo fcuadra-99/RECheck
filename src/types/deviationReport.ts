@@ -2,6 +2,10 @@ export interface ResearcherDeviationReport {
   id: string;
   protocol_title: string;
   protocol_code: string;
+  ethical_clearance_effectivity: string;
+  study_site: string;
+  telephone: string;
+  mobile: string;
   deviation_date: string;
   deviation_description: string;
   rationale: string;

@@ -91,6 +91,10 @@ const DeviationDetail = () => {
             <div><span className="font-bold text-gray-700">Researcher Name:</span> {deviation.reported_by || deviation.researcher || '-'}</div>
             <div><span className="font-bold text-gray-700">Date Submitted:</span> {deviation.report_submission_date || '-'}</div>
             <div><span className="font-bold text-gray-700">Severity:</span> {deviation.severity || '-'}</div>
+            <div><span className="font-bold text-gray-700">Ethical Clearance Effectivity:</span> {deviation.ethical_clearance_effectivity || '-'}</div>
+            <div><span className="font-bold text-gray-700">Study Site:</span> {deviation.study_site || '-'}</div>
+            <div><span className="font-bold text-gray-700">Telephone:</span> {deviation.telephone || '-'}</div>
+            <div><span className="font-bold text-gray-700">Mobile:</span> {deviation.mobile || '-'}</div>
           </div>
           <div className="mb-4">
             <div className="font-semibold text-gray-700 mb-1">Deviation Description</div>

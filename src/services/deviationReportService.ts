@@ -3,6 +3,10 @@ import { supabase } from '../lib/supabase';
 export interface DeviationReportFormInput {
   protocolTitle: string;
   protocolCode: string;
+  ethicalClearanceEffectivity: string;
+  studySite: string;
+  telephone: string;
+  mobile: string;
   deviationDate: string;
   deviationDescription: string;
   rationale: string;
@@ -20,6 +24,10 @@ export async function submitDeviationReport(form: DeviationReportFormInput) {
   const base = {
     protocol_title: form.protocolTitle,
     protocol_code: form.protocolCode,
+    ethical_clearance_effectivity: form.ethicalClearanceEffectivity,
+    study_site: form.studySite,
+    telephone: form.telephone,
+    mobile: form.mobile,
     deviation_date: form.deviationDate,
     deviation_description: form.deviationDescription,
     rationale: form.rationale,

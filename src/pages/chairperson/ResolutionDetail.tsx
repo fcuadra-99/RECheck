@@ -178,6 +178,22 @@ const ResolutionDetail = () => {
                         <span className="font-semibold text-gray-700">Type: </span>
                         <span>{deviation.type}</span>
                     </div>
+                    <div>
+                        <span className="font-semibold text-gray-700">Ethical Clearance Effectivity: </span>
+                        <span>{deviation.ethical_clearance_effectivity || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="font-semibold text-gray-700">Study Site: </span>
+                        <span>{deviation.study_site || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="font-semibold text-gray-700">Telephone: </span>
+                        <span>{deviation.telephone || '-'}</span>
+                    </div>
+                    <div>
+                        <span className="font-semibold text-gray-700">Mobile: </span>
+                        <span>{deviation.mobile || '-'}</span>
+                    </div>
                 </div>
 
                 {/* Original Deviation Details */}
