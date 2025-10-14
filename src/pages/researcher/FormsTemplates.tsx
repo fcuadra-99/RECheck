@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Download, Upload, ArrowLeft, BookOpen, ClipboardList } from 'lucide-react';
+import { Download, Upload, ArrowLeft, BookOpen } from 'lucide-react';
 import TemplateDownload from '../../components/TemplateDownload';
 import TemplateUploadAndSign from '../../components/TemplateUploadAndSign';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
@@ -126,41 +126,6 @@ export default function FormsTemplates() {
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Features Overview */}
-            <div className="grid md:grid-cols-3 gap-6 mb-10">
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <FileText className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Official Templates</h3>
-                <p className="text-gray-600 text-sm">
-                  Use official research forms including Protocol Final Reports, Progress Reports, and Amendment requests.
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <ClipboardList className="w-6 h-6 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Digital Signatures</h3>
-                <p className="text-gray-600 text-sm">
-                  All forms require digital signatures for authentication, security, and legal compliance with research standards.
-                </p>
-              </div>
-              
-              <div className="bg-white rounded-lg p-6 border border-gray-200">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-                  <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Secure Storage</h3>
-                <p className="text-gray-600 text-sm">
-                  Your forms are securely stored with encryption and audit trails for complete compliance and traceability.
-                </p>
               </div>
             </div>
 
