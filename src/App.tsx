@@ -1,29 +1,33 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
-import { AppBreadcrumb } from './components/parts/app-breadcrumb';
-import { SidebarProvider } from './components/ui/sidebar';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, Link } from "react-router-dom";
+import { useEffect, useState, type JSX } from "react";
+import { toast } from "sonner";
+import { supabase } from "./DB";
+import { type User } from "@supabase/supabase-js";
 
-import './App.css';
+import { AppBreadcrumb } from "./components/parts/app-breadcrumb";
+import { SidebarProvider } from "./components/ui/sidebar";
+import { RadixSidebarDemo as AppSidebar } from "./components/parts/neo-sidebar";
+import { ChatPopup } from "./pages/researcher/ChatComp";
 
-import SDashboard from './pages/staff/Dashboard';
-import SSubmissions from './pages/staff/Submissions';
-import SDeviations from './pages/staff/Deviations';
-import LoginPage from './pages/Login';
-import SignupPage from './pages/Signup';
-import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
-import { toast } from 'sonner';
-import { SReview } from './pages/staff/Submissions/Review';
-import { useEffect, useState, type JSX } from 'react';
-import { supabase } from './DB';
-import { type User } from '@supabase/supabase-js';
-import Profile from './pages/Profile';
-import RSubmissions from './pages/researcher/Submissions';
-import RDashboard from './pages/researcher/Dashboard';
-import AdminUsersPage from './pages/AdminUsersPage';
-import { ChatPopup } from './pages/researcher/ChatComp';
-import Testa from './pages/Testa';
-import Testb from './pages/Testb';
-import ReviewerPage from './pages/reviewer/Submissions';
+import SDashboard from "./pages/staff/Dashboard";
+import SSubmissions from "./pages/staff/Submissions";
+import SDeviations from "./pages/staff/Deviations";
+import { SReview } from "./pages/staff/Submissions/Review";
+import RDashboard from "./pages/researcher/Dashboard";
+import RSubmissions from "./pages/researcher/Submissions";
+import ReviewerPage from "./pages/reviewer/Submissions";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import Profile from "./pages/Profile";
+import LoginPage from "./pages/Login";
+import SignupPage from "./pages/Signup";
+import Testa from "./pages/Testa";
+import Testb from "./pages/Testb";
 
+import "./App.css";
+
+// ----------------------------
+// Session Profile Interface
+// ----------------------------
 interface SessionProfile {
   fname: string;
   lname: string;
@@ -36,11 +40,17 @@ interface SessionProfile {
 // ----------------------------
 // Redirect wrapper for login/signup
 // ----------------------------
-function AuthRedirect({ user, children }: { user: User | null; children: JSX.Element }) {
+function AuthRedirect({
+  user,
+  children,
+}: {
+  user: User | null;
+  children: JSX.Element;
+}) {
   const isVerified = user?.email_confirmed_at || user?.user_metadata?.email_confirmed;
 
   if (user && !isVerified) {
-    toast.error('Please verify your email first!');
+    toast.error("Please verify your email first!");
     return <Navigate to="/login" replace />;
   }
 
@@ -55,121 +65,132 @@ function AuthRedirect({ user, children }: { user: User | null; children: JSX.Ele
 // Role-based redirect for "/"
 // ----------------------------
 function DefaultRedirect({ profile }: { profile: SessionProfile }) {
-  if (profile.role === 'researcher') {
-    return <Navigate to="/sdash/sub2" replace />;
-  }
-  return <Navigate to="/sdash/sub1" replace />;
+  return (
+    <Navigate
+      to={profile.role === "researcher" ? "/sdash/sub2" : "/sdash/sub1"}
+      replace
+    />
+  );
 }
 
 // ----------------------------
-// Simple Page Not Found
+// Simple 404 Page
 // ----------------------------
 function PageNotFound() {
   return (
     <div className="flex items-center justify-center h-screen">
       <h1 className="text-2xl font-bold text-red-600">404 - Page Not Found</h1>
+      <Link to="/" className="ml-3 text-blue-500 underline">
+        Go Home
+      </Link>
     </div>
   );
 }
 
 // ----------------------------
-// Sidebar Layout Wrapper
+// Sidebar Layout
 // ----------------------------
-function SidebarLayout({ profile, user }: { profile: SessionProfile | null; user: User | null }) {
+function SidebarLayout({
+  profile,
+  user,
+}: {
+  profile: SessionProfile | null;
+  user: User | null;
+}) {
   return (
     <SidebarProvider className="overflow-x-clip">
       <div className="w-64 fixed h-screen">
         <AppSidebar
-          fname={profile?.fname ?? ''}
-          lname={profile?.lname ?? ''}
-          email={profile?.email ?? ''}
-          org={profile?.org ?? ''}
-          role={profile?.role ?? ''}
-          userId={user?.id ?? ''}
+          fname={profile?.fname ?? ""}
+          lname={profile?.lname ?? ""}
+          email={profile?.email ?? ""}
+          org={profile?.org ?? ""}
+          role={profile?.role ?? ""}
+          userId={user?.id ?? ""}
         />
       </div>
+
       <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
-        <div className="py-3 px-5 border-b-2 fixed w-full pointer-events-none">
           <AppBreadcrumb />
-        </div>
-        <div className="pl-7 pr-7 py-12 min-w-full scroll-mx-0 z-50">
+        <div className="pl-7 pr-7 py-16 min-w-full z-50">
           <Outlet />
         </div>
       </div>
-      <ChatPopup userId={user?.id ?? ''} />
+
+      <ChatPopup userId={user?.id ?? ""} />
     </SidebarProvider>
   );
 }
 
+// ----------------------------
+// App Component
+// ----------------------------
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<SessionProfile | null>(null);
 
-  // ----------------------------
-  // Get session + listen for auth
-  // ----------------------------
+  // Get Supabase session and listen for changes
   useEffect(() => {
     let mounted = true;
 
     const getUserSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      setUser(session?.user ?? null);
+      setUser(data.session?.user ?? null);
+      setLoading(false);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) setUser(session?.user ?? null);
     });
 
-    getUserSession().finally(() => mounted && setLoading(false));
+    getUserSession();
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      listener.subscription?.unsubscribe();
     };
   }, []);
 
-  // ----------------------------
-  // Fetch profile if logged in
-  // ----------------------------
+  // Fetch user profile if logged in
   useEffect(() => {
     let mounted = true;
-    if (!user) {
-      setProfile(null);
-      return;
-    }
 
     const fetchProfile = async () => {
-      setProfile(null);
+      if (!user) {
+        setProfile(null);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
-          .from('profiles')
-          .select('fname,lname,email,org,avatar,role')
-          .eq('id', user.id)
+          .from("profiles")
+          .select("fname,lname,email,org,avatar,role")
+          .eq("id", user.id)
           .single();
 
         if (error) throw error;
 
         if (mounted) {
           setProfile({
-            fname: data?.fname ?? user.user_metadata?.fname ?? '',
-            lname: data?.lname ?? user.user_metadata?.lname ?? '',
-            email: data?.email ?? user.email ?? '',
-            org: data?.org ?? '',
-            avatar: data?.avatar ?? user.user_metadata?.avatar ?? '',
-            role: data?.role ?? user.user_metadata?.role ?? '',
+            fname: data?.fname ?? user.user_metadata?.fname ?? "",
+            lname: data?.lname ?? user.user_metadata?.lname ?? "",
+            email: data?.email ?? user.email ?? "",
+            org: data?.org ?? "",
+            avatar: data?.avatar ?? user.user_metadata?.avatar ?? "",
+            role: data?.role ?? user.user_metadata?.role ?? "",
           });
         }
       } catch {
         if (mounted) {
           setProfile({
-            fname: user.user_metadata?.fname ?? '',
-            lname: user.user_metadata?.lname ?? '',
-            email: user.email ?? '',
-            org: '',
-            avatar: user.user_metadata?.avatar ?? '',
-            role: user.user_metadata?.role ?? '',
+            fname: user.user_metadata?.fname ?? "",
+            lname: user.user_metadata?.lname ?? "",
+            email: user.email ?? "",
+            org: "",
+            avatar: user.user_metadata?.avatar ?? "",
+            role: user.user_metadata?.role ?? "",
           });
         }
       }
@@ -181,14 +202,7 @@ export default function App() {
     };
   }, [user]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
+  // Loading state
   if (loading || (user && !profile)) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -210,7 +224,7 @@ export default function App() {
           }
         />
         <Route
-          path="/signu"
+          path="/signup"
           element={
             <AuthRedirect user={user}>
               <SignupPage />
@@ -218,7 +232,7 @@ export default function App() {
           }
         />
 
-        {/* Not logged in → always go to /login */}
+        {/* If not logged in → always redirect to /login */}
         {!user && (
           <>
             <Route path="/" element={<Navigate to="/login" replace />} />
@@ -230,30 +244,41 @@ export default function App() {
         {user && (
           <Route
             element={
-              !(user.email_confirmed_at || user.user_metadata?.email_confirmed)
-                ? <Navigate to="/login" replace />
-                : <SidebarLayout profile={profile} user={user} />
+              !(user.email_confirmed_at || user.user_metadata?.email_confirmed) ? (
+                <Navigate to="/login" replace />
+              ) : (
+                <SidebarLayout profile={profile} user={user} />
+              )
             }
           >
-            {profile && <Route path="/" element={<DefaultRedirect profile={profile} />} />}
+            {profile && (
+              <Route path="/" element={<DefaultRedirect profile={profile} />} />
+            )}
 
+            {/* Dashboard */}
             <Route path="/sdash" element={<SDashboard user={user} profile={profile} />} />
             <Route path="/sdash/sub1" element={<SDashboard user={user} profile={profile} />} />
             <Route path="/sdash/sub2" element={<RDashboard user={user} profile={profile} />} />
+
+            {/* Profile */}
             <Route path="/profile" element={<Profile />} />
 
+            {/* Deviations */}
+            <Route path="/sdevi" element={<SDeviations />} />
             <Route path="/sdevi/sub1" element={<Testa />} />
             <Route path="/sdevi/sub2" element={<Testb />} />
 
+            {/* Submissions */}
             <Route path="/ssubm" element={<SSubmissions />} />
             <Route path="/ssubm/sub1" element={<SSubmissions />} />
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
             <Route path="/ssubm/sub3" element={<ReviewerPage />} />
 
-            <Route path="/sdevi" element={<SDeviations />} />
+            {/* Admin */}
             <Route path="/admin/userroles" element={<AdminUsersPage />} />
 
+            {/* Fallback */}
             <Route path="*" element={<PageNotFound />} />
           </Route>
         )}

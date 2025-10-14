@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X, Users, Flag, Archive } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -52,43 +52,16 @@ interface Profile {
     category?: string | null;
 }
 
-// interface Placeholder {
-//     x: number;
-//     y: number;
-//     id: number;
-//     name: string;
-//     page: number;
-//     type: 'text';
-//     width: number;
-//     height: number;
-// }
-
-// interface PdfFile {
-//     id: string;
-//     name: string;
-//     placeholders: Placeholder[];
-//     created_at: string;
-//     updated_at: string;
-// }
-
 interface DocumentItem {
     name: string;
     templateUrl: string;
     required: boolean;
-    needsSignature?: boolean;  // All forms need signatures
-    needsAnswer?: boolean;     // All forms need to be filled out
+    needsSignature?: boolean;
+    needsAnswer?: boolean;
     signStatus?: 'pending' | 'completed';
     answerStatus?: 'pending' | 'completed';
-    pdfFileId?: string;  // Reference to the pdf_files table
+    pdfFileId?: string;
 }
-
-// interface DocumentSubmission {
-//     document_id?: number;
-//     proposal_id: number;
-//     doc_type: string;
-//     file_path: string;
-//     uploaded_at?: string;
-// }
 
 interface HistoryEntry {
     history_id: number;
@@ -114,16 +87,22 @@ const phases = [
         statuses: ["Send Forms", "Forms Check", "Resend Forms"],
     },
     { title: "Phase 4: Deployment Queue", statuses: ["Deploy Queue"] },
+    {
+        title: "Phase 5: Documents Review",
+        statuses: ["Assign Review", "Proposal Review", "Revise Proposal"],
+    },
+    {
+        title: "Phase 6: Proposal Deviation",
+        statuses: ["Data Collection", "Proposal Deviation", "Submit Report"],
+    },
+    {
+        title: "Phase 7: Final Report & Archival",
+        statuses: ["Send Report", "Archive Files"],
+    },
 ];
 
-// icon mapping for phases (1: Manuscript, 2: Risk, 3: Forms, 4: Deploy)
-const phaseIcons = [FileText, Shield, ClipboardList, Rocket];
-
-// const normalizeStatus = (status: string) => {
-//     if (status === "Resend Manuscript") return "Send Manuscript";
-//     if (status === "Resend Forms") return "Send Forms";
-//     return status;
-// };
+// icon mapping for phases
+const phaseIcons = [FileText, Shield, ClipboardList, Rocket, Users, Flag, Archive];
 
 const getNextStatus = (status: string) => {
     switch (status) {
@@ -642,27 +621,6 @@ export default function SubmissionsPage() {
         }
     };
 
-    /* fetch PDF file details from database */
-    // const getPdfFileDetails = async (filename: string): Promise<PdfFile | null> => {
-    //     try {
-    //         const { data, error } = await supabase
-    //             .from('pdf_files')
-    //             .select('*')
-    //             .eq('name', filename)
-    //             .single();
-
-    //         if (error) {
-    //             console.error('Error fetching PDF file:', error);
-    //             return null;
-    //         }
-
-    //         return data as PdfFile;
-    //     } catch (err) {
-    //         console.error('Failed to fetch PDF file details:', err);
-    //         return null;
-    //     }
-    // };
-
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = historyFiles || getPhaseDocuments(submission);
@@ -931,8 +889,6 @@ export default function SubmissionsPage() {
 
         if (!activeSubmission) return;
 
-        const title = activeSubmission.proposal_title || "(untitled)";
-        const review = activeSubmission.review_type || "Unknown";
     }, [activeSubmission?.proposal_id]);
 
     // Helper: map submission status to active phase index
@@ -946,6 +902,14 @@ export default function SubmissionsPage() {
             "Forms Check": 2,
             "Resend Forms": 2,
             "Deploy Queue": 3,
+            "Assign Review": 4,
+            "Proposal Review": 4,
+            "Revise Proposal": 4,
+            "Data Collection": 5,
+            "Proposal Deviation": 5,
+            "Submit Report": 5,
+            "Send Report": 6,
+            "Archive Files": 6,
         };
         return phaseMap[status] ?? 0;
     };
@@ -1016,6 +980,7 @@ export default function SubmissionsPage() {
                         <TableRow>
                             <TableHead className="border min-w-[200px]">Title</TableHead>
                             <TableHead className="border min-w-[120px]">Status</TableHead>
+                            <TableHead className="border min-w-[100px]">Review Type</TableHead>
                             <TableHead className="border min-w-[100px]">Date</TableHead>
                             <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
                                 Action
@@ -1028,7 +993,7 @@ export default function SubmissionsPage() {
                                 <TableRow key={i}>
                                     <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
-                                    <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-[120px]" /></TableCell>
                                 </TableRow>
@@ -1065,6 +1030,15 @@ export default function SubmissionsPage() {
                                                 {submission.status === "Deploy Queue" && <Check className="w-3 h-3 mr-1" />}
                                                 <span className="truncate">{submission.status}</span>
                                             </Badge>
+                                        </TableCell>
+                                        <TableCell className="border text-gray-600">
+                                            {submission.review_type ? (
+                                                <Badge variant="outline" className="text-xs">
+                                                    {submission.review_type}
+                                                </Badge>
+                                            ) : (
+                                                <span className="text-gray-400">—</span>
+                                            )}
                                         </TableCell>
                                         <TableCell className="border text-gray-600">
                                             {new Date(submission.date).toLocaleDateString()}
@@ -1110,6 +1084,7 @@ export default function SubmissionsPage() {
                                             <Badge variant="outline" className="text-gray-400 border-gray-200">Not Started</Badge>
                                         </TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
+                                        <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border w-1 whitespace-nowrap text-center">
                                             <TooltipProvider>
                                                 <Tooltip>
@@ -1149,6 +1124,9 @@ export default function SubmissionsPage() {
                                 <h2 className="text-lg font-semibold break-words pr-2">{activeSubmission.proposal_title}</h2>
                                 <div className="text-sm text-gray-600 mt-1 mb-3">
                                     {getProfileName(activeSubmission.researcher)} • <span className="text-muted-foreground">{activeSubmission.category}</span>
+                                    {activeSubmission.review_type && (
+                                        <> • <span className="text-muted-foreground">{activeSubmission.review_type} Review</span></>
+                                    )}
                                 </div>
                             </div>
 
@@ -1278,10 +1256,10 @@ export default function SubmissionsPage() {
                 )}
             </div>
 
+            {/* Rest of the component remains the same (preview, dialogs, etc.) */}
             {/* Full screen preview overlay */}
             {previewOpen && (
                 <div className="fixed inset-0 bg-background z-50 flex flex-col">
-                    {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b">
                         <div className="font-semibold text-lg">{previewTitle}</div>
                         <Button
@@ -1295,8 +1273,6 @@ export default function SubmissionsPage() {
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
-
-                    {/* Main content */}
                     <div className="flex-1 relative">
                         {previewUrl ? (
                             <iframe
@@ -1358,12 +1334,9 @@ export default function SubmissionsPage() {
                     <DialogHeader>
                         <DialogTitle>Add Signature - {activeDocument}</DialogTitle>
                     </DialogHeader>
-
-                    {/* SIGNATURE MODULE PLACEHOLDER */}
                     <div className="h-[300px] flex items-center justify-center border rounded text-gray-500">
                         Signature module for {activeDocument}
                     </div>
-
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>
                             Cancel

@@ -61,7 +61,7 @@ export default function AdminPhases() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const { data: phasesData } = await supabase.from("phases").select("*");
+                const { data: phasesData } = await supabase.from("phases").select("*").order("title");
                 const { data: filesData } = await supabase.from("pdf_files").select("*");
                 setPhases(phasesData || []);
                 setPdfFiles(filesData || []);

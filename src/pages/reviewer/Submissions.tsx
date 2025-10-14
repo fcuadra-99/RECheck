@@ -56,7 +56,7 @@ interface DocumentItem {
 }
 
 interface ReviewRecommendation {
-    recommendation: 'approve' | 'reject' | 'revisions';
+    recommendation: 'approve' | 'revisions';
     comments: string;
 }
 
@@ -234,8 +234,8 @@ export default function ReviewerPage() {
 
     /* Submit review recommendation */
     const submitRecommendation = async () => {
-        if (!activeSubmission || !recommendation.comments.trim()) {
-            toast.error("Please provide review comments");
+        if (!activeSubmission || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
+            toast.error("Please provide review comments for revisions");
             return;
         }
 
@@ -246,7 +246,7 @@ export default function ReviewerPage() {
             const { error: statusError } = await supabase
                 .from("proposals")
                 .update({ 
-                    status: "Grant Letter",
+                    status: "Grant Clearance",
                     review_comments: recommendation.comments,
                     review_recommendation: recommendation.recommendation,
                     reviewed_at: new Date().toISOString()
@@ -361,9 +361,9 @@ export default function ReviewerPage() {
                                         onClick={() => setActiveSubmission(submission)}
                                     >
                                         <TableCell className="border">
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4 text-gray-500" />
-                                                <span className="font-medium truncate">{submission.proposal_title}</span>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                                <span className="font-medium truncate min-w-0">{submission.proposal_title}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="border">
@@ -498,16 +498,16 @@ export default function ReviewerPage() {
                                         return (
                                             <div key={index} className="border rounded-lg p-4 bg-white shadow-sm">
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                                    <div className="flex items-start gap-3 flex-1">
+                                                    <div className="flex items-start gap-3 flex-1 min-w-0">
                                                         <FileText className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
                                                         <div className="min-w-0 flex-1">
-                                                            <h3 className="font-medium text-gray-900 break-words">{doc.name}</h3>
+                                                            <h3 className="font-medium text-gray-900 break-words truncate">{doc.name}</h3>
                                                             <Badge variant={phaseConfig.variant} className="mt-1 text-xs">
                                                                 {phaseConfig.label}
                                                             </Badge>
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 flex-shrink-0">
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -539,66 +539,111 @@ export default function ReviewerPage() {
                             </div>
 
                             <div className="grid gap-4">
-                                <div className="flex flex-wrap gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="recommendation"
-                                            value="approve"
-                                            checked={recommendation.recommendation === 'approve'}
-                                            onChange={() => setRecommendation(prev => ({ ...prev, recommendation: 'approve' }))}
-                                            className="text-primary focus:ring-primary"
-                                        />
-                                        <Badge variant="default" className="bg-green-100 text-green-800">
-                                            <Check className="w-3 h-3 mr-1" />
-                                            Approve
-                                        </Badge>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="recommendation"
-                                            value="revisions"
-                                            checked={recommendation.recommendation === 'revisions'}
-                                            onChange={() => setRecommendation(prev => ({ ...prev, recommendation: 'revisions' }))}
-                                            className="text-primary focus:ring-primary"
-                                        />
-                                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                                            Revisions Needed
-                                        </Badge>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="recommendation"
-                                            value="reject"
-                                            checked={recommendation.recommendation === 'reject'}
-                                            onChange={() => setRecommendation(prev => ({ ...prev, recommendation: 'reject' }))}
-                                            className="text-primary focus:ring-primary"
-                                        />
-                                        <Badge variant="destructive">
-                                            <X className="w-3 h-3 mr-1" />
-                                            Reject
-                                        </Badge>
-                                    </label>
+                                {/* Recommendation Cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Approve Card */}
+                                    <div 
+                                        className={cn(
+                                            "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
+                                            recommendation.recommendation === 'approve' 
+                                                ? "border-green-500 bg-green-50" 
+                                                : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-25"
+                                        )}
+                                        onClick={() => setRecommendation(prev => ({ 
+                                            ...prev, 
+                                            recommendation: 'approve', 
+                                            comments: '' 
+                                        }))}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn(
+                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                                                recommendation.recommendation === 'approve'
+                                                    ? "border-green-500 bg-green-500"
+                                                    : "border-gray-300"
+                                            )}>
+                                                {recommendation.recommendation === 'approve' && (
+                                                    <Check className="w-4 h-4 text-white" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="default" className="bg-green-100 text-green-800">
+                                                        <Check className="w-3 h-3 mr-1" />
+                                                        Approve
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-sm text-gray-600 mt-2">
+                                                    Recommend this proposal for approval without changes.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Revisions Card */}
+                                    <div 
+                                        className={cn(
+                                            "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
+                                            recommendation.recommendation === 'revisions' 
+                                                ? "border-yellow-500 bg-yellow-50" 
+                                                : "border-gray-200 bg-white hover:border-yellow-300 hover:bg-yellow-25"
+                                        )}
+                                        onClick={() => setRecommendation(prev => ({ 
+                                            ...prev, 
+                                            recommendation: 'revisions' 
+                                        }))}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn(
+                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                                                recommendation.recommendation === 'revisions'
+                                                    ? "border-yellow-500 bg-yellow-500"
+                                                    : "border-gray-300"
+                                            )}>
+                                                {recommendation.recommendation === 'revisions' && (
+                                                    <Check className="w-4 h-4 text-white" />
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                                                        Revisions Needed
+                                                    </Badge>
+                                                </div>
+                                                <p className="text-sm text-gray-600 mt-2">
+                                                    Request specific revisions before approval.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
+                                {/* Comments Section */}
                                 <div className="space-y-2">
-                                    <Label>Review Comments</Label>
-                                    <Textarea
-                                        id="comments"
-                                        placeholder="Provide detailed comments about your review decision..."
-                                        value={recommendation.comments}
-                                        onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
-                                        rows={4}
-                                        className="resize-none"
-                                    />
+                                    <Label>
+                                        Review Comments 
+                                        {recommendation.recommendation === 'revisions' && (
+                                            <span className="text-red-500 ml-1">(Required)</span>
+                                        )}
+                                    </Label>
+                                    {recommendation.recommendation === 'revisions' ? (
+                                        <Textarea
+                                            id="comments"
+                                            placeholder="Please provide detailed comments about required revisions..."
+                                            value={recommendation.comments}
+                                            onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
+                                            rows={4}
+                                            className="resize-none"
+                                        />
+                                    ) : (
+<></>
+                                    )}
                                 </div>
 
                                 <div className="flex justify-end">
                                     <RippleButton
                                         onClick={submitRecommendation}
-                                        disabled={!recommendation.comments.trim()}
+                                        disabled={recommendation.recommendation === 'revisions' && !recommendation.comments.trim()}
                                         className="flex items-center gap-2"
                                     >
                                         <Send className="w-4 h-4" />
@@ -611,12 +656,25 @@ export default function ReviewerPage() {
                 )}
             </div>
 
-            {/* Document Preview Dialog */}
-            <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-                <DialogContent className="w-full max-w-4xl h-[80vh]">
-                    <DialogHeader>
-                        <DialogTitle>{previewTitle}</DialogTitle>
-                    </DialogHeader>
+            {/* Full Screen Document Preview */}
+            {previewOpen && (
+                <div className="fixed inset-0 bg-background z-50 flex flex-col">
+                    {/* Header */}
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <div className="font-semibold text-lg truncate pr-4">{previewTitle}</div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                setPreviewOpen(false);
+                                setPreviewUrl(null);
+                            }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    {/* Main content */}
                     <div className="flex-1 relative">
                         {previewUrl ? (
                             <iframe
@@ -630,10 +688,9 @@ export default function ReviewerPage() {
                             </div>
                         )}
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-                            Close
-                        </Button>
+
+                    {/* Footer with Download button */}
+                    <div className="flex items-center justify-end p-4 border-t">
                         {previewUrl && (
                             <a href={previewUrl} download target="_blank" rel="noopener noreferrer">
                                 <Button>
@@ -642,9 +699,9 @@ export default function ReviewerPage() {
                                 </Button>
                             </a>
                         )}
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
