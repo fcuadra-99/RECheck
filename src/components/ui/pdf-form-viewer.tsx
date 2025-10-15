@@ -388,7 +388,6 @@ export function PdfFormViewer({
                                         width: ph.width * displayScale * cssScale + "px",
                                         height: ph.height * displayScale * cssScale + "px",
                                         whiteSpace: "nowrap",
-                                        overflow: "hidden",
                                         textOverflow: "ellipsis",
                                     }}
                                 >

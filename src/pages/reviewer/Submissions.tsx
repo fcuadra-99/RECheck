@@ -242,14 +242,16 @@ export default function ReviewerPage() {
         const loadingId = toast.loading("Submitting recommendation...");
 
         try {
-            // Update proposal status to "Grant Letter"
+            // Determine the next status based on recommendation
+            const nextStatus = recommendation.recommendation === 'approve'
+                ? "Data Collection"
+                : "Revise Proposal";
+
+            // Update proposal status based on recommendation
             const { error: statusError } = await supabase
                 .from("proposals")
-                .update({ 
-                    status: "Grant Clearance",
-                    review_comments: recommendation.comments,
-                    review_recommendation: recommendation.recommendation,
-                    reviewed_at: new Date().toISOString()
+                .update({
+                    status: nextStatus,  // Use dynamic status
                 })
                 .eq("proposal_id", activeSubmission.proposal_id);
 
@@ -272,7 +274,7 @@ export default function ReviewerPage() {
 
             // Update local state
             setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-            
+
             if (submissions.length > 1) {
                 setActiveSubmission(submissions[1]); // Set next submission as active
             } else {
@@ -303,7 +305,7 @@ export default function ReviewerPage() {
             phase1: { label: "Phase 1: Manuscript", variant: "default" as const },
             phase3: { label: "Phase 3: Forms", variant: "secondary" as const }
         };
-        
+
         return config[phase];
     };
 
@@ -488,7 +490,7 @@ export default function ReviewerPage() {
                                 <FileStack className="w-3.5 h-3.5" />
                                 <span className="uppercase tracking-wide">Submitted Documents</span>
                             </div>
-                            
+
                             {submissionDocuments.length === 0 ? (
                                 <div className="text-sm text-gray-500 py-4">No documents submitted yet.</div>
                             ) : (
@@ -542,17 +544,17 @@ export default function ReviewerPage() {
                                 {/* Recommendation Cards */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Approve Card */}
-                                    <div 
+                                    <div
                                         className={cn(
                                             "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
-                                            recommendation.recommendation === 'approve' 
-                                                ? "border-green-500 bg-green-50" 
+                                            recommendation.recommendation === 'approve'
+                                                ? "border-green-500 bg-green-50"
                                                 : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-25"
                                         )}
-                                        onClick={() => setRecommendation(prev => ({ 
-                                            ...prev, 
-                                            recommendation: 'approve', 
-                                            comments: '' 
+                                        onClick={() => setRecommendation(prev => ({
+                                            ...prev,
+                                            recommendation: 'approve',
+                                            comments: ''
                                         }))}
                                     >
                                         <div className="flex items-center gap-3">
@@ -581,16 +583,16 @@ export default function ReviewerPage() {
                                     </div>
 
                                     {/* Revisions Card */}
-                                    <div 
+                                    <div
                                         className={cn(
                                             "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
-                                            recommendation.recommendation === 'revisions' 
-                                                ? "border-yellow-500 bg-yellow-50" 
+                                            recommendation.recommendation === 'revisions'
+                                                ? "border-yellow-500 bg-yellow-50"
                                                 : "border-gray-200 bg-white hover:border-yellow-300 hover:bg-yellow-25"
                                         )}
-                                        onClick={() => setRecommendation(prev => ({ 
-                                            ...prev, 
-                                            recommendation: 'revisions' 
+                                        onClick={() => setRecommendation(prev => ({
+                                            ...prev,
+                                            recommendation: 'revisions'
                                         }))}
                                     >
                                         <div className="flex items-center gap-3">
@@ -621,7 +623,7 @@ export default function ReviewerPage() {
                                 {/* Comments Section */}
                                 <div className="space-y-2">
                                     <Label>
-                                        Review Comments 
+                                        Review Comments
                                         {recommendation.recommendation === 'revisions' && (
                                             <span className="text-red-500 ml-1">(Required)</span>
                                         )}
@@ -636,7 +638,7 @@ export default function ReviewerPage() {
                                             className="resize-none"
                                         />
                                     ) : (
-<></>
+                                        <></>
                                     )}
                                 </div>
 

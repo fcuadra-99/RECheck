@@ -31,7 +31,14 @@ type Status =
   | "Check Manuscript"
   | "Risk Assessment"
   | "Forms Check"
-  | "Deploy Queue";
+  | "Deploy Queue"
+  | "Send Revision"
+  | "Check Revision"
+  | "Resend Revision"
+  | "Assign Review"
+  | "Proposal Review"
+  | "Revise Proposal"
+  | "Data Collection";
 
 let ide = "";
 let titlee = "";
@@ -65,7 +72,14 @@ function stat(params: Status) {
     "Check Manuscript": "Risk Assessment",
     "Risk Assessment": "Send Forms",
     "Forms Check": "Deploy Queue",
-    "Deploy Queue": "Check Manuscript",
+    "Deploy Queue": "Assign Review",
+    "Send Revision": "Check Revision", 
+    "Check Revision": "Assign Review",
+    "Resend Revision": "Check Revision",
+    "Assign Review": "Proposal Review",
+    "Proposal Review": "Data Collection",
+    "Revise Proposal": "Proposal Review",
+    "Data Collection": "Data Collection",
   };
   return awa[params];
 }
@@ -76,6 +90,13 @@ function statm(params: Status) {
     "Risk Assessment": "Check Manuscript",
     "Forms Check": "Resend Forms",
     "Deploy Queue": "Forms Check",
+    "Send Revision": "Deploy Queue",
+    "Check Revision": "Resend Revision",
+    "Resend Revision": "Check Revision",
+    "Assign Review": "Proposal Review",
+    "Proposal Review": "Revise Proposal",
+    "Revise Proposal": "Proposal Review",
+    "Data Collection": "Data Collection",
   };
   return awa[params];
 }
@@ -83,6 +104,7 @@ function statm(params: Status) {
 export const SReview = () => {
   const [manuOpen, setmanuOpen] = React.useState(false);
   const [formOpen, setformOpen] = React.useState(false);
+  const [revisionOpen, setRevisionOpen] = React.useState(false);
   const navigate = useNavigate();
 
   const [tog, setTog] = React.useState("");
@@ -104,6 +126,7 @@ export const SReview = () => {
   const [docURL, setDocURL] = React.useState<string>("");
   const [manuscriptDocs, setManuscriptDocs] = React.useState<{ name: string; file: string }[]>([]);
   const [formsDocs, setFormsDocs] = React.useState<{ name: string; file: string }[]>([]);
+  const [revisionDocs, setRevisionDocs] = React.useState<{ name: string; file: string }[]>([]);
 
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
@@ -122,7 +145,7 @@ export const SReview = () => {
       const { data: reviewersData, error } = await supabase
         .from('profiles')
         .select('id, fname, lname, email')
-        .eq('role', 'Reviewer')
+        .in('role', ['Reviewer', 'Admin'])
 
       if (error) throw error;
 
@@ -158,6 +181,7 @@ export const SReview = () => {
       try {
         const manuscriptPhase = "Send Manuscript";
         const formsPhase = "Send Forms";
+        const revisionPhase = "Send Revision";
 
         // List files for manuscript
         const { data: manuList, error: manuErr } = await supabase.storage
@@ -180,13 +204,26 @@ export const SReview = () => {
         setFormsDocs(
           formsList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
         );
+
+        // List files for revision (if in revision phase)
+        if (status === "Check Revision") {
+          const { data: revisionList, error: revisionErr } = await supabase.storage
+            .from("documents")
+            .list(`${id}/${revisionPhase}`);
+
+          if (revisionErr) throw revisionErr;
+
+          setRevisionDocs(
+            revisionList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+          );
+        }
       } catch (err: any) {
         toast.error("Failed to fetch documents: " + err.message);
       }
     };
 
     fetchDocs();
-  }, [id]);
+  }, [id, status]);
 
   React.useEffect(() => {
     if (selectedDoc) fetchDoc();
@@ -195,7 +232,15 @@ export const SReview = () => {
   async function fetchDoc() {
     if (!selectedDoc) return;
 
-    const phase = status === "Check Manuscript" ? "Send Manuscript" : "Send Forms";
+    let phase = "";
+    if (status === "Check Manuscript") {
+      phase = "Send Manuscript";
+    } else if (status === "Forms Check" || status === "Deploy Queue") {
+      phase = "Send Forms";
+    } else if (status === "Check Revision") {
+      phase = "Send Revision";
+    }
+
     const path = `${id}/${phase}/${selectedDoc}`;
 
     setDocURL(""); // Show skeleton while loading
@@ -341,7 +386,11 @@ export const SReview = () => {
     }
   }
 
-  const requirementDocs = status === "Check Manuscript" ? manuscriptDocs : formsDocs;
+  // Determine which documents to show based on current status
+  const requirementDocs = 
+    status === "Check Manuscript" ? manuscriptDocs :
+    status === "Forms Check" || status === "Deploy Queue" ? formsDocs :
+    status === "Check Revision" ? revisionDocs : [];
 
   return (
     <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -461,7 +510,7 @@ export const SReview = () => {
           </div>
 
           {/* Forms */}
-          <div className="flex justify-between items-center py-3">
+          <div className="flex justify-between items-center py-3 border-b">
             <p className="font-medium flex items-center gap-2 text-sm">
               <FileText className="w-4 h-4" /> Forms
             </p>
@@ -510,9 +559,59 @@ export const SReview = () => {
               </Dialog>
             )}
           </div>
+
+          {/* Revision Documents */}
+          {status === "Check Revision" && (
+            <div className="flex justify-between items-center py-3">
+              <p className="font-medium flex items-center gap-2 text-sm">
+                <FileText className="w-4 h-4" /> Revision Documents
+              </p>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => {
+                  setRevisionOpen(true);
+                  if (revisionDocs[0]) setSelectedDoc(revisionDocs[0].file);
+                }}
+              >
+                View Details
+              </Button>
+
+              <Dialog open={revisionOpen} onClose={() => setRevisionOpen(false)}>
+                <DialogBackdrop />
+                <DialogPanel className="sm:max-w-4xl flex gap-4">
+                  <div className="w-1/3 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3 overflow-y-auto">
+                    {revisionDocs.map((doc) => (
+                      <Button
+                        key={doc.file}
+                        variant={selectedDoc === doc.file ? "default" : "outline"}
+                        onClick={() => setSelectedDoc(doc.file)}
+                        className="w-full text-left text-sm"
+                      >
+                        {doc.name}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="w-2/3 p-2">
+                    {docURL ? (
+                      <iframe
+                        src={docURL}
+                        className="w-full h-[600px] border rounded-lg"
+                        title="Document Viewer"
+                      />
+                    ) : (
+                      <div className="text-center text-gray-500 mt-20">
+                        Loading document...
+                      </div>
+                    )}
+                  </div>
+                </DialogPanel>
+              </Dialog>
+            </div>
+          )}
         </section>
 
-        {/* Reviewer Assignment - NEW SECTION */}
+        {/* Reviewer Assignment */}
         <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
             <User className="text-primary w-5 h-5" /> Assign Reviewer
@@ -608,7 +707,9 @@ export const SReview = () => {
               <div>
                 <div className="text-sm font-medium flex items-center gap-2">Approve <CheckCircle className="w-3 h-3 text-green-500" /></div>
                 <div className="text-muted-foreground text-xs">
-                  Queue proposal for Risk Assessment
+                  {status === "Deploy Queue" ? "Queue proposal for Send Revision" :
+                   status === "Check Revision" ? "Queue proposal for Assign Review" :
+                   `Queue proposal for ${stat(status)}`}
                 </div>
               </div>
             </div>

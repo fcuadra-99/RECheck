@@ -22,7 +22,14 @@ type StatusParam =
   | "Risk Assessment"
   | "Resend Forms"
   | "Forms Check"
-  | "Deploy Queue";
+  | "Deploy Queue"
+  | "Send Revision"
+  | "Check Revision"
+  | "Resend Revision"
+  | "Assign Review"
+  | "Proposal Review"
+  | "Revise Proposal"
+  | "Data Collection";
 
 type StatusValue = "Pending" | "Check" | "Assess" | "View" | "Assign";
 
@@ -36,6 +43,13 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     "Resend Forms": "Pending",
     "Forms Check": "Pending",
     "Deploy Queue": "Pending",
+    "Send Revision": "Pending",
+    "Check Revision": "Pending",
+    "Resend Revision": "Pending",
+    "Assign Review": "Pending",
+    "Proposal Review": "Pending",
+    "Revise Proposal": "Pending",
+    "Data Collection": "Pending",
   }
 
   if (data.user.role === "Admin Assistant") {
@@ -46,6 +60,13 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Resend Forms": "Check",
       "Forms Check": "Check",
       "Deploy Queue": "View",
+      "Send Revision": "Pending",
+      "Check Revision": "Pending", // Admin Assistant doesn't handle revisions
+      "Resend Revision": "Pending",
+      "Assign Review": "Pending",
+      "Proposal Review": "Pending",
+      "Revise Proposal": "Pending",
+      "Data Collection": "View", // Admin Assistant can view data collection status
     }
   }
 
@@ -56,7 +77,33 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Risk Assessment": "Assess",
       "Resend Forms": "Check",
       "Forms Check": "Check",
-      "Deploy Queue": "Assign",
+      "Deploy Queue": "Check",
+      "Send Revision": "Pending", // Researcher action
+      "Check Revision": "Check", // Chairperson reviews revisions
+      "Resend Revision": "Pending", // Researcher action
+      "Assign Review": "Assign", // Chairperson assigns reviewers
+      "Proposal Review": "View", // Chairperson can view but Reviewer handles
+      "Revise Proposal": "Pending", // Researcher action
+      "Data Collection": "View", // Chairperson can view data collection status
+    }
+  }
+
+  // Add Reviewer role logic if needed
+  if (data.user.role === "Reviewer") {
+    awa = {
+      "Resend Manuscript": "Pending",
+      "Check Manuscript": "Pending",
+      "Risk Assessment": "Pending",
+      "Resend Forms": "Pending",
+      "Forms Check": "Pending",
+      "Deploy Queue": "Pending",
+      "Send Revision": "Pending",
+      "Check Revision": "Pending",
+      "Resend Revision": "Pending",
+      "Assign Review": "Pending",
+      "Proposal Review": "Check", // Reviewer handles proposal review
+      "Revise Proposal": "Pending",
+      "Data Collection": "View", // Reviewer can view data collection status
     }
   }
 
@@ -86,7 +133,6 @@ function formatDateTime(unformatted: string) {
   return new Intl.DateTimeFormat("en-US", options).format(date)
 }
 
-
 export const columns: ColumnDef<SubmTable>[] = [
   {
     id: "actions",
@@ -108,10 +154,10 @@ export const columns: ColumnDef<SubmTable>[] = [
                   className={cn(
                     "h-8 px-3 rounded-md text-sm font-medium",
                     status === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
-                    status === "Check" && " text-white ",
-                    status === "Assess" && " text-white ",
-                    status === "View" && "text-gray-600",
-                    status === "Assign" && "text-white "
+                    status === "Check" && "",
+                    status === "Assess" && "",
+                    status === "View" && "bg-gray-500 text-white hover:bg-gray-600",
+                    status === "Assign" && ""
                   )}
                   onClick={() => {
                     handleCheck(
@@ -195,8 +241,6 @@ export const columns: ColumnDef<SubmTable>[] = [
       const initials = fullName
         ? fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()
         : "?"
-
-      console.log(fname, lname);
 
       // ✅ Only fetch avatar/details when dialog opens
       useEffect(() => {
@@ -395,7 +439,8 @@ export const columns: ColumnDef<SubmTable>[] = [
             className={cn(
               "font-medium",
               reviewType === "Expedited" && "bg-green-50 text-green-700 border-green-300",
-              reviewType === "Full" && "bg-amber-50 text-amber-700 border-amber-300"
+              reviewType === "Full Board" && "bg-amber-50 text-amber-700 border-amber-300",
+              reviewType === "Exempt" && "bg-blue-50 text-blue-700 border-blue-300"
             )}
           >
             {reviewType || "Pending"}
@@ -421,10 +466,15 @@ export const columns: ColumnDef<SubmTable>[] = [
             variant="outline"
             className={cn(
               "font-medium",
-              status.includes("Check") && "bg-blue-50 text-white border-blue-300",
+              status.includes("Check") && "bg-blue-50 text-blue-700 border-blue-300",
               status.includes("Resend") && "bg-red-50 text-red-700 border-red-300",
               status === "Risk Assessment" && "bg-amber-50 text-amber-700 border-amber-300",
-              status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+              status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300",
+              status === "Send Revision" && "bg-purple-50 text-purple-700 border-purple-300",
+              status === "Check Revision" && "bg-indigo-50 text-indigo-700 border-indigo-300",
+              status === "Assign Review" && "bg-pink-50 text-pink-700 border-pink-300",
+              status === "Proposal Review" && "bg-teal-50 text-teal-700 border-teal-300",
+              status === "Revise Proposal" && "bg-orange-50 text-orange-700 border-orange-300"
             )}
           >
             {status}

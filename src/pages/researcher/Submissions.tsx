@@ -81,19 +81,25 @@ const phases = [
         title: "Phase 1: Manuscript Submission",
         statuses: ["Send Manuscript", "Check Manuscript", "Resend Manuscript"],
     },
-    { title: "Phase 2: Risk Assessment", statuses: ["Risk Assessment"] },
+    {
+        title: "Phase 2: Risk Assessment",
+        statuses: ["Risk Assessment"]
+    },
     {
         title: "Phase 3: Forms Submission",
         statuses: ["Send Forms", "Forms Check", "Resend Forms"],
     },
-    { title: "Phase 4: Deployment Queue", statuses: ["Deploy Queue"] },
+    {
+        title: "Phase 4: Deployment Queue",
+        statuses: ["Deploy Queue", "Send Revision", "Check Revision", "Resend Revision"]
+    },
     {
         title: "Phase 5: Documents Review",
         statuses: ["Assign Review", "Proposal Review", "Revise Proposal"],
     },
     {
         title: "Phase 6: Proposal Deviation",
-        statuses: ["Data Collection", "Proposal Deviation", "Submit Report"],
+        statuses: ["Deviation Check", "Send Deviation Report", "Send Study Report", "Revise Documents", "Study Report Check"],
     },
     {
         title: "Phase 7: Final Report & Archival",
@@ -872,6 +878,118 @@ export default function SubmissionsPage() {
         );
     };
 
+    // Add this function to handle phase advancement
+    const advanceToNextPhase = async (submission: Submission) => {
+        const loadingId = toast.loading("Moving to next phase...");
+
+        try {
+            const { data: userData } = await supabase.auth.getUser();
+            const actorId = userData?.user?.id;
+            if (!actorId) throw new Error("Not logged in");
+
+            // Determine next status based on current status
+            const getNextStatus = (currentStatus: string): string => {
+                const statusFlow: Record<string, string> = {
+                    // Phase 1
+                    "Send Manuscript": "Check Manuscript",
+                    "Check Manuscript": "Risk Assessment",
+                    "Resend Manuscript": "Check Manuscript",
+
+                    // Phase 2
+                    "Risk Assessment": "Send Forms",
+
+                    // Phase 3
+                    "Send Forms": "Forms Check",
+                    "Forms Check": "Deploy Queue",
+                    "Resend Forms": "Forms Check",
+
+                    // Phase 4
+                    "Deploy Queue": "Assign Review",
+                    "Send Revision": "Check Revision",
+                    "Check Revision": "Assign Review",
+                    "Resend Revision": "Check Revision",
+
+                    // Phase 5
+                    "Assign Review": "Proposal Review",
+                    "Proposal Review": "Revise Proposal",
+                    "Revise Proposal": "Assign Review",
+
+                    // Phase 6
+                    "Deviation Check": "Send Deviation Report",
+                    "Send Deviation Report": "Send Study Report",
+                    "Send Study Report": "Study Report Check",
+                    "Revise Documents": "Study Report Check",
+                    "Study Report Check": "Send Report",
+
+                    // Phase 7
+                    "Send Report": "Archive Files",
+                    "Archive Files": "Archive Files",
+                };
+                return statusFlow[currentStatus] || currentStatus;
+            };
+
+            const nextStatus = getNextStatus(submission.status);
+
+            // Update proposal status
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({
+                    status: nextStatus,
+                    updated_on: new Date().toISOString()
+                })
+                .eq("proposal_id", submission.proposal_id);
+
+            if (statusError) throw new Error(statusError.message);
+
+            // Record in history
+            const { error: historyError } = await supabase.from("history").insert({
+                history_type: "phase_advance",
+                paper_id: submission.proposal_id,
+                comment: `Advanced from ${submission.status} to ${nextStatus}`,
+                actor: actorId,
+                affected_files: JSON.stringify([]),
+                action: "Advance Phase",
+                history_date: new Date().toISOString(),
+            });
+
+            if (historyError) throw new Error(historyError.message);
+
+            // Refresh data
+            const { data: refreshed } = await supabase
+                .from("proposals")
+                .select("*")
+                .order("date", { ascending: false });
+
+            setSubmissions(refreshed || []);
+            const updated = refreshed?.find((p: any) => p.proposal_id === submission.proposal_id);
+            if (updated) setActiveSubmission(updated as Submission);
+
+            toast.success(`Moved to ${nextStatus}`, { id: loadingId });
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to advance phase: " + (err.message || err), { id: loadingId });
+        }
+    };
+
+    // Add this helper to check if phase has no required files
+    const phaseHasNoRequiredFiles = (phaseIndex: number, submission: Submission): boolean => {
+        // Phases 4, 5, 6, 7 have no required files based on your JSON
+        const noFilePhases = [3, 4, 5, 6]; // Index 3 = Phase 4, etc.
+
+        // Also check if current status in these phases and user is the actor
+        if (noFilePhases.includes(phaseIndex)) {
+            const currentPhase = phases[phaseIndex];
+            if (currentPhase?.statuses.includes(submission.status)) {
+                // Check if current user is the actor for this status
+                const statusConfig = currentPhase.statuses.find(s => s === submission.status);
+                // You would need to get actor from your phase configuration
+                // For now, assuming researcher can advance their own phases
+                return submission.researcher === userId;
+            }
+        }
+        return false;
+    };
+
     const handleOpenSubmission = (submission: any) => {
         setActiveSubmission(prev =>
             prev?.proposal_id === submission.proposal_id ? null : submission
@@ -894,20 +1012,38 @@ export default function SubmissionsPage() {
     // Helper: map submission status to active phase index
     const getActivePhaseIndex = (status: string) => {
         const phaseMap: Record<string, number> = {
+            // Phase 1
             "Send Manuscript": 0,
             "Check Manuscript": 0,
             "Resend Manuscript": 0,
+
+            // Phase 2
             "Risk Assessment": 1,
+
+            // Phase 3
             "Send Forms": 2,
             "Forms Check": 2,
             "Resend Forms": 2,
+
+            // Phase 4
             "Deploy Queue": 3,
+            "Send Revision": 3,
+            "Check Revision": 3,
+            "Resend Revision": 3,
+
+            // Phase 5
             "Assign Review": 4,
             "Proposal Review": 4,
             "Revise Proposal": 4,
-            "Data Collection": 5,
-            "Proposal Deviation": 5,
-            "Submit Report": 5,
+
+            // Phase 6
+            "Deviation Check": 5,
+            "Send Deviation Report": 5,
+            "Send Study Report": 5,
+            "Revise Documents": 5,
+            "Study Report Check": 5,
+
+            // Phase 7
             "Send Report": 6,
             "Archive Files": 6,
         };
@@ -1237,6 +1373,19 @@ export default function SubmissionsPage() {
                                                         <div className="mb-2 text-sm text-gray-600">Upload required documents for this phase.</div>
                                                         {renderPhaseFilesForActive(activeSubmission)}
                                                     </>
+                                                ) : phaseHasNoRequiredFiles(idx, activeSubmission) ? (
+                                                    // Show "Move to Next Phase" button for phases with no required files
+                                                    <div className="text-center py-6">
+                                                        <div className="text-sm text-gray-600 mb-4">
+                                                            No files required for this phase. Ready to proceed?
+                                                        </div>
+                                                        <RippleButton
+                                                            onClick={() => advanceToNextPhase(activeSubmission)}
+                                                            className="w-full sm:w-auto"
+                                                        >
+                                                            Move to Next Phase
+                                                        </RippleButton>
+                                                    </div>
                                                 ) : (
                                                     <div className="text-sm text-gray-500">No files required for this phase.</div>
                                                 )}
@@ -1244,9 +1393,6 @@ export default function SubmissionsPage() {
                                         )}
 
                                         {isFuture && <div className="text-gray-500">This phase is not yet available.</div>}
-
-                                        {/* fallback */}
-                                        {!isPast && !isActive && !isFuture && <div className="text-sm text-gray-500">No files for this phase.</div>}
                                     </TabsContent>
                                 );
                             })}
