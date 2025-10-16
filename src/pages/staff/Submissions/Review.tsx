@@ -2,11 +2,6 @@ import { RippleButton } from "@/components/animate-ui/buttons/ripple";
 import { Button } from "@/components/ui/button";
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Dialog,
-  DialogBackdrop,
-  DialogPanel,
-} from "@/components/animate-ui/headless/dialog";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -25,6 +20,9 @@ import {
   Check,
   X,
   Badge,
+  X as CloseIcon,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 type Status =
@@ -102,9 +100,8 @@ function statm(params: Status) {
 }
 
 export const SReview = () => {
-  const [manuOpen, setmanuOpen] = React.useState(false);
-  const [formOpen, setformOpen] = React.useState(false);
-  const [revisionOpen, setRevisionOpen] = React.useState(false);
+  const [activePreview, setActivePreview] = React.useState<"manuscript" | "forms" | "revision" | null>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
   const navigate = useNavigate();
 
   const [tog, setTog] = React.useState("");
@@ -226,18 +223,20 @@ export const SReview = () => {
   }, [id, status]);
 
   React.useEffect(() => {
-    if (selectedDoc) fetchDoc();
-  }, [selectedDoc]);
+    if (selectedDoc && activePreview) {
+      fetchDoc();
+    }
+  }, [selectedDoc, activePreview]);
 
   async function fetchDoc() {
-    if (!selectedDoc) return;
+    if (!selectedDoc || !activePreview) return;
 
     let phase = "";
-    if (status === "Check Manuscript") {
+    if (activePreview === "manuscript") {
       phase = "Send Manuscript";
-    } else if (status === "Forms Check" || status === "Deploy Queue") {
+    } else if (activePreview === "forms") {
       phase = "Send Forms";
-    } else if (status === "Check Revision") {
+    } else if (activePreview === "revision") {
       phase = "Send Revision";
     }
 
@@ -392,225 +391,272 @@ export const SReview = () => {
     status === "Forms Check" || status === "Deploy Queue" ? formsDocs :
     status === "Check Revision" ? revisionDocs : [];
 
+  // Get current documents based on active preview
+  const getCurrentDocs = () => {
+    switch (activePreview) {
+      case "manuscript":
+        return manuscriptDocs;
+      case "forms":
+        return formsDocs;
+      case "revision":
+        return revisionDocs;
+      default:
+        return [];
+    }
+  };
+
+  const getPreviewTitle = () => {
+    switch (activePreview) {
+      case "manuscript":
+        return "Manuscript Documents";
+      case "forms":
+        return "Forms Documents";
+      case "revision":
+        return "Revision Documents";
+      default:
+        return "Document Preview";
+    }
+  };
+
+  const handleOpenPreview = (type: "manuscript" | "forms" | "revision") => {
+    setActivePreview(type);
+    const docs = getCurrentDocsBasedOnType(type);
+    if (docs.length > 0) {
+      setSelectedDoc(docs[0].file);
+    }
+    setIsFullscreen(false);
+  };
+
+  const getCurrentDocsBasedOnType = (type: "manuscript" | "forms" | "revision") => {
+    switch (type) {
+      case "manuscript":
+        return manuscriptDocs;
+      case "forms":
+        return formsDocs;
+      case "revision":
+        return revisionDocs;
+      default:
+        return [];
+    }
+  };
+
+  const handleClosePreview = () => {
+    setActivePreview(null);
+    setSelectedDoc("");
+    setDocURL("");
+    setIsFullscreen(false);
+  };
+
+  const renderFullscreenPreview = () => {
+    const currentDocs = getCurrentDocs();
+    
+    return (
+      <div className="fixed inset-0 z-50 flex bg-white">
+        {/* Sidebar - File List */}
+        <div className="w-80 bg-gray-50 border-r flex flex-col">
+          {/* Sidebar Header */}
+          <div className="p-4 border-b bg-white">
+            <h2 className="text-lg font-semibold">{getPreviewTitle()}</h2>
+            <p className="text-sm text-gray-500 mt-1">Select a document to view</p>
+          </div>
+          
+          {/* File List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {currentDocs.map((doc) => (
+              <Button
+                key={doc.file}
+                variant={selectedDoc === doc.file ? "default" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent event bubbling
+                  setSelectedDoc(doc.file);
+                }}
+                className="w-full justify-start text-left h-auto py-3 px-4"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm truncate">{doc.name}</span>
+                </div>
+              </Button>
+            ))}
+            {currentDocs.length === 0 && (
+              <div className="text-center text-gray-500 py-8">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No documents available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content - Document Preview */}
+        <div className="flex-1 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b bg-white">
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-semibold">
+                {selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
+              </h3>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent event bubbling
+                  handleClosePreview();
+                }}
+                className="flex items-center gap-2"
+              >
+                <CloseIcon className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+          </div>
+
+          {/* Document Content */}
+          <div className="flex-1 relative bg-gray-100">
+            {docURL === null ? (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg">Document does not exist.</p>
+                  <p className="text-sm text-gray-400 mt-2">The requested document could not be found.</p>
+                </div>
+              </div>
+            ) : !docURL ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <Skeleton className="w-64 h-8 mx-auto mb-4" />
+                  <Skeleton className="w-full h-[600px] max-w-4xl mx-auto" />
+                </div>
+              </div>
+            ) : (
+              <iframe
+                src={docURL}
+                className="absolute inset-0 w-full h-full border-0"
+                title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      {/* Proposal Info */}
+      <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+        <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <FileText className="text-primary w-5 h-5" /> Proposal Details
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal ID</div>
+              <div className="text-sm font-medium">{id}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal Title</div>
+              <div className="text-sm font-medium">{title}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <User className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Researcher Name</div>
+              <div className="text-sm font-medium">{researcher}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Mail className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Researcher Email</div>
+              <div className="text-sm font-medium">{email}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal Status</div>
+              <div className="text-sm font-medium">{status}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Submission Date</div>
+              <div className="text-sm font-medium">{submDate}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Review Documents */}
+      <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+        <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <FileText className="text-primary w-5 h-5" /> Review Documents
+        </h2>
+
+        {/* Manuscript */}
+        <div className="flex justify-between items-center py-3 border-b">
+          <p className="font-medium flex items-center gap-2 text-sm">
+            <FileText className="w-4 h-4" /> Manuscript
+          </p>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => handleOpenPreview("manuscript")}
+          >
+            View Details
+          </Button>
+        </div>
+
+        {/* Forms */}
+        <div className="flex justify-between items-center py-3 border-b">
+          <p className="font-medium flex items-center gap-2 text-sm">
+            <FileText className="w-4 h-4" /> Forms
+          </p>
+          <Button
+            variant="outline"
+            type="button"
+            disabled={!(status === "Forms Check" || status === "Deploy Queue")}
+            onClick={() => handleOpenPreview("forms")}
+          >
+            View Details
+          </Button>
+        </div>
+
+        {/* Revision Documents */}
+        {status === "Check Revision" && (
+          <div className="flex justify-between items-center py-3">
+            <p className="font-medium flex items-center gap-2 text-sm">
+              <FileText className="w-4 h-4" /> Revision Documents
+            </p>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => handleOpenPreview("revision")}
+            >
+              View Details
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* Fullscreen Document Preview */}
+      {activePreview && renderFullscreenPreview()}
+
+      {/* Form Section - Only wrap the actual form controls */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
         }}
       >
-        {/* Proposal Info */}
-        <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
-          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <FileText className="text-primary w-5 h-5" /> Proposal Details
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Proposal ID</div>
-                <div className="text-sm font-medium">{id}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Proposal Title</div>
-                <div className="text-sm font-medium">{title}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <User className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Researcher Name</div>
-                <div className="text-sm font-medium">{researcher}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Mail className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Researcher Email</div>
-                <div className="text-sm font-medium">{email}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Proposal Status</div>
-                <div className="text-sm font-medium">{status}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-muted-foreground" />
-              <div>
-                <div className="text-xs text-muted-foreground">Submission Date</div>
-                <div className="text-sm font-medium">{submDate}</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Review Documents */}
-        <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
-          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <FileText className="text-primary w-5 h-5" /> Review Documents
-          </h2>
-
-          {/* Manuscript */}
-          <div className="flex justify-between items-center py-3 border-b">
-            <p className="font-medium flex items-center gap-2 text-sm">
-              <FileText className="w-4 h-4" /> Manuscript
-            </p>
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => {
-                setmanuOpen(true);
-                if (manuscriptDocs[0]) setSelectedDoc(manuscriptDocs[0].file);
-              }}
-            >
-              View Details
-            </Button>
-
-            <Dialog open={manuOpen} onClose={() => setmanuOpen(false)}>
-              <DialogBackdrop />
-              <DialogPanel className="sm:max-w-4xl flex gap-4">
-                <div className="w-1/3 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3 overflow-y-auto">
-                  {manuscriptDocs.map((doc) => (
-                    <Button
-                      key={doc.file}
-                      variant={selectedDoc === doc.file ? "default" : "outline"}
-                      onClick={() => setSelectedDoc(doc.file)}
-                      className="w-full text-left text-sm"
-                    >
-                      {doc.name}
-                    </Button>
-                  ))}
-                </div>
-                <div className="w-2/3 p-2">
-                  {docURL === null ? (
-                    <div className="text-center text-gray-500 mt-20">
-                      Document does not exist.
-                    </div>
-                  ) : !docURL ? (
-                    <div className="mt-20">
-                      <Skeleton className="w-full h-[600px]" />
-                    </div>
-                  ) : (
-                    <iframe
-                      src={docURL}
-                      className="w-full h-[600px] border rounded-lg"
-                      title="Document Viewer"
-                    />
-                  )}
-                </div>
-              </DialogPanel>
-            </Dialog>
-          </div>
-
-          {/* Forms */}
-          <div className="flex justify-between items-center py-3 border-b">
-            <p className="font-medium flex items-center gap-2 text-sm">
-              <FileText className="w-4 h-4" /> Forms
-            </p>
-            <Button
-              variant="outline"
-              type="button"
-              disabled={!(status === "Forms Check" || status === "Deploy Queue")}
-              onClick={() => {
-                setformOpen(true);
-                if (formsDocs[0]) setSelectedDoc(formsDocs[0].file);
-              }}
-            >
-              View Details
-            </Button>
-            {/* Forms Dialog Panel */}
-            {(status === "Forms Check" || status === "Deploy Queue") && (
-              <Dialog open={formOpen} onClose={() => setformOpen(false)}>
-                <DialogBackdrop />
-                <DialogPanel className="sm:max-w-4xl flex gap-4">
-                  <div className="w-1/3 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3 overflow-y-auto">
-                    {formsDocs.map((doc) => (
-                      <Button
-                        key={doc.file}
-                        variant={selectedDoc === doc.file ? "default" : "outline"}
-                        onClick={() => setSelectedDoc(doc.file)}
-                        className="w-full text-left text-sm"
-                      >
-                        {doc.name}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="w-2/3 p-2">
-                    {docURL ? (
-                      <iframe
-                        src={docURL}
-                        className="w-full h-[600px] border rounded-lg"
-                        title="Document Viewer"
-                      />
-                    ) : (
-                      <div className="text-center text-gray-500 mt-20">
-                        Loading document...
-                      </div>
-                    )}
-                  </div>
-                </DialogPanel>
-              </Dialog>
-            )}
-          </div>
-
-          {/* Revision Documents */}
-          {status === "Check Revision" && (
-            <div className="flex justify-between items-center py-3">
-              <p className="font-medium flex items-center gap-2 text-sm">
-                <FileText className="w-4 h-4" /> Revision Documents
-              </p>
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => {
-                  setRevisionOpen(true);
-                  if (revisionDocs[0]) setSelectedDoc(revisionDocs[0].file);
-                }}
-              >
-                View Details
-              </Button>
-
-              <Dialog open={revisionOpen} onClose={() => setRevisionOpen(false)}>
-                <DialogBackdrop />
-                <DialogPanel className="sm:max-w-4xl flex gap-4">
-                  <div className="w-1/3 bg-gray-50 p-4 rounded-l-xl flex flex-col gap-3 overflow-y-auto">
-                    {revisionDocs.map((doc) => (
-                      <Button
-                        key={doc.file}
-                        variant={selectedDoc === doc.file ? "default" : "outline"}
-                        onClick={() => setSelectedDoc(doc.file)}
-                        className="w-full text-left text-sm"
-                      >
-                        {doc.name}
-                      </Button>
-                    ))}
-                  </div>
-                  <div className="w-2/3 p-2">
-                    {docURL ? (
-                      <iframe
-                        src={docURL}
-                        className="w-full h-[600px] border rounded-lg"
-                        title="Document Viewer"
-                      />
-                    ) : (
-                      <div className="text-center text-gray-500 mt-20">
-                        Loading document...
-                      </div>
-                    )}
-                  </div>
-                </DialogPanel>
-              </Dialog>
-            </div>
-          )}
-        </section>
-
         {/* Reviewer Assignment */}
         <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
@@ -819,7 +865,7 @@ export const SReview = () => {
         <section className="my-8 flex gap-4">
           <RippleButton
             type="submit"
-            className="w-24 z-50"
+            className="w-24 z-0"
             hidden={type === "Pending" || type === "View"}
             disabled={
               (type === "Check" || type === "Assess") ? tog === "" :
@@ -831,7 +877,7 @@ export const SReview = () => {
           <RippleButton
             type="button"
             variant="outline"
-            className="w-24 z-50"
+            className="w-24 z-0"
             onClick={() => navigate("/ssubm/sub1")}
           >
             Back

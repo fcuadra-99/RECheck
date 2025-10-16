@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X, Users, Flag, Archive } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X, Users, Flag, Archive, AlertTriangle, BarChart3 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -98,8 +98,8 @@ const phases = [
         statuses: ["Assign Review", "Proposal Review", "Revise Proposal"],
     },
     {
-        title: "Phase 6: Proposal Deviation",
-        statuses: ["Deviation Check", "Send Deviation Report", "Send Study Report", "Revise Documents", "Study Report Check"],
+        title: "Phase 6: Data Collection & Reporting",
+        statuses: ["Data Collection", "Deviation Check", "Send Deviation Report", "Send Study Report", "Revise Documents", "Study Report Check"],
     },
     {
         title: "Phase 7: Final Report & Archival",
@@ -126,6 +126,12 @@ const getNextStatus = (status: string) => {
             return "Deploy Queue";
         case "Resend Forms":
             return "Forms Check";
+        case "Data Collection":
+            return "Deviation Check";
+        case "Send Deviation Report":
+            return "Study Report Check";
+        case "Send Study Report":
+            return "Study Report Check";
         default:
             return status;
     }
@@ -148,6 +154,8 @@ const getActionLabel = (status: string) => {
         case "Resend Forms":
             return "Resubmit";
         case "Deploy Queue":
+            return "View";
+        case "Data Collection":
             return "View";
         default:
             return "View";
@@ -184,12 +192,22 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
             needsAnswer: true,
         });
 
+        // Payment receipt for all categories (uploadable, no signature/answers needed)
+        const paymentReceipt: DocumentItem = {
+            name: "Payment Receipt",
+            templateUrl: "",
+            required: true,
+            needsSignature: false,
+            needsAnswer: false,
+        };
+
         if (isExternal) {
             if (reviewType === "exempt") {
                 return [
                     makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
                     makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
                     makeDoc("REC_FO_0036_MOA for external.pdf"),
+                    paymentReceipt,
                 ];
             }
 
@@ -202,6 +220,7 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
                 makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
                 makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
                 makeDoc("REC_FO_0036_MOA for external.pdf"),
+                paymentReceipt,
             ];
         }
 
@@ -212,6 +231,7 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
                     makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
                     makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
                     makeDoc("REC_FO_0035_Ethics Memorandum of Agreement for Authorship.pdf"),
+                    paymentReceipt,
                 ];
             }
 
@@ -226,6 +246,7 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
                 makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
                 makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
                 makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+                paymentReceipt,
             ];
         }
 
@@ -235,6 +256,7 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
                 makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
                 makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
                 makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+                paymentReceipt,
             ];
         }
 
@@ -248,6 +270,7 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
             makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
             makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
             makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            paymentReceipt,
         ];
     }
 
@@ -274,6 +297,7 @@ const getLatestHistory = async (proposal_id: number): Promise<HistoryEntry | nul
 const phaseUploadStatus = (phaseIndex: number): string | null => {
     if (phaseIndex === 0) return "Send Manuscript";
     if (phaseIndex === 2) return "Send Forms";
+    if (phaseIndex === 5) return "Data Collection"; // For Phase 6: Data Collection & Reporting
     return null;
 };
 
@@ -308,6 +332,16 @@ export default function SubmissionsPage() {
     const [newProposalOpen, setNewProposalOpen] = useState(false);
     const [newProposalTitle, setNewProposalTitle] = useState("");
     const [newProposalDescription, setNewProposalDescription] = useState("");
+
+    // Data Collection phase dialogs
+    const [deviationReportOpen, setDeviationReportOpen] = useState(false);
+    const [studyReportOpen, setStudyReportOpen] = useState(false);
+
+    const [studyReportUploadOpen, setStudyReportUploadOpen] = useState(false);
+    const [studyReportFiles, setStudyReportFiles] = useState<File[]>([]);
+
+    const [deviationType, setDeviationType] = useState<string>("");
+    const [deviationFormData, setDeviationFormData] = useState<any>(null);
 
     /* fetch initial data */
     useEffect(() => {
@@ -438,7 +472,6 @@ export default function SubmissionsPage() {
             return [];
         }
     };
-
 
     /* open preview (signed url + dialog) */
     const openPreview = async (submissionId: number, phaseIndex: number, filename: string, label?: string) => {
@@ -627,6 +660,167 @@ export default function SubmissionsPage() {
         }
     };
 
+    const handleStudyReportUpload = async () => {
+        if (studyReportFiles.length === 0) {
+            toast.error("Please select at least one file to upload");
+            return;
+        }
+
+        const loadingId = toast.loading("Uploading study report files...");
+
+        try {
+            const uploadedUrls: string[] = [];
+
+            // Upload each file
+            for (const file of studyReportFiles) {
+                try {
+                    const path = `${activeSubmission!.proposal_id}/study_reports/${Date.now()}_${file.name}`;
+                    const { error: uploadError } = await supabase.storage
+                        .from('documents')
+                        .upload(path, file);
+
+                    if (uploadError) throw uploadError;
+
+                    // Get signed URL for the uploaded file
+                    const { data: signedUrl } = await supabase.storage
+                        .from('documents')
+                        .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year expiry
+
+                    if (signedUrl) {
+                        uploadedUrls.push(signedUrl.signedUrl);
+                    }
+                } catch (uploadErr: any) {
+                    console.error('File upload failed:', uploadErr);
+                    throw new Error(`Failed to upload file ${file.name}: ${uploadErr.message}`);
+                }
+            }
+
+            // Update proposal status to "Send Study Report" (not "Study Report Check")
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({ status: "Study Report Check" })
+                .eq("proposal_id", activeSubmission!.proposal_id);
+
+            if (statusError) throw new Error(statusError.message);
+
+            // Record in history
+            const { data: userData } = await supabase.auth.getUser();
+            const actorId = userData?.user?.id || "unknown";
+
+            const { error: historyError } = await supabase.from("history").insert({
+                history_type: "study_report",
+                paper_id: activeSubmission!.proposal_id,
+                comment: "Study report files uploaded",
+                actor: actorId,
+                affected_files: uploadedUrls.map(url => ({ name: "Study Report", url })),
+                action: "Submit Study Report",
+                history_date: new Date().toISOString(),
+            });
+
+            if (historyError) throw new Error(historyError.message);
+
+            // Refresh data
+            const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+            setSubmissions(refreshed || []);
+            const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+            if (updated) setActiveSubmission(updated as Submission);
+
+            // Reset and close
+            setStudyReportFiles([]);
+            setStudyReportUploadOpen(false);
+
+            toast.success("Study report submitted successfully", { id: loadingId });
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to submit study report: " + (err.message || err), { id: loadingId });
+        }
+    };
+
+    /* Data Collection phase actions */
+    // const handleSendDeviationReport = async () => {
+    //     try {
+    //         const loadingId = toast.loading("Submitting deviation report...");
+
+    //         // Update proposal status
+    //         const { error: statusError } = await supabase
+    //             .from("proposals")
+    //             .update({ status: "Send Deviation Report" })
+    //             .eq("proposal_id", activeSubmission!.proposal_id);
+
+    //         if (statusError) throw new Error(statusError.message);
+
+    //         // Record in history
+    //         const { data: userData } = await supabase.auth.getUser();
+    //         const actorId = userData?.user?.id || "unknown";
+
+    //         const { error: historyError } = await supabase.from("history").insert({
+    //             history_type: "deviation_report",
+    //             paper_id: activeSubmission!.proposal_id,
+    //             comment: "Deviation report submitted",
+    //             actor: actorId,
+    //             affected_files: [],
+    //             action: "Submit Deviation Report",
+    //             history_date: new Date().toISOString(),
+    //         });
+
+    //         if (historyError) throw new Error(historyError.message);
+
+    //         // Refresh data
+    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+    //         setSubmissions(refreshed || []);
+    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+    //         if (updated) setActiveSubmission(updated as Submission);
+
+    //         setDeviationReportOpen(false);
+    //         toast.success("Deviation report submitted successfully", { id: loadingId });
+    //     } catch (err: any) {
+    //         console.error(err);
+    //         toast.error("Failed to submit deviation report: " + (err.message || err));
+    //     }
+    // };
+
+    // const handleSendStudyReport = async () => {
+    //     try {
+    //         const loadingId = toast.loading("Submitting study report...");
+
+    //         // Update proposal status
+    //         const { error: statusError } = await supabase
+    //             .from("proposals")
+    //             .update({ status: "Send Study Report" })
+    //             .eq("proposal_id", activeSubmission!.proposal_id);
+
+    //         if (statusError) throw new Error(statusError.message);
+
+    //         // Record in history
+    //         const { data: userData } = await supabase.auth.getUser();
+    //         const actorId = userData?.user?.id || "unknown";
+
+    //         const { error: historyError } = await supabase.from("history").insert({
+    //             history_type: "study_report",
+    //             paper_id: activeSubmission!.proposal_id,
+    //             comment: "Study report submitted",
+    //             actor: actorId,
+    //             affected_files: [],
+    //             action: "Submit Study Report",
+    //             history_date: new Date().toISOString(),
+    //         });
+
+    //         if (historyError) throw new Error(historyError.message);
+
+    //         // Refresh data
+    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+    //         setSubmissions(refreshed || []);
+    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+    //         if (updated) setActiveSubmission(updated as Submission);
+
+    //         setStudyReportOpen(false);
+    //         toast.success("Study report submitted successfully", { id: loadingId });
+    //     } catch (err: any) {
+    //         console.error(err);
+    //         toast.error("Failed to submit study report: " + (err.message || err));
+    //     }
+    // };
+
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = historyFiles || getPhaseDocuments(submission);
@@ -662,68 +856,82 @@ export default function SubmissionsPage() {
                             </div>
 
                             {/* Upload/Status Area - Middle */}
-                            <div className="w-full lg:w-48 flex-shrink-0">
-                                <div className="relative">
-                                    {/* Show upload area for manuscript phase */}
-                                    {["Send Manuscript", "Resend Manuscript"].includes(submission.status) ? (
-                                        <>
-                                            <div className="mb-2 text-xs text-gray-500">Only upload is required for this phase.</div>
-                                            <div
-                                                className={cn(
-                                                    "relative w-full min-h-[80px] border-2 border-dashed rounded-lg p-3 transition-colors",
-                                                    uploadedFiles[doc.name]
-                                                        ? "border-primary bg-primary/5"
-                                                        : "border-gray-300"
-                                                )}
-                                            >
-                                                <Input
-                                                    id={`file-${doc.name}`}
-                                                    type="file"
-                                                    accept="application/pdf"
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer hover:cursor-pointer"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files ? e.target.files[0] : null;
-                                                        if (!file) return;
+                            <div className="w-1/3 min-h-[80px] mx-10">
+                                {["Send Forms", "Resend Forms"].includes(submission.status) && !doc.needsSignature && !doc.needsAnswer ? (
+                                    /* Upload area for uploadable documents (like Payment Receipt) */
+                                    <label
+                                        htmlFor={`file-${doc.name}`}
+                                        className={cn(
+                                            "w-full h-full border-2 border-dashed rounded-lg p-3 transition-colors block cursor-pointer",
+                                            uploadedFiles[doc.name]
+                                                ? "border-primary bg-primary/5"
+                                                : "border-gray-300 hover:border-gray-400"
+                                        )}
+                                    >
+                                        <Input
+                                            id={`file-${doc.name}`}
+                                            type="file"
+                                            accept={doc.name === "Payment Receipt" ? ".pdf,.png,.jpg,.jpeg" : ".pdf"}
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                if (e.target.files) {
+                                                    const file = e.target.files[0];
+                                                    if (!file) return;
+
+                                                    // Special handling for Payment Receipt (accepts images)
+                                                    if (doc.name === "Payment Receipt") {
+                                                        const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+                                                        if (!allowedTypes.includes(file.type)) {
+                                                            toast.error("Only PDF, PNG, and JPG files are allowed for Payment Receipt");
+                                                            (e.target as HTMLInputElement).value = "";
+                                                            return;
+                                                        }
+                                                    } else {
                                                         if (file.type !== "application/pdf") {
                                                             toast.error("Only PDF files are allowed");
                                                             (e.target as HTMLInputElement).value = "";
                                                             return;
                                                         }
-                                                        if (file.size > 25 * 1024 * 1024) {
-                                                            toast.error("File size must be under 25MB");
-                                                            (e.target as HTMLInputElement).value = "";
-                                                            return;
-                                                        }
-                                                        handleFileSelect(doc.name, file);
-                                                    }}
-                                                />
-                                                <div className="text-center flex flex-col items-center justify-center h-full">
-                                                    <FileUp className="h-6 w-6 text-gray-400 mb-1" />
-                                                    <p className="text-xs text-gray-500 truncate max-w-full">
-                                                        {uploadedFiles[doc.name]
-                                                            ? uploadedFiles[doc.name]?.name
-                                                            : "Click to upload PDF"}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        /* Show status area for forms phase */
-                                        <div className="relative w-full min-h-[80px] border-2 rounded-lg p-3 bg-gray-50">
-                                            <div className="text-center flex flex-col items-center justify-center h-full">
-                                                <Pen className="h-6 w-6 text-gray-400 mb-1" />
-                                                <p className="text-xs text-gray-500">
-                                                    Form to be filled out
-                                                </p>
-                                                <p className="text-xs text-gray-400 mt-1">
-                                                    {(answeredDocuments[doc.name] ? "✓ " : "• ") + "Answers"}
-                                                    {" | "}
-                                                    {(signedDocuments[doc.name] ? "✓ " : "• ") + "Signature"}
-                                                </p>
-                                            </div>
+                                                    }
+
+                                                    if (file.size > 25 * 1024 * 1024) {
+                                                        toast.error("File size must be under 25MB");
+                                                        (e.target as HTMLInputElement).value = "";
+                                                        return;
+                                                    }
+
+                                                    handleFileSelect(doc.name, file);
+                                                }
+                                            }}
+                                        />
+                                        <div className="text-center flex flex-col items-center justify-center h-full">
+                                            <FileUp className="h-6 w-6 text-gray-400 mb-1" />
+                                            <p className="text-xs text-gray-500 truncate max-w-full">
+                                                {uploadedFiles[doc.name]
+                                                    ? uploadedFiles[doc.name]?.name
+                                                    : "Click to upload"}
+                                            </p>
+                                            {doc.name === "Payment Receipt" && (
+                                                <p className="text-xs text-gray-400 mt-1">PDF, PNG, or JPG</p>
+                                            )}
                                         </div>
-                                    )}
-                                </div>
+                                    </label>
+                                ) : (
+                                    /* Status area for forms that need signature/answers - NO file input */
+                                    <div className="w-full h-full border-2 rounded-lg p-3 bg-gray-50 cursor-default">
+                                        <div className="text-center flex flex-col items-center justify-center h-full">
+                                            <Pen className="h-6 w-6 text-gray-400 mb-1" />
+                                            <p className="text-xs text-gray-500">
+                                                Form to be filled out
+                                            </p>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                {(answeredDocuments[doc.name] ? "✓ " : "• ") + "Answers"}
+                                                {" | "}
+                                                {(signedDocuments[doc.name] ? "✓ " : "• ") + "Signature"}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Action Buttons - Right side */}
@@ -915,8 +1123,9 @@ export default function SubmissionsPage() {
                     "Revise Proposal": "Assign Review",
 
                     // Phase 6
-                    "Deviation Check": "Send Deviation Report",
-                    "Send Deviation Report": "Send Study Report",
+                    "Data Collection": "Deviation Check",
+                    "Deviation Check": "Data Collection",
+                    "Send Deviation Report": "Study Report Check",
                     "Send Study Report": "Study Report Check",
                     "Revise Documents": "Study Report Check",
                     "Study Report Check": "Send Report",
@@ -1037,6 +1246,7 @@ export default function SubmissionsPage() {
             "Revise Proposal": 4,
 
             // Phase 6
+            "Data Collection": 5,
             "Deviation Check": 5,
             "Send Deviation Report": 5,
             "Send Study Report": 5,
@@ -1049,6 +1259,255 @@ export default function SubmissionsPage() {
         };
         return phaseMap[status] ?? 0;
     };
+
+    const [deviationFiles, setDeviationFiles] = useState<File[]>([]);
+    const [deviationUploadOpen, setDeviationUploadOpen] = useState(false);
+
+    const handleDeviationFileUpload = async () => {
+        if (deviationFiles.length === 0) {
+            toast.error("Please select at least one file to upload");
+            return;
+        }
+
+        const loadingId = toast.loading("Uploading deviation report files...");
+
+        try {
+            const uploadedUrls: string[] = [];
+
+            // Upload each file
+            for (const file of deviationFiles) {
+                try {
+                    const path = `${activeSubmission!.proposal_id}/deviation_reports/${deviationType}/${Date.now()}_${file.name}`;
+                    const { error: uploadError } = await supabase.storage
+                        .from('documents')
+                        .upload(path, file);
+
+                    if (uploadError) throw uploadError;
+
+                    // Get signed URL for the uploaded file
+                    const { data: signedUrl } = await supabase.storage
+                        .from('documents')
+                        .createSignedUrl(path, 60 * 60 * 24 * 365); // 1 year expiry
+
+                    if (signedUrl) {
+                        uploadedUrls.push(signedUrl.signedUrl);
+                    }
+                } catch (uploadErr: any) {
+                    console.error('File upload failed:', uploadErr);
+                    throw new Error(`Failed to upload file ${file.name}: ${uploadErr.message}`);
+                }
+            }
+
+            // Update proposal status to "Deviation Check"
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({ status: "Deviation Check" })
+                .eq("proposal_id", activeSubmission!.proposal_id);
+
+            if (statusError) throw new Error(statusError.message);
+
+            // Record in history
+            const { data: userData } = await supabase.auth.getUser();
+            const actorId = userData?.user?.id || "unknown";
+
+            const { error: historyError } = await supabase.from("history").insert({
+                history_type: "deviation_report",
+                paper_id: activeSubmission!.proposal_id,
+                comment: `${deviationType} deviation report submitted`,
+                actor: actorId,
+                affected_files: uploadedUrls.map(url => ({ name: `${deviationType} Deviation Report`, url })),
+                action: "Submit Deviation Report",
+                history_date: new Date().toISOString(),
+            });
+
+            if (historyError) throw new Error(historyError.message);
+
+            // Refresh data
+            const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+            setSubmissions(refreshed || []);
+            const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+            if (updated) setActiveSubmission(updated as Submission);
+
+            // Reset and close
+            setDeviationFiles([]);
+            setDeviationUploadOpen(false);
+            setDeviationType("");
+
+            toast.success(`${deviationType} deviation report submitted successfully`, { id: loadingId });
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to submit deviation report: " + (err.message || err), { id: loadingId });
+        }
+    };
+
+    /* Data Collection Phase Action Buttons */
+    // Update the Data Collection phase actions in your main component
+    /* Data Collection Phase Action Buttons */
+    const renderDataCollectionActions = () => {
+        return (
+            <div className="space-y-6">
+                <div className="text-center mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Data Collection Phase</h3>
+                    <p className="text-gray-600">Choose the appropriate action based on your study progress</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Deviation Report Button */}
+                    <div className="border rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+                        <div className="flex flex-col items-center text-center flex-1">
+                            <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                                <AlertTriangle className="h-6 w-6 text-red-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Report Deviation</h4>
+                            <p className="text-sm text-gray-600 mb-4 flex-1">
+                                Report any unexpected events or changes from the approved study protocol.
+                            </p>
+
+                            {/* Deviation Type Selection */}
+                            <div className="w-full mb-4">
+                                <Label htmlFor="deviation-type" className="text-sm font-medium text-gray-700 mb-2 block">
+                                    Select Deviation Type
+                                </Label>
+                                <select
+                                    id="deviation-type"
+                                    value={deviationType}
+                                    onChange={(e) => setDeviationType(e.target.value)}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                >
+                                    <option value="">Choose deviation type</option>
+                                    <option value="Informed Consent">Informed Consent</option>
+                                    <option value="Adverse Events">Adverse Events</option>
+                                    <option value="Sample Collection">Sample Collection</option>
+                                    <option value="Confidentiality Breach">Confidentiality Breach</option>
+                                    <option value="Regulatory Compliance">Regulatory Compliance</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div className="flex flex-col gap-2 w-full mt-auto">
+                                <RippleButton
+                                    onClick={() => {
+                                        if (!deviationType) {
+                                            toast.error("Please select a deviation type");
+                                            return;
+                                        }
+                                        // ALL deviation types now use file upload
+                                        setDeviationUploadOpen(true);
+                                    }}
+                                    className="w-full bg-red-600 hover:bg-red-700"
+                                    disabled={!deviationType}
+                                >
+                                    Upload Deviation Report
+                                </RippleButton>
+
+                                {deviationType && (
+                                    <p className="text-xs text-gray-500">
+                                        Upload files for {deviationType} deviation
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Study Report Button */}
+                    <div className="border rounded-lg p-6 bg-white shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+                        <div className="flex flex-col items-center text-center flex-1">
+                            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                                <BarChart3 className="h-6 w-6 text-green-600" />
+                            </div>
+                            <h4 className="font-semibold text-gray-900 mb-2">Submit Study Report</h4>
+                            <p className="text-sm text-gray-600 mb-4 flex-1">
+                                Submit your completed study report with findings, analysis, and conclusions.
+                            </p>
+
+                            <div className="flex flex-col gap-2 w-full mt-auto">
+                                <RippleButton
+                                    onClick={() => setStudyReportUploadOpen(true)}
+                                    className="w-full bg-green-600 hover:bg-green-700"
+                                >
+                                    Upload Study Report
+                                </RippleButton>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Add a function to handle deviation form completion
+    const handleDeviationFormComplete = async (deviationData: any) => {
+        try {
+            const loadingId = toast.loading("Submitting deviation report...");
+
+            // Update proposal status to "Deviation Check"
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({ status: "Deviation Check" })
+                .eq("proposal_id", activeSubmission!.proposal_id);
+
+            if (statusError) throw new Error(statusError.message);
+
+            // Record in history
+            const { data: userData } = await supabase.auth.getUser();
+            const actorId = userData?.user?.id || "unknown";
+
+            const { error: historyError } = await supabase.from("history").insert({
+                history_type: "deviation_report",
+                paper_id: activeSubmission!.proposal_id,
+                comment: `Deviation report submitted: ${deviationData.type}`,
+                actor: actorId,
+                affected_files: deviationData.supportingDocuments || [],
+                action: "Submit Deviation Report",
+                history_date: new Date().toISOString(),
+            });
+
+            if (historyError) throw new Error(historyError.message);
+
+            // Refresh data
+            const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+            setSubmissions(refreshed || []);
+            const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+            if (updated) setActiveSubmission(updated as Submission);
+
+            toast.success("Deviation report submitted successfully", { id: loadingId });
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to submit deviation report: " + (err.message || err));
+        }
+    };
+
+    // If you want to integrate the form directly, you can add a state for it:
+    const [showDeviationForm, setShowDeviationForm] = useState(false);
+
+    // And then conditionally render the form:
+    {
+        showDeviationForm && (
+            <div className="fixed inset-0 bg-background z-50 flex flex-col">
+                <div className="flex items-center justify-between p-4 border-b">
+                    <div className="font-semibold text-lg">Deviation Report Form</div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowDeviationForm(false)}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                </div>
+                <div className="flex-1 relative overflow-auto">
+                    {/* You would integrate the DeviationReportForm component here */}
+                    {/* <DeviationReportForm 
+                onComplete={handleDeviationFormComplete}
+                onCancel={() => setShowDeviationForm(false)}
+            /> */}
+                    <div className="p-4">
+                        <p>Deviation form would be integrated here with all the fields from the provided code.</p>
+                        {/* Integration points for the form fields identified above */}
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     /* Past-phase list component */
     function PastPhaseFilesList({ phaseIndex }: { phaseIndex: number }) {
@@ -1158,12 +1617,14 @@ export default function SubmissionsPage() {
                                                 className={cn(
                                                     "font-medium",
                                                     submission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
-                                                    submission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+                                                    submission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300",
+                                                    submission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300"
                                                 )}
                                             >
                                                 {submission.status.includes("Resend") && <RefreshCcw className="w-3 h-3 mr-1" />}
                                                 {submission.status.includes("Check") && <Clock className="w-3 h-3 mr-1" />}
                                                 {submission.status === "Deploy Queue" && <Check className="w-3 h-3 mr-1" />}
+                                                {submission.status === "Data Collection" && <BarChart3 className="w-3 h-3 mr-1" />}
                                                 <span className="truncate">{submission.status}</span>
                                             </Badge>
                                         </TableCell>
@@ -1276,12 +1737,14 @@ export default function SubmissionsPage() {
                                         className={cn(
                                             "inline-flex items-center gap-1 max-w-full px-2 py-1",
                                             activeSubmission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
-                                            activeSubmission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300"
+                                            activeSubmission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300",
+                                            activeSubmission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300"
                                         )}
                                     >
                                         {activeSubmission.status.includes("Resend") && <RefreshCcw className="w-3 h-3" />}
                                         {activeSubmission.status.includes("Check") && <Clock className="w-3 h-3" />}
                                         {activeSubmission.status === "Deploy Queue" && <Check className="w-3 h-3" />}
+                                        {activeSubmission.status === "Data Collection" && <BarChart3 className="w-3 h-3" />}
                                         <span className="truncate">{activeSubmission.status}</span>
                                     </Badge>
                                 </div>
@@ -1370,8 +1833,15 @@ export default function SubmissionsPage() {
                                                     <PastPhaseFilesList phaseIndex={idx} />
                                                 ) : phaseUploadStatus(idx) && activeSubmission.researcher === userId ? (
                                                     <>
-                                                        <div className="mb-2 text-sm text-gray-600">Upload required documents for this phase.</div>
-                                                        {renderPhaseFilesForActive(activeSubmission)}
+                                                        {/* Data Collection Phase - Show Action Buttons */}
+                                                        {idx === 5 && activeSubmission.status === "Data Collection" ? (
+                                                            renderDataCollectionActions()
+                                                        ) : (
+                                                            <>
+                                                                <div className="mb-2 text-sm text-gray-600">Upload required documents for this phase.</div>
+                                                                {renderPhaseFilesForActive(activeSubmission)}
+                                                            </>
+                                                        )}
                                                     </>
                                                 ) : phaseHasNoRequiredFiles(idx, activeSubmission) ? (
                                                     // Show "Move to Next Phase" button for phases with no required files
@@ -1535,6 +2005,161 @@ export default function SubmissionsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Study Report Upload Dialog */}
+            <Dialog open={studyReportUploadOpen} onOpenChange={setStudyReportUploadOpen}>
+                <DialogContent className="w-full max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <BarChart3 className="h-5 w-5 text-green-600" />
+                            Upload Study Report
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="text-sm text-gray-600">
+                            <p>Please upload your completed study report and all supporting documents.</p>
+                            <p className="mt-2 text-amber-600">
+                                <strong>Note:</strong> This will advance your proposal to the "Study Report Check" phase for review.
+                            </p>
+                        </div>
+
+                        {/* File Upload Area */}
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-400 transition-colors">
+                            <FileUp className="h-10 w-10 mx-auto text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-600 mb-3">Drag & drop PDF files here, or click to browse</p>
+                            <Input
+                                type="file"
+                                multiple
+                                onChange={(e) => {
+                                    if (e.target.files) {
+                                        const newFiles = Array.from(e.target.files);
+
+                                        // Validate files
+                                        const validFiles = newFiles.filter(file => {
+                                            if (file.type !== "application/pdf") {
+                                                toast.error(`Only PDF files are allowed. ${file.name} is not a PDF.`);
+                                                return false;
+                                            }
+                                            if (file.size > 25 * 1024 * 1024) {
+                                                toast.error(`File size must be under 25MB. ${file.name} is too large.`);
+                                                return false;
+                                            }
+                                            return true;
+                                        });
+
+                                        setStudyReportFiles(prev => [...prev, ...validFiles]);
+                                    }
+                                }}
+                                className="max-w-xs mx-auto overflow-clip"
+                                accept=".pdf"
+                            />
+                        </div>
+
+                        {/* File Requirements */}
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <AlertTriangle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm">
+                                    <h4 className="font-medium text-green-800">File Requirements</h4>
+                                    <ul className="text-green-700 mt-1 list-disc list-inside space-y-1">
+                                        <li>Only PDF files are accepted</li>
+                                        <li>Maximum file size: 25MB per file</li>
+                                        <li>Include main study report and all appendices</li>
+                                        <li>Ensure all files are properly labeled</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                            setStudyReportFiles([]);
+                            setStudyReportUploadOpen(false);
+                        }}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleStudyReportUpload}
+                            disabled={studyReportFiles.length === 0}
+                            className="bg-green-600 hover:bg-green-700"
+                        >
+                            Submit Study Report
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={deviationUploadOpen} onOpenChange={setDeviationUploadOpen}>
+                <DialogContent className="w-full max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-red-600" />
+                            Upload Deviation Report
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="text-sm text-gray-600">
+                            <p>Please upload all relevant files for your protocol deviation report.</p>
+                            <p className="mt-2 text-amber-600">
+                                <strong>Note:</strong> This will advance your proposal to the "Deviation Check" phase for review.
+                            </p>
+                        </div>
+
+                        {/* File Upload Area */}
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+                            <FileUp className="h-10 w-10 mx-auto text-gray-400 mb-2" />
+                            <p className="text-sm text-gray-600 mb-3">Drag & drop files here, or click to browse</p>
+                            <Input
+                                type="file"
+                                multiple
+                                onChange={(e) => {
+                                    if (e.target.files) {
+                                        const newFiles = Array.from(e.target.files);
+                                        setDeviationFiles(prev => [...prev, ...newFiles]);
+                                    }
+                                }}
+                                className="max-w-xs mx-auto"
+                                accept=".pdf"
+                            />
+                        </div>
+
+                        {/* File Requirements */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                                <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm">
+                                    <h4 className="font-medium text-blue-800">File Requirements</h4>
+                                    <ul className="text-blue-700 mt-1 list-disc list-inside space-y-1">
+                                        <li>Accepted formats: PDF, Word, Excel, Images</li>
+                                        <li>Maximum file size: 25MB per file</li>
+                                        <li>Include all relevant supporting documents</li>
+                                        <li>Ensure files are properly labeled and organized</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                            setDeviationFiles([]);
+                            setDeviationUploadOpen(false);
+                        }}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleDeviationFileUpload}
+                            disabled={deviationFiles.length === 0}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Submit Deviation Report
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

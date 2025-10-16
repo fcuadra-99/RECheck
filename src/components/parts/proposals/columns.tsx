@@ -29,7 +29,9 @@ type StatusParam =
   | "Assign Review"
   | "Proposal Review"
   | "Revise Proposal"
-  | "Data Collection";
+  | "Data Collection"
+  | "Deviation Check"
+  | "Study Report Check";
 
 type StatusValue = "Pending" | "Check" | "Assess" | "View" | "Assign";
 
@@ -50,6 +52,8 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     "Proposal Review": "Pending",
     "Revise Proposal": "Pending",
     "Data Collection": "Pending",
+    "Deviation Check": "Pending",
+    "Study Report Check": "Pending",
   }
 
   if (data.user.role === "Admin Assistant") {
@@ -61,12 +65,14 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Forms Check": "Check",
       "Deploy Queue": "View",
       "Send Revision": "Pending",
-      "Check Revision": "Pending", // Admin Assistant doesn't handle revisions
+      "Check Revision": "Pending",
       "Resend Revision": "Pending",
       "Assign Review": "Pending",
       "Proposal Review": "Pending",
       "Revise Proposal": "Pending",
-      "Data Collection": "View", // Admin Assistant can view data collection status
+      "Data Collection": "View",
+      "Deviation Check": "View",
+      "Study Report Check": "View",
     }
   }
 
@@ -78,13 +84,15 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Resend Forms": "Check",
       "Forms Check": "Check",
       "Deploy Queue": "Check",
-      "Send Revision": "Pending", // Researcher action
-      "Check Revision": "Check", // Chairperson reviews revisions
-      "Resend Revision": "Pending", // Researcher action
-      "Assign Review": "Assign", // Chairperson assigns reviewers
-      "Proposal Review": "View", // Chairperson can view but Reviewer handles
-      "Revise Proposal": "Pending", // Researcher action
-      "Data Collection": "View", // Chairperson can view data collection status
+      "Send Revision": "Pending",
+      "Check Revision": "Check",
+      "Resend Revision": "Pending",
+      "Assign Review": "Assign",
+      "Proposal Review": "View",
+      "Revise Proposal": "Pending",
+      "Data Collection": "View",
+      "Deviation Check": "Check",
+      "Study Report Check": "Check",
     }
   }
 
@@ -101,13 +109,15 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Check Revision": "Pending",
       "Resend Revision": "Pending",
       "Assign Review": "Pending",
-      "Proposal Review": "Check", // Reviewer handles proposal review
+      "Proposal Review": "Check",
       "Revise Proposal": "Pending",
-      "Data Collection": "View", // Reviewer can view data collection status
+      "Data Collection": "View",
+      "Deviation Check": "Check",
+      "Study Report Check": "Check",
     }
   }
 
-  return awa[params] ?? "Pending"; // fallback if unknown
+  return awa[params] ?? "Pending";
 }
 
 function formatDate(unformatted: string) {
