@@ -63,8 +63,7 @@ export function PdfFormViewer({
     const [displayScale, setDisplayScale] = useState<number>(1.5);
     const [cssScale, setCssScale] = useState<number>(1);
     const [debugMode, setDebugMode] = useState(false);
-
-    setDebugMode(debugMode);
+    console.log(setDebugMode)
 
     // Signature dialog states
     const [openSig, setOpenSig] = useState(false);
@@ -92,7 +91,6 @@ export function PdfFormViewer({
                 : "";
         if (typeof window !== "undefined")
             window.document.body.style.overflow = "hidden";
-
 
         const load = async () => {
             if (!document) return;
@@ -192,7 +190,7 @@ export function PdfFormViewer({
         return () => {
             cancelled = true;
         };
-    }, [pdfUrl, currentPage, pdfDoc]);
+    }, [pdfUrl, currentPage, pdfDoc]); // Fixed: added pdfDoc dependency
 
     // 💾 Save & Upload
     const handleSubmit = async () => {
@@ -321,10 +319,8 @@ export function PdfFormViewer({
                 </div>
             </div>
 
-
             {/* 📄 PDF viewer */}
             <div className="flex-1 flex flex-col">
-                {/* Header */}
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border-b bg-white gap-2">
                     {/* 🧾 Document title */}
@@ -334,15 +330,6 @@ export function PdfFormViewer({
 
                     {/* 📄 Page navigation controls */}
                     <div className="flex items-center justify-center gap-1 sm:gap-2 w-full sm:w-auto">
-                        {/* (Hidden debug button for later use)
-        <Button
-            variant={debugMode ? "default" : "outline"}
-            onClick={() => setDebugMode((d) => !d)}
-        >
-            {debugMode ? "Debug: ON" : "Debug: OFF"}
-        </Button>
-        */}
-
                         <Button
                             variant="outline"
                             size="icon"
@@ -366,7 +353,6 @@ export function PdfFormViewer({
                         </Button>
                     </div>
                 </div>
-
 
                 {/* PDF canvas */}
                 <div ref={scrollRef} className="flex-1 relative bg-gray-100 p-4 overflow-auto">
@@ -438,7 +424,6 @@ export function PdfFormViewer({
                             ))}
                     </div>
                 </div>
-
             </div>
 
             {/* ✍️ Signature Dialog */}

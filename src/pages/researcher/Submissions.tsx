@@ -857,8 +857,9 @@ export default function SubmissionsPage() {
 
                             {/* Upload/Status Area - Middle */}
                             <div className="w-1/3 min-h-[80px] mx-10">
-                                {["Send Forms", "Resend Forms"].includes(submission.status) && !doc.needsSignature && !doc.needsAnswer ? (
-                                    /* Upload area for uploadable documents (like Payment Receipt) */
+                                {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(submission.status) &&
+                                    !doc.needsSignature && !doc.needsAnswer) ? (
+                                    /* Upload area for uploadable documents */
                                     <label
                                         htmlFor={`file-${doc.name}`}
                                         className={cn(
