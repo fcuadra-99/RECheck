@@ -64,6 +64,7 @@ export function PdfFormViewer({
     const [cssScale, setCssScale] = useState<number>(1);
     const [debugMode, setDebugMode] = useState(false);
 
+    setDebugMode(debugMode);
 
     // Signature dialog states
     const [openSig, setOpenSig] = useState(false);

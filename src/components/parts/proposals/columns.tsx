@@ -243,6 +243,9 @@ export const columns: ColumnDef<SubmTable>[] = [
       const [email, setEmail] = useState<string | null>(null)
       const [org, setOrg] = useState<string | null>(null)
       const [category, setCategory] = useState<string | null>(null)
+      
+      fname;
+      lname;
 
       const researcherId = row.getValue("researcher") as string
       const fullName = row.getValue("researcher_full_name") as string | null

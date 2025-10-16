@@ -21,8 +21,6 @@ import {
   X,
   Badge,
   X as CloseIcon,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 
 type Status =
@@ -103,6 +101,8 @@ export const SReview = () => {
   const [activePreview, setActivePreview] = React.useState<"manuscript" | "forms" | "revision" | null>(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const navigate = useNavigate();
+
+  isFullscreen
 
   const [tog, setTog] = React.useState("");
   const [msg, setMsg] = React.useState("");

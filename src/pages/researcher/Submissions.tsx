@@ -334,14 +334,14 @@ export default function SubmissionsPage() {
     const [newProposalDescription, setNewProposalDescription] = useState("");
 
     // Data Collection phase dialogs
-    const [deviationReportOpen, setDeviationReportOpen] = useState(false);
-    const [studyReportOpen, setStudyReportOpen] = useState(false);
+    // const [deviationReportOpen, setDeviationReportOpen] = useState(false);
+    // const [studyReportOpen, setStudyReportOpen] = useState(false);
 
     const [studyReportUploadOpen, setStudyReportUploadOpen] = useState(false);
     const [studyReportFiles, setStudyReportFiles] = useState<File[]>([]);
 
     const [deviationType, setDeviationType] = useState<string>("");
-    const [deviationFormData, setDeviationFormData] = useState<any>(null);
+    // const [deviationFormData, setDeviationFormData] = useState<any>(null);
 
     /* fetch initial data */
     useEffect(() => {
@@ -1190,10 +1190,10 @@ export default function SubmissionsPage() {
             const currentPhase = phases[phaseIndex];
             if (currentPhase?.statuses.includes(submission.status)) {
                 // Check if current user is the actor for this status
-                const statusConfig = currentPhase.statuses.find(s => s === submission.status);
-                // You would need to get actor from your phase configuration
-                // For now, assuming researcher can advance their own phases
-                return submission.researcher === userId;
+                // const statusConfig = currentPhase.statuses.find(s => s === submission.status);
+                // // You would need to get actor from your phase configuration
+                // // For now, assuming researcher can advance their own phases
+                // return submission.researcher === userId;
             }
         }
         return false;
@@ -1436,46 +1436,46 @@ export default function SubmissionsPage() {
     };
 
     // Add a function to handle deviation form completion
-    const handleDeviationFormComplete = async (deviationData: any) => {
-        try {
-            const loadingId = toast.loading("Submitting deviation report...");
+    // const handleDeviationFormComplete = async (deviationData: any) => {
+    //     try {
+    //         const loadingId = toast.loading("Submitting deviation report...");
 
-            // Update proposal status to "Deviation Check"
-            const { error: statusError } = await supabase
-                .from("proposals")
-                .update({ status: "Deviation Check" })
-                .eq("proposal_id", activeSubmission!.proposal_id);
+    //         // Update proposal status to "Deviation Check"
+    //         const { error: statusError } = await supabase
+    //             .from("proposals")
+    //             .update({ status: "Deviation Check" })
+    //             .eq("proposal_id", activeSubmission!.proposal_id);
 
-            if (statusError) throw new Error(statusError.message);
+    //         if (statusError) throw new Error(statusError.message);
 
-            // Record in history
-            const { data: userData } = await supabase.auth.getUser();
-            const actorId = userData?.user?.id || "unknown";
+    //         // Record in history
+    //         const { data: userData } = await supabase.auth.getUser();
+    //         const actorId = userData?.user?.id || "unknown";
 
-            const { error: historyError } = await supabase.from("history").insert({
-                history_type: "deviation_report",
-                paper_id: activeSubmission!.proposal_id,
-                comment: `Deviation report submitted: ${deviationData.type}`,
-                actor: actorId,
-                affected_files: deviationData.supportingDocuments || [],
-                action: "Submit Deviation Report",
-                history_date: new Date().toISOString(),
-            });
+    //         const { error: historyError } = await supabase.from("history").insert({
+    //             history_type: "deviation_report",
+    //             paper_id: activeSubmission!.proposal_id,
+    //             comment: `Deviation report submitted: ${deviationData.type}`,
+    //             actor: actorId,
+    //             affected_files: deviationData.supportingDocuments || [],
+    //             action: "Submit Deviation Report",
+    //             history_date: new Date().toISOString(),
+    //         });
 
-            if (historyError) throw new Error(historyError.message);
+    //         if (historyError) throw new Error(historyError.message);
 
-            // Refresh data
-            const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
-            setSubmissions(refreshed || []);
-            const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
-            if (updated) setActiveSubmission(updated as Submission);
+    //         // Refresh data
+    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
+    //         setSubmissions(refreshed || []);
+    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
+    //         if (updated) setActiveSubmission(updated as Submission);
 
-            toast.success("Deviation report submitted successfully", { id: loadingId });
-        } catch (err: any) {
-            console.error(err);
-            toast.error("Failed to submit deviation report: " + (err.message || err));
-        }
-    };
+    //         toast.success("Deviation report submitted successfully", { id: loadingId });
+    //     } catch (err: any) {
+    //         console.error(err);
+    //         toast.error("Failed to submit deviation report: " + (err.message || err));
+    //     }
+    // };
 
     // If you want to integrate the form directly, you can add a state for it:
     const [showDeviationForm, setShowDeviationForm] = useState(false);
