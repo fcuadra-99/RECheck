@@ -113,6 +113,24 @@ const DeviationDetail = () => {
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 min-h-[32px]">{deviation.corrective_action || '-'}</div>
           </div>
           <div className="mb-4">
+            <div className="font-semibold text-gray-700 mb-1">Description of Investigator Corrective Action</div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 min-h-[32px]">{deviation.investigator_corrective_action || '-'}</div>
+          </div>
+          <div className="mb-4">
+            <div className="font-semibold text-gray-700 mb-1">Investigator Assessment of Severity</div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800 min-h-[32px]">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                deviation.severity_assessment === 'Major' 
+                  ? 'bg-red-100 text-red-800 border border-red-300' 
+                  : deviation.severity_assessment === 'Minor'
+                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                  : ''
+              }`}>
+                {deviation.severity_assessment || '-'}
+              </span>
+            </div>
+          </div>
+          <div className="mb-4">
             <div className="font-semibold text-gray-700 mb-1">Supporting Documents</div>
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-gray-800">
               {Array.isArray(deviation.supporting_documents) && deviation.supporting_documents.length > 0 ? (

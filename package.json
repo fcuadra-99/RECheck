@@ -33,6 +33,7 @@
     "lucide-react": "^0.525.0",
     "motion": "^12.23.6",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.296",
     "radix-ui": "^1.4.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

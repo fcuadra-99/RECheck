@@ -30,6 +30,8 @@ type InvestigatorState = {
   impact: string;
   reportSubmissionDate: string;
   type: string;
+  investigatorCorrectiveAction: string;
+  severityAssessment: string;
 };
 
 const initialInvestigator: InvestigatorState = {
@@ -45,7 +47,9 @@ const initialInvestigator: InvestigatorState = {
   rationale: '',
   impact: '',
   reportSubmissionDate: '',
-  type: ''
+  type: '',
+  investigatorCorrectiveAction: '',
+  severityAssessment: ''
 };
 
 const ErrorMsg: React.FC<{ msg?: string }> = ({ msg }) => (msg ? <span className="mt-1 text-xs text-red-600 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{msg}</span> : null);
@@ -78,6 +82,8 @@ const DeviationReportForm: React.FC = () => {
     if (!investigator.correctiveAction) newErrors.correctiveAction = 'Required';
     if (!investigator.reportSubmissionDate) newErrors.reportSubmissionDate = 'Required';
     if (!investigator.type) newErrors.type = 'Required';
+    if (!investigator.investigatorCorrectiveAction) newErrors.investigatorCorrectiveAction = 'Required';
+    if (!investigator.severityAssessment) newErrors.severityAssessment = 'Required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -121,6 +127,8 @@ const DeviationReportForm: React.FC = () => {
         supportingDocuments: uploadedUrls,
         reportSubmissionDate: investigator.reportSubmissionDate,
         type: investigator.type,
+        investigatorCorrectiveAction: investigator.investigatorCorrectiveAction,
+        severityAssessment: investigator.severityAssessment,
       });
       
       if (error) {
@@ -396,6 +404,35 @@ const DeviationReportForm: React.FC = () => {
                     aria-invalid={!!errors.correctiveAction}
                   />
                   <ErrorMsg msg={errors.correctiveAction} />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description of Investigator Corrective Action <span className="text-red-500">*</span></label>
+                  <textarea
+                    className={`w-full rounded-xl border-2 ${errors.investigatorCorrectiveAction ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base min-h-[90px] transition-all`}
+                    name="investigatorCorrectiveAction"
+                    value={investigator.investigatorCorrectiveAction}
+                    onChange={handleInvestigatorChange}
+                    placeholder="Describe the corrective actions taken by the investigator."
+                    required
+                    aria-invalid={!!errors.investigatorCorrectiveAction}
+                  />
+                  <ErrorMsg msg={errors.investigatorCorrectiveAction} />
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Investigator Assessment of Severity <span className="text-red-500">*</span></label>
+                  <select
+                    className={`w-full rounded-xl border-2 ${errors.severityAssessment ? 'border-red-400' : 'border-gray-200'} bg-gray-50 px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-base transition-all`}
+                    name="severityAssessment"
+                    value={investigator.severityAssessment}
+                    onChange={(e) => setInvestigator(prev => ({ ...prev, severityAssessment: e.target.value }))}
+                    required
+                    aria-invalid={!!errors.severityAssessment}
+                  >
+                    <option value="">Select severity level</option>
+                    <option value="Minor">Minor</option>
+                    <option value="Major">Major</option>
+                  </select>
+                  <ErrorMsg msg={errors.severityAssessment} />
                 </div>
               </section>
 

@@ -234,6 +234,24 @@ const FeedbackDetail = () => {
                     <span className="font-semibold text-gray-700">Suggested Corrective Action: </span>
                     <div className="mt-1 p-3 bg-gray-50 rounded-lg border">{deviation.corrective_action}</div>
                 </div>
+                <div className="mb-4">
+                    <span className="font-semibold text-gray-700">Description of Investigator Corrective Action: </span>
+                    <div className="mt-1 p-3 bg-gray-50 rounded-lg border">{deviation.investigator_corrective_action || '-'}</div>
+                </div>
+                <div className="mb-4">
+                    <span className="font-semibold text-gray-700">Investigator Assessment of Severity: </span>
+                    <div className="mt-1 p-3 bg-gray-50 rounded-lg border">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
+                            deviation.severity_assessment === 'Major' 
+                                ? 'bg-red-100 text-red-800 border border-red-300' 
+                                : deviation.severity_assessment === 'Minor'
+                                ? 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                                : ''
+                        }`}>
+                            {deviation.severity_assessment || '-'}
+                        </span>
+                    </div>
+                </div>
                 
                 {/* Chairperson Feedback Section */}
                 <div className="mb-6 p-4 border-l-4 border-blue-300 bg-blue-50 rounded-r-lg">

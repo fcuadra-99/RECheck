@@ -15,6 +15,8 @@ export interface DeviationReportFormInput {
   supportingDocuments: string[];
   reportSubmissionDate: string;
   type: string;
+  investigatorCorrectiveAction: string;
+  severityAssessment: string;
 }
 
 export async function submitDeviationReport(form: DeviationReportFormInput) {
@@ -36,6 +38,8 @@ export async function submitDeviationReport(form: DeviationReportFormInput) {
     supporting_documents: form.supportingDocuments || [],
     report_submission_date: form.reportSubmissionDate,
     type: form.type,
+    investigator_corrective_action: form.investigatorCorrectiveAction,
+    severity_assessment: form.severityAssessment,
   } as any;
   if (userId) base.reported_by_user = userId; // let trigger fill if absent
 

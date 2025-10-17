@@ -17,6 +17,8 @@ export interface ResearcherDeviationReport {
   type: string;
   status: string;
   severity?: string;
+  investigator_corrective_action?: string; // Description of investigator corrective action
+  severity_assessment?: string; // Investigator assessment of severity (Minor/Major)
   review?: string; // Feedback from chairperson
   corrective_action_feedback?: string; // Feedback for major deviations
   corrective_action_required?: string;
