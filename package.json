@@ -37,6 +37,7 @@
     "radix-ui": "^1.4.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-pdf": "^10.2.0",
     "react-router": "^7.6.3",
     "react-router-dom": "^7.6.3",
     "react-signature-canvas": "^1.1.0-alpha.2",

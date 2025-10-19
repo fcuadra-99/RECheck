@@ -107,8 +107,14 @@ export class TemplateDownloadService {
     return formTemplates;
   }
 
-  // Get templates that can be uploaded through the forms section (excludes Protocol Final Report)
+  // Get templates that can be filled online (all templates)
   static getUploadableTemplates(): FormTemplate[] {
+    // For "Fill Online", we allow all templates including Protocol Final Report
+    return formTemplates;
+  }
+
+  // Get templates that can be uploaded as completed files (excludes Protocol Final Report)
+  static getUploadOnlyTemplates(): FormTemplate[] {
     return formTemplates.filter(template => template.id !== 'protocol-final-report');
   }
 

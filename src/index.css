@@ -1,1 +1,19 @@
-@import "tailwindcss";
+@import "tailwindcss";@import "tailwindcss";
+
+/* Custom cursor for add field mode - shows where field will be placed */
+.add-field-cursor {
+  cursor: crosshair;
+  position: relative;
+}
+
+.add-field-cursor::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border: 2px dashed rgba(99, 102, 241, 0.6);
+  background: rgba(99, 102, 241, 0.1);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}

@@ -2,18 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import AttachmentList from '../../components/AttachmentList';
-import { 
-  ArrowLeft, 
-  FileText, 
-  User, 
-  Calendar, 
-  CheckCircle, 
-  XCircle, 
-  AlertCircle, 
-  Download,
-  Eye,
-  Clock
-} from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, AlertCircle, Download, Eye } from 'lucide-react';
 
 interface TemplateSubmission {
   id: string;
@@ -259,16 +248,6 @@ export default function ResearcherSubmissionDetail() {
                     <p className="text-sm text-gray-600">{formatDate(submission.submitted_at)}</p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <CheckCircle className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Digital Signature</p>
-                    <p className={`text-sm ${submission.digital_signature_status === 'signed' ? 'text-green-600' : 'text-red-600'}`}>
-                      {submission.digital_signature_status === 'signed' ? 'Signed' : 'Unsigned'}
-                      {submission.signature_date && ` on ${formatDate(submission.signature_date)}`}
-                    </p>
-                  </div>
-                </div>
               </div>
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-sm font-medium text-gray-900 mb-2">Original Filename</p>
@@ -383,71 +362,6 @@ export default function ResearcherSubmissionDetail() {
                       <p className="text-sm text-gray-600 whitespace-pre-wrap">
                         {submission.reviewer_notes}
                       </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Digital Signature Status */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Digital Signature</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-shrink-0">
-                      <User className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Your Signature</h4>
-                      <p className="text-sm text-gray-500">
-                        {submission.digital_signature_status === 'signed' 
-                          ? `Signed on ${formatDate(submission.signature_date!)}`
-                          : 'Document requires your signature'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex-shrink-0">
-                    {submission.digital_signature_status === 'signed' ? (
-                      <div className="flex items-center text-green-600">
-                        <CheckCircle className="w-5 h-5 mr-1" />
-                        <span className="text-sm font-medium">Signed</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center text-gray-400">
-                        <Clock className="w-5 h-5 mr-1" />
-                        <span className="text-sm font-medium">Pending</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {submission.digital_signature_status === 'signed' && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-start">
-                      <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 mr-3" />
-                      <div>
-                        <h4 className="text-sm font-medium text-green-900">Document Signed</h4>
-                        <p className="text-sm text-green-700 mt-1">
-                          You signed this document on {formatDate(submission.signature_date!)}
-                        </p>
-                        <p className="text-xs text-green-600 mt-2">
-                          Document integrity verified and authenticated.
-                        </p>
-                        
-                        {/* Display Signature Image */}
-                        {submission.signature_image && (
-                          <div className="mt-3 pt-3 border-t border-green-200">
-                            <p className="text-xs text-green-600 mb-2">Your Digital Signature:</p>
-                            <div className="bg-white p-2 rounded border border-green-200 inline-block">
-                              <img 
-                                src={submission.signature_image} 
-                                alt="Digital Signature" 
-                                className="max-w-[200px] max-h-[60px] object-contain"
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
                 )}

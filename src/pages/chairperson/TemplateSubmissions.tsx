@@ -278,9 +278,6 @@ export default function TemplateSubmissions() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Signature
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -317,21 +314,6 @@ export default function TemplateSubmissions() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(submission.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        {submission.digital_signature_status === 'signed' ? (
-                          <div className="flex items-center text-green-600">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            <span className="text-sm">Signed</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center text-red-600">
-                            <AlertCircle className="w-4 h-4 mr-1" />
-                            <span className="text-sm">Unsigned</span>
-                          </div>
-                        )}
-                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex items-center space-x-2">

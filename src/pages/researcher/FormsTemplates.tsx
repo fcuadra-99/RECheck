@@ -1,177 +1,186 @@
 import { useState } from 'react';
-import { Download, Upload, ArrowLeft, BookOpen } from 'lucide-react';
-import TemplateDownload from '../../components/TemplateDownload';
-import TemplateUploadAndSign from '../../components/TemplateUploadAndSign';
+import { BookOpen } from 'lucide-react';
+import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
+import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 
 export default function FormsTemplates() {
-  const [selectedAction, setSelectedAction] = useState<'download' | 'upload' | null>(null);
+  const [selectedAction, setSelectedAction] = useState<'fill-online' | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
-  const handleTemplateUploadComplete = (submissionId: string) => {
-    console.log('Template upload and signature complete, submission ID:', submissionId);
-    alert('Form submitted successfully with digital signature! Your submission is now being reviewed by REC Chairperson.');
-    setSelectedAction(null);
-    setSelectedTemplate('');
-  };
+  // handleTemplateUploadComplete removed as upload functionality is no longer needed
 
   const handleCancel = () => {
     setSelectedAction(null);
     setSelectedTemplate('');
   };
 
-  if (selectedAction === 'upload' && selectedTemplate) {
-    // Find the selected template details
+  const handleFormSave = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
+    console.log('=== handleFormSave called ===');
+    console.log('Form filled and saved:', formData);
+    console.log('PDF size:', pdfBytes.length, 'bytes');
+    
+    try {
+      // Convert the PDF bytes to a File object - handle type safely by using Array.from
+      const pdfArray = Array.from(pdfBytes);
+      const pdfBlob = new Blob([new Uint8Array(pdfArray)], { type: 'application/pdf' });
+      const pdfFile = new File(
+        [pdfBlob], 
+        `${selectedTemplate}_filled.pdf`, 
+        { type: 'application/pdf', lastModified: Date.now() }
+      );
+      
+      // Prepare the submission data
+      // Find template by finding the template with matching name
+      const allTemplates = TemplateDownloadService.getAllTemplates();
+      const templateDetails = allTemplates.find(t => t.name === selectedTemplate);
+      
+      const submissionData = {
+        submission_title: `${selectedTemplate} Submission`,
+        template_name: selectedTemplate,
+        template_category: templateDetails?.category || 'general',
+        file: pdfFile,
+        description: `Completed form for ${selectedTemplate}`,
+        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
+      };
+      
+      // Submit the form
+      const submissionService = new TemplateSubmissionService();
+      const result = await submissionService.createSubmission(submissionData);
+      
+      if (result.success) {
+        alert('Form submitted successfully! Your submission will be reviewed.');
+      } else {
+        throw new Error(result.error || 'Unknown error during submission');
+      }
+      
+      // Reset view to go back to forms list
+      setSelectedAction(null);
+      setSelectedTemplate('');
+      
+      console.log('=== handleFormSave completed ===');
+    } catch (error) {
+      console.error('Error in handleFormSave:', error);
+      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Fill Form Online View
+  if (selectedAction === 'fill-online' && selectedTemplate) {
     const templateDetails = TemplateDownloadService.getUploadableTemplates().find(t => t.name === selectedTemplate);
     
+    if (!templateDetails) {
+      console.error('Template not found:', selectedTemplate);
+      alert('Template configuration not found. Please try again.');
+      setSelectedAction(null);
+      setSelectedTemplate('');
+      return null;
+    }
+
+    console.log('Loading template:', templateDetails);
+    
     return (
-      <div className="min-h-screen bg-gray-50 py-10 px-4">
-        <div className="max-w-6xl mx-auto">
-          <button
-            onClick={handleCancel}
-            className="mb-6 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Forms
-          </button>
-          
-          <TemplateUploadAndSign
-            templateType={selectedTemplate}
-            templateName={templateDetails?.name || selectedTemplate}
-            templateCategory={templateDetails?.category || 'report'}
-            onComplete={handleTemplateUploadComplete}
-            onCancel={handleCancel}
-          />
-        </div>
-      </div>
+      <PDFFormFiller
+        templateUrl={templateDetails.templateUrl}
+        templateName={templateDetails.name}
+        onSave={handleFormSave}
+        onCancel={handleCancel}
+      />
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 bg-indigo-100 rounded-full">
-              <BookOpen className="w-8 h-8 text-indigo-600" />
-            </div>
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-3">Post Approval Forms</h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Download official research form templates to fill out offline, then upload and sign digitally for authentication and compliance.
-          </p>
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 max-w-3xl mx-auto">
-            <p className="text-sm text-amber-900">
-              <span className="font-semibold">Note:</span> You can download the "Protocol Final Report" template here, but it must be submitted through the dedicated "Final Report Submission" page, not uploaded here.
-            </p>
-          </div>
-        </div>
+  // Upload functionality removed as it's been replaced by the fill-online submission
 
+  return (
+    <div className="min-h-screen bg-white">
+      <div className="max-w-3xl mx-auto px-6 py-16">
         {!selectedAction && (
           <>
-            {/* Action Selection */}
-            <div className="mb-10 bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-           
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Download Templates Option */}
-                <div className="border-2 border-gray-200 rounded-xl p-6 hover:border-indigo-300 hover:shadow-md transition-all duration-200 cursor-pointer group">
-                  <div className="text-center">
-                    <div className="mx-auto w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition-colors">
-                      <Download className="w-8 h-8 text-indigo-600" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">Download Templates</h3>
-                    <p className="text-gray-600 mb-6 leading-relaxed">
-                      Download official PDF templates to fill out offline at your convenience. Perfect for detailed forms that require research or consultation.
-                    </p>
-                    <button
-                      onClick={() => setSelectedAction('download')}
-                      className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
-                    >
-                      Browse Templates
-                    </button>
-                  </div>
-                </div>
-
-                {/* Upload Completed Forms Option */}
-                <div className="border-2 border-gray-200 rounded-xl p-6 hover:border-green-300 hover:shadow-md transition-all duration-200 cursor-pointer group">
-                  <div className="text-center">
-                    <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-                      <Upload className="w-8 h-8 text-green-600" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">Upload Completed Forms</h3>
-                    <p className="text-gray-600 mb-6 leading-relaxed">
-                      Upload your completed forms and apply digital signatures for authentication. Secure and legally compliant.
-                    </p>
-                    <div className="space-y-3">
-                      <select
-                        value={selectedTemplate}
-                        onChange={(e) => setSelectedTemplate(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                      >
-                        <option value="">Select form type...</option>
-                        {TemplateDownloadService.getUploadableTemplates().map((template) => (
-                          <option key={template.id} value={template.name}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => selectedTemplate && setSelectedAction('upload')}
-                        disabled={!selectedTemplate}
-                        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-                      >
-                        Upload & Sign
-                      </button>
-                    </div>
-                  </div>
+            {/* Header Section */}
+            <div className="mb-16">
+              <div className="inline-block mb-6">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-full border border-gray-200">
+                  <BookOpen className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">Post Approval Forms</span>
                 </div>
               </div>
+              <h1 className="text-5xl font-semibold text-gray-900 mb-4 tracking-tight">
+                Submit Your Forms
+              </h1>
+              <p className="text-lg text-gray-500 leading-relaxed">
+                Complete and submit your research documentation directly through our online form system.
+              </p>
             </div>
 
-            {/* Workflow Steps */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">How It Works</h2>
-              <div className="grid md:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">1</div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Download</h4>
-                  <p className="text-sm text-gray-600">Choose and download the official PDF template you need</p>
+            {/* Main Form Selection */}
+            <div className="space-y-6 mb-16">
+              <div>
+                <label htmlFor="template-select" className="block text-sm font-medium text-gray-700 mb-3">
+                  Select Form Template
+                </label>
+                <select
+                  id="template-select"
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  className="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
+                >
+                  <option value="">Choose a form...</option>
+                  {TemplateDownloadService.getUploadableTemplates().map((template) => (
+                    <option key={template.id} value={template.name}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                onClick={() => selectedTemplate && setSelectedAction('fill-online')}
+                disabled={!selectedTemplate}
+                className="w-full px-6 py-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+              >
+                {selectedTemplate ? 'Continue to Form' : 'Select a form to continue'}
+              </button>
+            </div>
+
+            {/* Info Section */}
+            <div className="border-t border-gray-200 pt-12">
+              <h2 className="text-sm font-medium text-gray-900 mb-4 uppercase tracking-wide">
+                How It Works
+              </h2>
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-medium">
+                    1
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-1">Select Form</h3>
+                    <p className="text-sm text-gray-600">Choose the form template you need to complete</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">2</div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Fill Out</h4>
-                  <p className="text-sm text-gray-600">Complete the form offline using your preferred PDF editor</p>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-medium">
+                    2
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-1">Fill Information</h3>
+                    <p className="text-sm text-gray-600">Complete the form fields directly in your browser</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">3</div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Upload</h4>
-                  <p className="text-sm text-gray-600">Upload your completed form back to the system</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center mx-auto mb-3 text-xl font-bold">4</div>
-                  <h4 className="font-semibold text-gray-900 mb-2">Sign</h4>
-                  <p className="text-sm text-gray-600">Apply your digital signature for authentication and compliance</p>
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-sm font-medium">
+                    3
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900 mb-1">Submit</h3>
+                    <p className="text-sm text-gray-600">Save and submit your completed form for review</p>
+                  </div>
                 </div>
               </div>
             </div>
           </>
         )}
 
-        {selectedAction === 'download' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-semibold text-gray-900">Download Post Approval Forms</h2>
-              <button
-                onClick={() => setSelectedAction(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Back to Options
-              </button>
-            </div>
-            <TemplateDownload />
-          </div>
-        )}
+        {/* Download functionality has been removed */}
       </div>
     </div>
   );
