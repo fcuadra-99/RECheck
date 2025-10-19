@@ -87,6 +87,16 @@ const navConfig = {
       { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
     ],
   },
+  deviations: {
+    title: "Deviations",
+    url: "/ssubm",
+    icon: BookCopy,
+    items: [
+      { title: "Deviations", url: "/ssubm/dev1", role: "Admin Assistant" },
+      { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
+      { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+    ],
+  },
   admin: {
     title: "Admin",
     url: "/admin",

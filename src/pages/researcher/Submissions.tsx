@@ -341,7 +341,54 @@ export default function SubmissionsPage() {
     const [studyReportFiles, setStudyReportFiles] = useState<File[]>([]);
 
     const [deviationType, setDeviationType] = useState<string>("");
-    // const [deviationFormData, setDeviationFormData] = useState<any>(null);
+    const [isDragOver, setIsDragOver] = useState<string | null>(null);
+
+    const handleDragOver = (e: React.DragEvent, docName?: string) => {
+        e.preventDefault();
+        if (docName) {
+            setIsDragOver(docName);
+        }
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(null);
+    };
+
+    const handleDrop = (e: React.DragEvent, docName: string, doc: DocumentItem) => {
+        e.preventDefault();
+        setIsDragOver(null);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            const file = files[0];
+
+            // Validate the file
+            if (!file) return;
+
+            // Special handling for Payment Receipt (accepts images)
+            if (doc.name === "Payment Receipt") {
+                const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+                if (!allowedTypes.includes(file.type)) {
+                    toast.error("Only PDF, PNG, and JPG files are allowed for Payment Receipt");
+                    return;
+                }
+            } else {
+                if (file.type !== "application/pdf") {
+                    toast.error("Only PDF files are allowed");
+                    return;
+                }
+            }
+
+            if (file.size > 25 * 1024 * 1024) {
+                toast.error("File size must be under 25MB");
+                return;
+            }
+
+            handleFileSelect(docName, file);
+        }
+    };
+
 
     /* fetch initial data */
     useEffect(() => {
@@ -412,8 +459,13 @@ export default function SubmissionsPage() {
                 if (hist?.affected_files) {
                     try {
                         const parsed = typeof hist.affected_files === "string" ? JSON.parse(hist.affected_files) : hist.affected_files;
+                        // Only set history files for resend statuses
                         setHistoryFiles(
-                            parsed.map((f: any) => ({ name: f.name, required: f.required, templateUrl: "/templates/unknown.pdf" }))
+                            parsed.map((f: any) => ({
+                                name: f.name,
+                                required: f.required,
+                                templateUrl: "/templates/unknown.pdf"
+                            }))
                         );
                         setLatestComment(hist.comment || null);
                     } catch (err) {
@@ -449,9 +501,18 @@ export default function SubmissionsPage() {
 
             if (!data || data.length === 0) return [];
 
+            // Filter out system files and empty folder placeholders
+            const validFiles = data.filter((f: any) =>
+                !f.name.startsWith('.') &&
+                !f.name.includes('emptyfolderplaceholder') &&
+                f.name !== '.emptyFolderPlaceholder'
+            );
+
+            if (validFiles.length === 0) return [];
+
             // Map each file to a signed URL
             const signedFiles = await Promise.all(
-                data.map(async (f: any) => {
+                validFiles.map(async (f: any) => {
                     const { data: signed, error: signError } = await supabase.storage
                         .from("documents")
                         .createSignedUrl(`${path}/${f.name}`, 60 * 5);
@@ -540,7 +601,7 @@ export default function SubmissionsPage() {
 
     /* submit completed forms & advance phase */
     const uploadAndAdvancePhase = async (submission: Submission) => {
-        const docs = historyFiles || getPhaseDocuments(submission);
+        const docs = getFilesNeedingRevision(submission); // Use the new function
         const loadingId = toast.loading("Submitting forms...");
 
         try {
@@ -574,26 +635,29 @@ export default function SubmissionsPage() {
             for (const doc of docs) {
                 let filePath: string | null = null;
 
-                // If user uploaded a file for this doc, upload it to storage
+                // If user uploaded a file for this doc, upload it to storage with replacement
                 const uploadStatus = phaseUploadStatus(getActivePhaseIndex(submission.status));
                 if (uploadedFiles[doc.name]) {
                     try {
                         const file = uploadedFiles[doc.name]!;
 
-                        // generate storage filename from document name
-                        const slugify = (s: string) => s
-                            .toLowerCase()
-                            .replace(/\.pdf$/i, '')
-                            .replace(/[^a-z0-9]+/g, '_')
-                            .replace(/^_+|_+$/g, '');
+                        // Use the exact document name from DocumentItem for the filename
+                        const getStorageFilename = (docName: string): string => {
+                            // Special case for "All Grades"
+                            if (docName === 'All Grades') return 'All Grades.pdf';
 
-                        const storageFilename = doc.name === 'All Grades' ? 'all_files.pdf' : `${slugify(doc.name)}.pdf`;
+                            // For all other documents, use the exact name + .pdf extension
+                            const baseName = docName.replace(/\.pdf$/i, '');
+                            return `${baseName}.pdf`;
+                        };
+
+                        const storageFilename = getStorageFilename(doc.name);
                         const path = `${submission.proposal_id}/${uploadStatus || 'other'}/${storageFilename}`;
 
-                        // Create a new File with the storage filename so the uploaded object has the normalized name
+                        // Create a new File with the standardized filename
                         const renamedFile = new File([file], storageFilename, { type: file.type });
 
-                        // upload (upsert true to replace existing)
+                        // Upload with replacement (upsert: true to replace existing)
                         const { error: uploadError } = await supabase.storage.from('documents').upload(path, renamedFile, { upsert: true });
                         if (uploadError) throw uploadError;
 
@@ -604,18 +668,63 @@ export default function SubmissionsPage() {
                     }
                 }
 
-                // Insert a record about the document submission. Use only fields we know exist in your schema.
-                const record: any = {
-                    proposal_id: submission.proposal_id,
-                    doc_type: doc.name,
-                    file_path: filePath || "",
-                    uploaded_at: filePath ? new Date().toISOString() : null,
-                };
+                // For resend statuses, update existing records instead of creating new ones
+                if (["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
+                    // Check if a record already exists for this document
+                    const { data: existingRecords } = await supabase
+                        .from('proposal_documents')
+                        .select('*')
+                        .eq('proposal_id', submission.proposal_id)
+                        .eq('doc_type', doc.name)
+                        .order('uploaded_at', { ascending: false })
+                        .limit(1);
 
-                const { error: dbError } = await supabase.from('proposal_documents').insert(record);
-                if (dbError) {
-                    console.error('Failed to insert proposal_documents record for', doc.name, dbError);
-                    throw new Error(dbError.message || 'Failed to record document submission');
+                    if (existingRecords && existingRecords.length > 0) {
+                        // Update the existing record with new file path and timestamp
+                        const { error: updateError } = await supabase
+                            .from('proposal_documents')
+                            .update({
+                                file_path: filePath || existingRecords[0].file_path,
+                                uploaded_at: filePath ? new Date().toISOString() : existingRecords[0].uploaded_at,
+                                revision_number: (existingRecords[0].revision_number || 1) + 1, // Increment revision number
+                            })
+                            .eq('id', existingRecords[0].id);
+
+                        if (updateError) {
+                            console.error('Failed to update proposal_documents record for', doc.name, updateError);
+                            throw new Error(updateError.message || 'Failed to update document record');
+                        }
+                    } else {
+                        // If no existing record found, create a new one
+                        const record: any = {
+                            proposal_id: submission.proposal_id,
+                            doc_type: doc.name,
+                            file_path: filePath || "",
+                            uploaded_at: filePath ? new Date().toISOString() : null,
+                            revision_number: 1,
+                        };
+
+                        const { error: dbError } = await supabase.from('proposal_documents').insert(record);
+                        if (dbError) {
+                            console.error('Failed to insert proposal_documents record for', doc.name, dbError);
+                            throw new Error(dbError.message || 'Failed to record document submission');
+                        }
+                    }
+                } else {
+                    // For non-resend statuses, create new records as before
+                    const record: any = {
+                        proposal_id: submission.proposal_id,
+                        doc_type: doc.name,
+                        file_path: filePath || "",
+                        uploaded_at: filePath ? new Date().toISOString() : null,
+                        revision_number: 1,
+                    };
+
+                    const { error: dbError } = await supabase.from('proposal_documents').insert(record);
+                    if (dbError) {
+                        console.error('Failed to insert proposal_documents record for', doc.name, dbError);
+                        throw new Error(dbError.message || 'Failed to record document submission');
+                    }
                 }
             }
 
@@ -659,6 +768,21 @@ export default function SubmissionsPage() {
             toast.error("Submission failed: " + (err.message || err), { id: loadingId });
         }
     };
+
+    const getFilesNeedingRevision = (submission: Submission): DocumentItem[] => {
+        if (!["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
+            return getPhaseDocuments(submission);
+        }
+
+        // For resend statuses, only return files that were marked as needing revision
+        if (historyFiles && historyFiles.length > 0) {
+            return historyFiles;
+        }
+
+        // Fallback: if no history files, return all phase documents
+        return getPhaseDocuments(submission);
+    };
+
 
     const handleStudyReportUpload = async () => {
         if (studyReportFiles.length === 0) {
@@ -736,96 +860,27 @@ export default function SubmissionsPage() {
         }
     };
 
-    /* Data Collection phase actions */
-    // const handleSendDeviationReport = async () => {
-    //     try {
-    //         const loadingId = toast.loading("Submitting deviation report...");
-
-    //         // Update proposal status
-    //         const { error: statusError } = await supabase
-    //             .from("proposals")
-    //             .update({ status: "Send Deviation Report" })
-    //             .eq("proposal_id", activeSubmission!.proposal_id);
-
-    //         if (statusError) throw new Error(statusError.message);
-
-    //         // Record in history
-    //         const { data: userData } = await supabase.auth.getUser();
-    //         const actorId = userData?.user?.id || "unknown";
-
-    //         const { error: historyError } = await supabase.from("history").insert({
-    //             history_type: "deviation_report",
-    //             paper_id: activeSubmission!.proposal_id,
-    //             comment: "Deviation report submitted",
-    //             actor: actorId,
-    //             affected_files: [],
-    //             action: "Submit Deviation Report",
-    //             history_date: new Date().toISOString(),
-    //         });
-
-    //         if (historyError) throw new Error(historyError.message);
-
-    //         // Refresh data
-    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
-    //         setSubmissions(refreshed || []);
-    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
-    //         if (updated) setActiveSubmission(updated as Submission);
-
-    //         setDeviationReportOpen(false);
-    //         toast.success("Deviation report submitted successfully", { id: loadingId });
-    //     } catch (err: any) {
-    //         console.error(err);
-    //         toast.error("Failed to submit deviation report: " + (err.message || err));
-    //     }
-    // };
-
-    // const handleSendStudyReport = async () => {
-    //     try {
-    //         const loadingId = toast.loading("Submitting study report...");
-
-    //         // Update proposal status
-    //         const { error: statusError } = await supabase
-    //             .from("proposals")
-    //             .update({ status: "Send Study Report" })
-    //             .eq("proposal_id", activeSubmission!.proposal_id);
-
-    //         if (statusError) throw new Error(statusError.message);
-
-    //         // Record in history
-    //         const { data: userData } = await supabase.auth.getUser();
-    //         const actorId = userData?.user?.id || "unknown";
-
-    //         const { error: historyError } = await supabase.from("history").insert({
-    //             history_type: "study_report",
-    //             paper_id: activeSubmission!.proposal_id,
-    //             comment: "Study report submitted",
-    //             actor: actorId,
-    //             affected_files: [],
-    //             action: "Submit Study Report",
-    //             history_date: new Date().toISOString(),
-    //         });
-
-    //         if (historyError) throw new Error(historyError.message);
-
-    //         // Refresh data
-    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
-    //         setSubmissions(refreshed || []);
-    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
-    //         if (updated) setActiveSubmission(updated as Submission);
-
-    //         setStudyReportOpen(false);
-    //         toast.success("Study report submitted successfully", { id: loadingId });
-    //     } catch (err: any) {
-    //         console.error(err);
-    //         toast.error("Failed to submit study report: " + (err.message || err));
-    //     }
-    // };
-
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
-        const docs = historyFiles || getPhaseDocuments(submission);
+        const docs = getFilesNeedingRevision(submission); // Use the new function
+
+        // Show a message when in resend status and only showing specific files
+        const isResendStatus = ["Resend Manuscript", "Resend Forms"].includes(submission.status);
+
         return (
             <div className="space-y-4">
+                {isResendStatus && historyFiles && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm text-amber-800">
+                                <div className="font-medium">Revision Required</div>
+                                <div>Please revise the following documents based on reviewer feedback:</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {docs.map((doc) => (
                     <div key={doc.name} className="border rounded-lg p-4 bg-white shadow-sm">
                         {/* Horizontal layout: Title | Upload Area | Buttons */}
@@ -850,91 +905,104 @@ export default function SubmissionsPage() {
                                                     Needs Answer
                                                 </Badge>
                                             )}
+                                            {isResendStatus && (
+                                                <Badge variant="destructive" className="text-xs">
+                                                    Needs Revision
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Upload/Status Area - Middle */}
-                            <div className="w-1/3 min-h-[80px] mx-10">
-                                {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(submission.status) &&
-                                    !doc.needsSignature && !doc.needsAnswer) ? (
-                                    /* Upload area for uploadable documents */
-                                    <label
-                                        htmlFor={`file-${doc.name}`}
-                                        className={cn(
-                                            "w-full h-full border-2 border-dashed rounded-lg p-3 transition-colors block cursor-pointer",
-                                            uploadedFiles[doc.name]
-                                                ? "border-primary bg-primary/5"
+                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(submission.status) &&
+                                !doc.needsSignature && !doc.needsAnswer) ? (
+                                /* Upload area for uploadable documents with drag and drop */
+                                <label
+                                    htmlFor={`file-${doc.name}`}
+                                    className={cn(
+                                        "w-1/2 h-full border-2 border-dashed rounded-lg p-3 transition-colors block cursor-pointer",
+                                        uploadedFiles[doc.name]
+                                            ? "border-primary bg-primary/5"
+                                            : isDragOver === doc.name
+                                                ? "border-primary bg-primary/10"
                                                 : "border-gray-300 hover:border-gray-400"
-                                        )}
-                                    >
-                                        <Input
-                                            id={`file-${doc.name}`}
-                                            type="file"
-                                            accept={doc.name === "Payment Receipt" ? ".pdf,.png,.jpg,.jpeg" : ".pdf"}
-                                            className="hidden"
-                                            onChange={(e) => {
-                                                if (e.target.files) {
-                                                    const file = e.target.files[0];
-                                                    if (!file) return;
+                                    )}
+                                    onDragOver={(e) => handleDragOver(e, doc.name)}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={(e) => handleDrop(e, doc.name, doc)}
+                                >
+                                    <Input
+                                        id={`file-${doc.name}`}
+                                        type="file"
+                                        accept={doc.name === "Payment Receipt" ? ".pdf,.png,.jpg,.jpeg" : ".pdf"}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files) {
+                                                const file = e.target.files[0];
+                                                if (!file) return;
 
-                                                    // Special handling for Payment Receipt (accepts images)
-                                                    if (doc.name === "Payment Receipt") {
-                                                        const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
-                                                        if (!allowedTypes.includes(file.type)) {
-                                                            toast.error("Only PDF, PNG, and JPG files are allowed for Payment Receipt");
-                                                            (e.target as HTMLInputElement).value = "";
-                                                            return;
-                                                        }
-                                                    } else {
-                                                        if (file.type !== "application/pdf") {
-                                                            toast.error("Only PDF files are allowed");
-                                                            (e.target as HTMLInputElement).value = "";
-                                                            return;
-                                                        }
-                                                    }
-
-                                                    if (file.size > 25 * 1024 * 1024) {
-                                                        toast.error("File size must be under 25MB");
+                                                // Special handling for Payment Receipt (accepts images)
+                                                if (doc.name === "Payment Receipt") {
+                                                    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
+                                                    if (!allowedTypes.includes(file.type)) {
+                                                        toast.error("Only PDF, PNG, and JPG files are allowed for Payment Receipt");
                                                         (e.target as HTMLInputElement).value = "";
                                                         return;
                                                     }
-
-                                                    handleFileSelect(doc.name, file);
+                                                } else {
+                                                    if (file.type !== "application/pdf") {
+                                                        toast.error("Only PDF files are allowed");
+                                                        (e.target as HTMLInputElement).value = "";
+                                                        return;
+                                                    }
                                                 }
-                                            }}
-                                        />
-                                        <div className="text-center flex flex-col items-center justify-center h-full">
-                                            <FileUp className="h-6 w-6 text-gray-400 mb-1" />
-                                            <p className="text-xs text-gray-500 truncate max-w-full">
-                                                {uploadedFiles[doc.name]
-                                                    ? uploadedFiles[doc.name]?.name
-                                                    : "Click to upload"}
-                                            </p>
-                                            {doc.name === "Payment Receipt" && (
-                                                <p className="text-xs text-gray-400 mt-1">PDF, PNG, or JPG</p>
-                                            )}
-                                        </div>
-                                    </label>
-                                ) : (
-                                    /* Status area for forms that need signature/answers - NO file input */
-                                    <div className="w-full h-full border-2 rounded-lg p-3 bg-gray-50 cursor-default">
-                                        <div className="text-center flex flex-col items-center justify-center h-full">
-                                            <Pen className="h-6 w-6 text-gray-400 mb-1" />
-                                            <p className="text-xs text-gray-500">
-                                                Form to be filled out
-                                            </p>
-                                            <p className="text-xs text-gray-400 mt-1">
-                                                {(answeredDocuments[doc.name] ? "✓ " : "• ") + "Answers"}
-                                                {" | "}
-                                                {(signedDocuments[doc.name] ? "✓ " : "• ") + "Signature"}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
 
+                                                if (file.size > 25 * 1024 * 1024) {
+                                                    toast.error("File size must be under 25MB");
+                                                    (e.target as HTMLInputElement).value = "";
+                                                    return;
+                                                }
+
+                                                handleFileSelect(doc.name, file);
+                                            }
+                                        }}
+                                    />
+                                    <div className="text-center flex flex-col items-center justify-center h-full">
+                                        <FileUp className="h-6 w-6 text-gray-400 mb-1" />
+                                        <p className="text-xs text-gray-500 truncate max-w-full">
+                                            {uploadedFiles[doc.name]
+                                                ? uploadedFiles[doc.name]?.name
+                                                : "Click to upload or drag & drop"}
+                                        </p>
+                                        {doc.name === "Payment Receipt" && (
+                                            <p className="text-xs text-gray-400 mt-1">PDF, PNG, or JPG</p>
+                                        )}
+                                        {isResendStatus && uploadedFiles[doc.name] && (
+                                            <p className="text-xs text-amber-600 mt-1">Will replace existing file</p>
+                                        )}
+                                    </div>
+                                </label>
+                            ) : (
+                                /* Status area for forms that need signature/answers - NO file input */
+                                <div className="w-full h-full border-2 rounded-lg p-3 bg-gray-50 cursor-default">
+                                    <div className="text-center flex flex-col items-center justify-center h-full">
+                                        <Pen className="h-6 w-6 text-gray-400 mb-1" />
+                                        <p className="text-xs text-gray-500">
+                                            Form to be filled out
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            {(answeredDocuments[doc.name] ? "✓ " : "• ") + "Answers"}
+                                            {" | "}
+                                            {(signedDocuments[doc.name] ? "✓ " : "• ") + "Signature"}
+                                        </p>
+                                        {isResendStatus && (
+                                            <p className="text-xs text-amber-600 mt-1">Will update existing submission</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {/* Action Buttons - Right side */}
                             <div className="flex flex-col gap-2 w-full lg:w-[140px]">
                                 {/* Template Download - if available */}
@@ -1080,13 +1148,12 @@ export default function SubmissionsPage() {
                         })}
                         className="w-full sm:w-auto"
                     >
-                        Submit Phase
+                        {isResendStatus ? "Submit Revisions" : "Submit Phase"}
                     </RippleButton>
                 </div>
             </div>
         );
     };
-
     // Add this function to handle phase advancement
     const advanceToNextPhase = async (submission: Submission) => {
         const loadingId = toast.loading("Moving to next phase...");
@@ -1436,52 +1503,10 @@ export default function SubmissionsPage() {
         );
     };
 
-    // Add a function to handle deviation form completion
-    // const handleDeviationFormComplete = async (deviationData: any) => {
-    //     try {
-    //         const loadingId = toast.loading("Submitting deviation report...");
-
-    //         // Update proposal status to "Deviation Check"
-    //         const { error: statusError } = await supabase
-    //             .from("proposals")
-    //             .update({ status: "Deviation Check" })
-    //             .eq("proposal_id", activeSubmission!.proposal_id);
-
-    //         if (statusError) throw new Error(statusError.message);
-
-    //         // Record in history
-    //         const { data: userData } = await supabase.auth.getUser();
-    //         const actorId = userData?.user?.id || "unknown";
-
-    //         const { error: historyError } = await supabase.from("history").insert({
-    //             history_type: "deviation_report",
-    //             paper_id: activeSubmission!.proposal_id,
-    //             comment: `Deviation report submitted: ${deviationData.type}`,
-    //             actor: actorId,
-    //             affected_files: deviationData.supportingDocuments || [],
-    //             action: "Submit Deviation Report",
-    //             history_date: new Date().toISOString(),
-    //         });
-
-    //         if (historyError) throw new Error(historyError.message);
-
-    //         // Refresh data
-    //         const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
-    //         setSubmissions(refreshed || []);
-    //         const updated = refreshed?.find((p: any) => p.proposal_id === activeSubmission!.proposal_id);
-    //         if (updated) setActiveSubmission(updated as Submission);
-
-    //         toast.success("Deviation report submitted successfully", { id: loadingId });
-    //     } catch (err: any) {
-    //         console.error(err);
-    //         toast.error("Failed to submit deviation report: " + (err.message || err));
-    //     }
-    // };
-
     // If you want to integrate the form directly, you can add a state for it:
     const [showDeviationForm, setShowDeviationForm] = useState(false);
 
-    // And then conditionally render the form:
+
     {
         showDeviationForm && (
             <div className="fixed inset-0 bg-background z-50 flex flex-col">

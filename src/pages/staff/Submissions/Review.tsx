@@ -34,7 +34,10 @@ type Status =
   | "Assign Review"
   | "Proposal Review"
   | "Revise Proposal"
-  | "Data Collection";
+  | "Data Collection"
+  | "Deviation Check"
+  | "Study Report Check"
+  | "Revise Documents";
 
 let ide = "";
 let titlee = "";
@@ -69,13 +72,16 @@ function stat(params: Status) {
     "Risk Assessment": "Send Forms",
     "Forms Check": "Deploy Queue",
     "Deploy Queue": "Assign Review",
-    "Send Revision": "Check Revision", 
+    "Send Revision": "Check Revision",
     "Check Revision": "Assign Review",
     "Resend Revision": "Check Revision",
     "Assign Review": "Proposal Review",
     "Proposal Review": "Data Collection",
     "Revise Proposal": "Proposal Review",
     "Data Collection": "Data Collection",
+    "Deviation Check": "Data Collection",
+    "Study Report Check": " Send Final Report",
+    "Revise Documents": "Deviation Check",
   };
   return awa[params];
 }
@@ -93,6 +99,9 @@ function statm(params: Status) {
     "Proposal Review": "Revise Proposal",
     "Revise Proposal": "Proposal Review",
     "Data Collection": "Data Collection",
+    "Deviation Check": "Revise Documents",
+    "Study Report Check": "Revise Documents",
+    "Revise Documents": "Deviation Check",
   };
   return awa[params];
 }
@@ -174,6 +183,7 @@ export const SReview = () => {
   React.useEffect(() => {
     if (!id) return;
 
+    // In your SReview component's fetchDocs function
     const fetchDocs = async () => {
       try {
         const manuscriptPhase = "Send Manuscript";
@@ -187,22 +197,33 @@ export const SReview = () => {
 
         if (manuErr) throw manuErr;
 
+        // Filter out system files
+        const validManuFiles = manuList?.filter(f =>
+          !f.name.startsWith('.') &&
+          !f.name.includes('emptyfolderplaceholder')
+        ) || [];
+
         setManuscriptDocs(
-          manuList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+          validManuFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
         );
 
-        // List files for forms
+        // Repeat the same filtering for forms and revision lists...
         const { data: formsList, error: formsErr } = await supabase.storage
           .from("documents")
           .list(`${id}/${formsPhase}`);
 
         if (formsErr) throw formsErr;
 
+        const validFormsFiles = formsList?.filter(f =>
+          !f.name.startsWith('.') &&
+          !f.name.includes('emptyfolderplaceholder')
+        ) || [];
+
         setFormsDocs(
-          formsList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+          validFormsFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
         );
 
-        // List files for revision (if in revision phase)
+        // For revision phase
         if (status === "Check Revision") {
           const { data: revisionList, error: revisionErr } = await supabase.storage
             .from("documents")
@@ -210,8 +231,13 @@ export const SReview = () => {
 
           if (revisionErr) throw revisionErr;
 
+          const validRevisionFiles = revisionList?.filter(f =>
+            !f.name.startsWith('.') &&
+            !f.name.includes('emptyfolderplaceholder')
+          ) || [];
+
           setRevisionDocs(
-            revisionList?.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name })) || []
+            validRevisionFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
           );
         }
       } catch (err: any) {
@@ -386,10 +412,10 @@ export const SReview = () => {
   }
 
   // Determine which documents to show based on current status
-  const requirementDocs = 
+  const requirementDocs =
     status === "Check Manuscript" ? manuscriptDocs :
-    status === "Forms Check" || status === "Deploy Queue" ? formsDocs :
-    status === "Check Revision" ? revisionDocs : [];
+      status === "Forms Check" || status === "Deploy Queue" ? formsDocs :
+        status === "Check Revision" ? revisionDocs : [];
 
   // Get current documents based on active preview
   const getCurrentDocs = () => {
@@ -449,7 +475,7 @@ export const SReview = () => {
 
   const renderFullscreenPreview = () => {
     const currentDocs = getCurrentDocs();
-    
+
     return (
       <div className="fixed inset-0 z-50 flex bg-white">
         {/* Sidebar - File List */}
@@ -459,7 +485,7 @@ export const SReview = () => {
             <h2 className="text-lg font-semibold">{getPreviewTitle()}</h2>
             <p className="text-sm text-gray-500 mt-1">Select a document to view</p>
           </div>
-          
+
           {/* File List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {currentDocs.map((doc) => (
@@ -470,11 +496,11 @@ export const SReview = () => {
                   e.stopPropagation(); // Prevent event bubbling
                   setSelectedDoc(doc.file);
                 }}
-                className="w-full justify-start text-left h-auto py-3 px-4"
+                className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
               >
                 <div className="flex items-center gap-3">
                   <FileText className="h-4 w-4 flex-shrink-0" />
-                  <span className="text-sm truncate">{doc.name}</span>
+                  <span className="text-sm truncate text-ellipsis">{doc.name}</span>
                 </div>
               </Button>
             ))}
@@ -623,7 +649,7 @@ export const SReview = () => {
           <Button
             variant="outline"
             type="button"
-            disabled={!(status === "Forms Check" || status === "Deploy Queue")}
+            disabled={(status === "Check Manuscript" || status === "Risk Assessment")}
             onClick={() => handleOpenPreview("forms")}
           >
             View Details
@@ -662,7 +688,7 @@ export const SReview = () => {
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
             <User className="text-primary w-5 h-5" /> Assign Reviewer
           </h2>
-          
+
           {isLoadingReviewers ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -681,13 +707,11 @@ export const SReview = () => {
               {reviewers.map((reviewer) => (
                 <div
                   key={reviewer.id}
-                  className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${
-                    selectedReviewer === reviewer.id
-                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                      : "hover:border-gray-300 hover:bg-gray-50"
-                  } ${
-                    reviewer.assignedCount >= 3 ? "opacity-60 cursor-not-allowed" : ""
-                  }`}
+                  className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${selectedReviewer === reviewer.id
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                    : "hover:border-gray-300 hover:bg-gray-50"
+                    } ${reviewer.assignedCount >= 3 ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
                   onClick={() => {
                     if (reviewer.assignedCount < 3) {
                       setSelectedReviewer(reviewer.id);
@@ -705,20 +729,20 @@ export const SReview = () => {
                       <p className="text-xs text-gray-500">{reviewer.email}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
                     <Badge
                       className={
                         reviewer.assignedCount >= 3
                           ? "bg-red-50 text-red-700 border-red-300"
                           : reviewer.assignedCount >= 2
-                          ? "bg-yellow-50 text-yellow-700 border-yellow-300"
-                          : "bg-green-50 text-green-700 border-green-300"
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                            : "bg-green-50 text-green-700 border-green-300"
                       }
                     >
                       {reviewer.assignedCount}/3 assigned
                     </Badge>
-                    
+
                     {selectedReviewer === reviewer.id ? (
                       <Check className="h-5 w-5 text-primary" />
                     ) : reviewer.assignedCount >= 3 ? (
@@ -727,7 +751,7 @@ export const SReview = () => {
                   </div>
                 </div>
               ))}
-              
+
               {reviewers.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <User className="h-12 w-12 mx-auto mb-3 text-gray-300" />
@@ -748,14 +772,14 @@ export const SReview = () => {
             <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
               <RadioGroupItem
                 value="approve"
-                className="my-auto mr-4 w-4 h-4 z-50"
+                className="my-auto mr-4 w-4 h-4 z-0"
               />
               <div>
                 <div className="text-sm font-medium flex items-center gap-2">Approve <CheckCircle className="w-3 h-3 text-green-500" /></div>
                 <div className="text-muted-foreground text-xs">
                   {status === "Deploy Queue" ? "Queue proposal for Send Revision" :
-                   status === "Check Revision" ? "Queue proposal for Assign Review" :
-                   `Queue proposal for ${stat(status)}`}
+                    status === "Check Revision" ? "Queue proposal for Assign Review" :
+                      `Queue proposal for ${stat(status)}`}
                 </div>
               </div>
             </div>
@@ -765,7 +789,7 @@ export const SReview = () => {
               <div className="flex items-center">
                 <RadioGroupItem
                   value="deny"
-                  className="my-auto mr-4 w-4 h-4 z-50"
+                  className="my-auto mr-4 w-4 h-4 z-0"
                 />
                 <div>
                   <div className="text-sm font-medium flex items-center gap-2">Request Revision <Pencil className="w-3 h-3 text-orange-500" /></div>
@@ -825,7 +849,7 @@ export const SReview = () => {
             <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
               <RadioGroupItem
                 value="Full Board"
-                className="my-auto mr-4 w-4 h-4 z-50"
+                className="my-auto mr-4 w-4 h-4 z-0"
               />
               <div>
                 <div className="text-base font-medium flex items-center gap-2"><Shield className="w-4 h-4 text-red-500 mr-2" />Full Board Review</div>
@@ -837,7 +861,7 @@ export const SReview = () => {
             <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
               <RadioGroupItem
                 value="Expedited"
-                className="my-auto mr-4 w-4 h-4 z-50"
+                className="my-auto mr-4 w-4 h-4 z-0"
               />
               <div>
                 <div className="text-base font-medium flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-500 mr-2" />Expedited Review</div>
@@ -849,7 +873,7 @@ export const SReview = () => {
             <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
               <RadioGroupItem
                 value="Exempt"
-                className="my-auto mr-4 w-4 h-4 z-50"
+                className="my-auto mr-4 w-4 h-4 z-0"
               />
               <div>
                 <div className="text-base font-medium flex items-center gap-2"><Ban className="w-4 h-4 text-green-500 mr-2" />Exempt Review</div>
@@ -869,7 +893,7 @@ export const SReview = () => {
             hidden={type === "Pending" || type === "View"}
             disabled={
               (type === "Check" || type === "Assess") ? tog === "" :
-              (type === "Assign") ? !selectedReviewer : false
+                (type === "Assign") ? !selectedReviewer : false
             }
           >
             Submit
