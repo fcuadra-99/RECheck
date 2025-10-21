@@ -2,6 +2,7 @@ import { GalleryVerticalEnd } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { SignupForm } from "@/components/parts/signu-form"
+import { Avatar, AvatarImage } from "@/components/ui/avatar"
 
 export default function SignUpPage() {
   return (
@@ -14,11 +15,6 @@ export default function SignUpPage() {
     >
       {/* Left background image */}
       <div className="bg-muted relative hidden lg:block">
-        <img
-          src="/placeholder.svg"
-          alt="Image"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2]"
-        />
       </div>
 
       {/* Right side (form) */}
@@ -26,7 +22,9 @@ export default function SignUpPage() {
         <div className="flex justify-center gap-2 md:justify-start">
           <a href="#" className="flex items-center gap-2 font-medium">
             <div className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-md">
-              <GalleryVerticalEnd className="size-4" />
+              <Avatar>
+                <AvatarImage src={"logoo.png"} className="w-auto h-auto contain-content " />
+              </Avatar>
             </div>
             UIC RECheck
           </a>

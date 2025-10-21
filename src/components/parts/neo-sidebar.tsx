@@ -149,7 +149,9 @@ export function RadixSidebarDemo({
             <SidebarMenuItem>
               <SidebarMenuButton size="lg">
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <main.logo className="size-4" />
+                  <Avatar>
+                    <AvatarImage src={"logoo.png"} className="w-auto h-auto contain-content " />
+                  </Avatar>
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">RECheck</span>
