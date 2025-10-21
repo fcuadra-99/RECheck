@@ -1,4 +1,3 @@
-import { GalleryVerticalEnd } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { LoginForm } from "@/components/parts/login-form"

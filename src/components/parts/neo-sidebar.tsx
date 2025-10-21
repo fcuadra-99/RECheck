@@ -115,6 +115,8 @@ export function RadixSidebarDemo({
     fetchAvatar();
   }, [userId]);
 
+  main;
+
   // ----------------------------
   // Logout handler
   // ----------------------------
