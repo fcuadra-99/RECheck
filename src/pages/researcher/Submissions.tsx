@@ -272,13 +272,13 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
         return [
             makeDoc("REC_ENDORSMENT_FORM.pdf"),
             makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
-            makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
-            makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
-            makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
-            makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
-            makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+            makeDoc("REC_FO_0027_EthicsApplicationProcedure.pdf"),
+            makeDoc("REC_FO_0028_EthicsStudyProtocolInformationForm.pdf"),
+            makeDoc("REC_FO_0029_EthicsInformedConsentCHECKLIST.pdf"),
+            makeDoc("REC_FO_0030_EthicsInformedConsentFormwhenQuestionnaireareUsed.pdf"),
+            makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
             makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
-            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship.pdf"),
             paymentReceipt,
         ];
     }
@@ -289,7 +289,7 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
             return [
                 makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
                 makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
-                makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+                makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship.pdf"),
                 paymentReceipt,
             ];
         }
@@ -303,7 +303,7 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
             makeDoc("REC_FO_0030_EthicsInformedConsentFormwhenQuestionnaireareUsed.pdf"),
             makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
             makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
-            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship.pdf"),
             paymentReceipt,
         ];
     }
