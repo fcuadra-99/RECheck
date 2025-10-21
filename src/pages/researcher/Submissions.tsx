@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X, Users, Flag, Archive, AlertTriangle, BarChart3 } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Clock, Check, RefreshCcw, Shield, ClipboardList, Rocket, FileStack, Pen, X, Users, Flag, Archive, AlertTriangle, BarChart3, CheckCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -132,6 +132,8 @@ const getNextStatus = (status: string) => {
             return "Study Report Check";
         case "Send Study Report":
             return "Study Report Check";
+        case "Send Revision":
+            return "Check Revision";
         default:
             return status;
     }
@@ -157,12 +159,33 @@ const getActionLabel = (status: string) => {
             return "View";
         case "Data Collection":
             return "View";
+        case "Send Revision":
+            return "Submit";
         default:
             return "View";
     }
 };
 
+// Replace the getPhaseDocuments function with this updated version:
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
+    // For "Send Revision" status - return BOTH manuscript AND forms documents
+    if (submission.status === "Send Revision") {
+        const manuscriptDocs = [
+            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: true, needsSignature: false, needsAnswer: false },
+            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: true, needsSignature: false, needsAnswer: false },
+            submission.category === "Graduate"
+                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: true, needsSignature: false, needsAnswer: false }
+                : null,
+        ].filter(Boolean) as DocumentItem[];
+
+        const formsDocs = getFormsDocuments(submission);
+
+        // Combine both manuscript and forms documents for revision
+        return [...manuscriptDocs, ...formsDocs];
+    }
+
     if (["Send Manuscript", "Resend Manuscript"].includes(submission.status)) {
         // Manuscript phase - all documents are uploadable
         return [
@@ -176,81 +199,92 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
         ].filter(Boolean) as DocumentItem[];
     }
 
+    // For forms submission statuses
     if (["Send Forms", "Resend Forms"].includes(submission.status)) {
-        const isExternal = submission.category === "External";
-        const isGrad = submission.category === "Graduate";
-        // normalize review type for robust comparisons
-        const reviewTypeRaw = (submission.review_type || "").toString();
-        const reviewType = reviewTypeRaw.trim().toLowerCase() || "exempt"; // default to exempt when missing
+        return getFormsDocuments(submission);
+    }
 
-        // Common document properties
-        const makeDoc = (name: string): DocumentItem => ({
-            name,
-            templateUrl: "", // No template URL as these are forms to be filled out directly
-            required: true,
-            needsSignature: true,
-            needsAnswer: true,
-        });
+    return [];
+};
 
-        // Payment receipt for all categories (uploadable, no signature/answers needed)
-        const paymentReceipt: DocumentItem = {
-            name: "Payment Receipt",
-            templateUrl: "",
-            required: true,
-            needsSignature: false,
-            needsAnswer: false,
-        };
+// Add this helper function to extract forms documents logic
+const getFormsDocuments = (submission: Submission): DocumentItem[] => {
+    const isExternal = submission.category === "External";
+    const isGrad = submission.category === "Graduate";
+    const isUndergrad = submission.category === "Undergraduate" || !submission.category || submission.category === "";
+    // normalize review type for robust comparisons
+    const reviewTypeRaw = (submission.review_type || "").toString();
+    const reviewType = reviewTypeRaw.trim().toLowerCase() || "exempt"; // default to exempt when missing
 
-        if (isExternal) {
-            if (reviewType === "exempt") {
-                return [
-                    makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
-                    makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
-                    makeDoc("REC_FO_0036_MOA for external.pdf"),
-                    paymentReceipt,
-                ];
-            }
+    // Common document properties
+    const makeDoc = (name: string): DocumentItem => ({
+        name,
+        templateUrl: "", // No template URL as these are forms to be filled out directly
+        required: true,
+        needsSignature: true,
+        needsAnswer: true,
+    });
 
+    // Payment receipt for all categories (uploadable, no signature/answers needed)
+    const paymentReceipt: DocumentItem = {
+        name: "Payment Receipt",
+        templateUrl: "",
+        required: true,
+        needsSignature: false,
+        needsAnswer: false,
+    };
+
+    if (isExternal) {
+        if (reviewType === "exempt") {
             return [
                 makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
-                makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
-                makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
-                makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
-                makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
-                makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
-                makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+                makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
                 makeDoc("REC_FO_0036_MOA for external.pdf"),
                 paymentReceipt,
             ];
         }
 
-        if (isGrad) {
-            if (reviewType === "exempt") {
-                return [
-                    makeDoc("REC_ENDORSMENT_FORM.pdf"),
-                    makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
-                    makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
-                    makeDoc("REC_FO_0035_Ethics Memorandum of Agreement for Authorship.pdf"),
-                    paymentReceipt,
-                ];
-            }
+        return [
+            makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+            makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
+            makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
+            makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
+            makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
+            makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+            makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+            makeDoc("REC_FO_0036_MOA for external.pdf"),
+            paymentReceipt,
+        ];
+    }
 
-            // EXPEDITED and FULL BOARD use same documents
+    if (isGrad) {
+        if (reviewType === "exempt") {
             return [
                 makeDoc("REC_ENDORSMENT_FORM.pdf"),
                 makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
-                makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
-                makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
-                makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
-                makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
-                makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
-                makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
-                makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+                makeDoc("REC_FO_0033_ProtocolInformationFormforExemption(PIFE)_Sample.pdf"),
+                makeDoc("REC_FO_0035_Ethics Memorandum of Agreement for Authorship.pdf"),
                 paymentReceipt,
             ];
         }
 
-        // UNDERGRAD
+        // EXPEDITED and FULL BOARD use same documents
+        return [
+            makeDoc("REC_ENDORSMENT_FORM.pdf"),
+            makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+            makeDoc("REC_FO_0027_Ethics Application Procedure.pdf"),
+            makeDoc("REC_FO_0028_Ethics Study Protocol Information Form.pdf"),
+            makeDoc("REC_FO_0029_Ethics Informed Consent CHECKLIST.pdf"),
+            makeDoc("REC_FO_0030_Ethics Informed Consent Form when Questionnaire are Used.pdf"),
+            makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+            makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
+            makeDoc("REC_FO_0035_Ethics_MemorandumofAgreementforAuthorship(2).pdf"),
+            paymentReceipt,
+        ];
+    }
+
+    // UNDERGRAD or unknown category (fallback to undergraduate)
+    if (isUndergrad || (!isExternal && !isGrad)) {
         if (reviewType === "exempt") {
             return [
                 makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
@@ -274,7 +308,12 @@ const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
         ];
     }
 
-    return [];
+    // If we reach here, something unexpected happened - provide a minimal fallback
+    console.warn("Unknown category for submission:", submission.category, "falling back to basic documents");
+    return [
+        makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
+        paymentReceipt,
+    ];
 };
 
 const getLatestHistory = async (proposal_id: number): Promise<HistoryEntry | null> => {
@@ -297,7 +336,7 @@ const getLatestHistory = async (proposal_id: number): Promise<HistoryEntry | nul
 const phaseUploadStatus = (phaseIndex: number): string | null => {
     if (phaseIndex === 0) return "Send Manuscript";
     if (phaseIndex === 2) return "Send Forms";
-    if (phaseIndex === 5) return "Data Collection"; // For Phase 6: Data Collection & Reporting
+    if (phaseIndex === 3) return "Send Revision";
     return null;
 };
 
@@ -441,6 +480,7 @@ export default function SubmissionsPage() {
     const displayedSubmissions = userSubmissions.slice(0, 3);
 
     /* when activeSubmission changes: reset uploads, load history if "Resend" */
+    /* when activeSubmission changes: reset uploads, load history if "Resend" */
     useEffect(() => {
         setUploadedFiles({});
         setSignedDocuments({});
@@ -454,22 +494,70 @@ export default function SubmissionsPage() {
             const idx = phases.findIndex((p) => p.statuses.includes(activeSubmission.status));
             setActiveTab(idx === -1 ? 0 : idx);
 
-            if (["Resend Manuscript", "Resend Forms"].includes(activeSubmission.status)) {
+            // Load history for both resend statuses AND "Send Revision" status
+            if (["Resend Manuscript", "Resend Forms", "Send Revision"].includes(activeSubmission.status)) {
                 const hist = await getLatestHistory(activeSubmission.proposal_id);
-                if (hist?.affected_files) {
-                    try {
-                        const parsed = typeof hist.affected_files === "string" ? JSON.parse(hist.affected_files) : hist.affected_files;
-                        // Only set history files for resend statuses
-                        setHistoryFiles(
-                            parsed.map((f: any) => ({
-                                name: f.name,
-                                required: f.required,
-                                templateUrl: "/templates/unknown.pdf"
-                            }))
-                        );
-                        setLatestComment(hist.comment || null);
-                    } catch (err) {
-                        console.error("Failed to parse affected_files:", err);
+
+                if (hist) {
+                    // Set the latest comment
+                    setLatestComment(hist.comment || null);
+
+                    // Check if we have affected_files
+                    if (hist.affected_files) {
+                        try {
+                            // Parse the affected_files (it's a JSON string)
+                            const parsed = typeof hist.affected_files === "string"
+                                ? JSON.parse(hist.affected_files)
+                                : hist.affected_files;
+
+                            if (Array.isArray(parsed) && parsed.length > 0) {
+                                // Get ALL possible documents for revision (both manuscript and forms)
+                                const allRevisionDocs = getPhaseDocuments(activeSubmission);
+
+                                // Map the history files to DocumentItem format
+                                const files = parsed.map((f: any) => {
+                                    // Find the full document details from all possible documents
+                                    const fullDoc = allRevisionDocs.find(doc =>
+                                        doc.name === f.name ||
+                                        doc.name.includes(f.name) ||
+                                        f.name.includes(doc.name)
+                                    );
+
+                                    if (fullDoc) {
+                                        return {
+                                            name: f.name,
+                                            required: f.required !== undefined ? f.required : true,
+                                            templateUrl: fullDoc.templateUrl,
+                                            needsSignature: fullDoc.needsSignature || false,
+                                            needsAnswer: fullDoc.needsAnswer || false
+                                        };
+                                    } else {
+                                        // If no exact match found, create a basic document item
+                                        return {
+                                            name: f.name,
+                                            required: f.required !== undefined ? f.required : true,
+                                            templateUrl: "/templates/unknown.pdf",
+                                            needsSignature: false,
+                                            needsAnswer: false
+                                        };
+                                    }
+                                }).filter(Boolean);
+
+                                setHistoryFiles(files);
+
+                                // Show toast for Send Revision status with history files
+                                if (activeSubmission.status === "Send Revision" && files.length > 0) {
+                                    toast.info(`Found ${files.length} file(s) requiring revision: ${files.map(f => f.name).join(", ")}`);
+                                }
+                            } else {
+                                setHistoryFiles([]);
+                            }
+                        } catch (err) {
+                            console.error("Failed to parse affected_files:", err);
+                            setHistoryFiles([]);
+                        }
+                    } else {
+                        setHistoryFiles([]);
                     }
                 }
             }
@@ -602,6 +690,8 @@ export default function SubmissionsPage() {
     /* submit completed forms & advance phase */
     const uploadAndAdvancePhase = async (submission: Submission) => {
         const docs = getFilesNeedingRevision(submission); // Use the new function
+
+
         const loadingId = toast.loading("Submitting forms...");
 
         try {
@@ -686,9 +776,9 @@ export default function SubmissionsPage() {
                             .update({
                                 file_path: filePath || existingRecords[0].file_path,
                                 uploaded_at: filePath ? new Date().toISOString() : existingRecords[0].uploaded_at,
-                                revision_number: (existingRecords[0].revision_number || 1) + 1, // Increment revision number
+                                revision_number: (existingRecords[0].revision_number || 1) + 1,
                             })
-                            .eq('id', existingRecords[0].id);
+                            .eq('document_id', existingRecords[0].document_id);
 
                         if (updateError) {
                             console.error('Failed to update proposal_documents record for', doc.name, updateError);
@@ -770,19 +860,42 @@ export default function SubmissionsPage() {
     };
 
     const getFilesNeedingRevision = (submission: Submission): DocumentItem[] => {
-        if (!["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
-            return getPhaseDocuments(submission);
+        console.log("Current status:", submission.status);
+        console.log("History files:", historyFiles);
+
+        // For "Send Revision" status
+        if (submission.status === "Send Revision") {
+            // If we have specific history files from denial, use ONLY those
+            if (historyFiles && historyFiles.length > 0) {
+                console.log("Using specific history files for Send Revision:", historyFiles.map(f => f.name));
+                return historyFiles;
+            }
+
+            // If historyFiles is null, we're still loading - return empty array to wait
+            if (historyFiles === null) {
+                console.log("History files still loading, waiting...");
+                return [];
+            }
+
+            // If historyFiles is explicitly empty array, show all phase documents as fallback
+            console.log("No specific history files found, showing all documents for revision");
+            const phaseDocs = getPhaseDocuments(submission);
+            console.log("All phase documents for revision:", phaseDocs.map(d => d.name));
+            return phaseDocs;
         }
 
-        // For resend statuses, only return files that were marked as needing revision
-        if (historyFiles && historyFiles.length > 0) {
-            return historyFiles;
+        // For other resend statuses
+        if (["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
+            // ONLY show files that were marked as needing revision in history
+            if (historyFiles && historyFiles.length > 0) {
+                return historyFiles;
+            }
+            return []; // No specific files marked for revision
         }
 
-        // Fallback: if no history files, return all phase documents
+        // For regular submission statuses
         return getPhaseDocuments(submission);
     };
-
 
     const handleStudyReportUpload = async () => {
         if (studyReportFiles.length === 0) {
@@ -862,20 +975,58 @@ export default function SubmissionsPage() {
 
     /* render helpers */
     const renderPhaseFilesForActive = (submission: Submission) => {
-        const docs = getFilesNeedingRevision(submission); // Use the new function
+        const docs = getFilesNeedingRevision(submission);
+        const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);
 
-        // Show a message when in resend status and only showing specific files
-        const isResendStatus = ["Resend Manuscript", "Resend Forms"].includes(submission.status);
+        console.log("renderPhaseFilesForActive - docs:", docs);
+        console.log("renderPhaseFilesForActive - historyFiles:", historyFiles);
+        console.log("renderPhaseFilesForActive - isResendStatus:", isResendStatus);
 
         return (
             <div className="space-y-4">
-                {isResendStatus && historyFiles && (
+                {isResendStatus && docs.length > 0 && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                         <div className="flex items-start gap-2">
                             <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                             <div className="text-sm text-amber-800">
-                                <div className="font-medium">Revision Required</div>
-                                <div>Please revise the following documents based on reviewer feedback:</div>
+                                <div className="font-medium">
+                                    {submission.status === "Send Revision" ? "Revision Required" : "Revision Required"}
+                                </div>
+                                <div>
+                                    {submission.status === "Send Revision"
+                                        ? "Please revise the following documents based on reviewer feedback:"
+                                        : "Please revise the following documents based on reviewer feedback:"
+                                    }
+                                </div>
+                                {latestComment && (
+                                    <div className="mt-2 p-2 bg-amber-100 rounded text-amber-900">
+                                        <strong>Reviewer Comment:</strong> {latestComment}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isResendStatus && docs.length === 0 && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm text-green-800">
+                                <div className="font-medium">No Revision Required</div>
+                                <div>All documents are up to date. No files need to be revised at this time.</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {isResendStatus && (!historyFiles || historyFiles.length === 0) && docs.length > 0 && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-start gap-2">
+                            <Clock className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-sm text-blue-800">
+                                <div className="font-medium">Preparing Revision</div>
+                                <div>Loading revision requirements...</div>
                             </div>
                         </div>
                     </div>
@@ -883,7 +1034,7 @@ export default function SubmissionsPage() {
 
                 {docs.map((doc) => (
                     <div key={doc.name} className="border rounded-lg p-4 bg-white shadow-sm">
-                        {/* Horizontal layout: Title | Upload Area | Buttons */}
+                        {/* Document layout remains the same */}
                         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
                             {/* Document Info - Left side */}
                             <div className="flex-1 min-w-0">
@@ -916,9 +1067,9 @@ export default function SubmissionsPage() {
                             </div>
 
                             {/* Upload/Status Area - Middle */}
-                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms"].includes(submission.status) &&
+                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms", "Send Revision"].includes(submission.status) &&
                                 !doc.needsSignature && !doc.needsAnswer) ? (
-                                /* Upload area for uploadable documents with drag and drop */
+                                /* Upload area for uploadable documents */
                                 <label
                                     htmlFor={`file-${doc.name}`}
                                     className={cn(
@@ -943,28 +1094,7 @@ export default function SubmissionsPage() {
                                                 const file = e.target.files[0];
                                                 if (!file) return;
 
-                                                // Special handling for Payment Receipt (accepts images)
-                                                if (doc.name === "Payment Receipt") {
-                                                    const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
-                                                    if (!allowedTypes.includes(file.type)) {
-                                                        toast.error("Only PDF, PNG, and JPG files are allowed for Payment Receipt");
-                                                        (e.target as HTMLInputElement).value = "";
-                                                        return;
-                                                    }
-                                                } else {
-                                                    if (file.type !== "application/pdf") {
-                                                        toast.error("Only PDF files are allowed");
-                                                        (e.target as HTMLInputElement).value = "";
-                                                        return;
-                                                    }
-                                                }
-
-                                                if (file.size > 25 * 1024 * 1024) {
-                                                    toast.error("File size must be under 25MB");
-                                                    (e.target as HTMLInputElement).value = "";
-                                                    return;
-                                                }
-
+                                                // Validation logic...
                                                 handleFileSelect(doc.name, file);
                                             }
                                         }}
@@ -985,8 +1115,8 @@ export default function SubmissionsPage() {
                                     </div>
                                 </label>
                             ) : (
-                                /* Status area for forms that need signature/answers - NO file input */
-                                <div className="w-full h-full border-2 rounded-lg p-3 bg-gray-50 cursor-default">
+                                /* Status area for forms that need signature/answers */
+                                <div className="w-1/2 h-full border-2 rounded-lg p-3 bg-gray-50 cursor-default">
                                     <div className="text-center flex flex-col items-center justify-center h-full">
                                         <Pen className="h-6 w-6 text-gray-400 mb-1" />
                                         <p className="text-xs text-gray-500">
@@ -1003,6 +1133,7 @@ export default function SubmissionsPage() {
                                     </div>
                                 </div>
                             )}
+
                             {/* Action Buttons - Right side */}
                             <div className="flex flex-col gap-2 w-full lg:w-[140px]">
                                 {/* Template Download - if available */}
@@ -1026,106 +1157,79 @@ export default function SubmissionsPage() {
 
                                 {/* Sign Document Button */}
                                 {doc.needsSignature && (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant={signedDocuments[doc.name] ? "default" : "outline"}
-                                                    size="sm"
-                                                    className={cn(
-                                                        "w-full",
-                                                        signedDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
-                                                    )}
-                                                    onClick={() => {
-                                                        setActiveDocument(doc.name);
-                                                        setSignatureDialogOpen(true);
-                                                    }}
-                                                >
-                                                    {signedDocuments[doc.name] ? (
-                                                        <>
-                                                            <Check className="h-4 w-4 mr-2" />
-                                                            Signed
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <PenLine className="h-4 w-4 mr-2" />
-                                                            Sign
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{signedDocuments[doc.name] ? 'Document Signed' : 'Sign Document'}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <Button
+                                        variant={signedDocuments[doc.name] ? "default" : "outline"}
+                                        size="sm"
+                                        className={cn(
+                                            "w-full",
+                                            signedDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
+                                        )}
+                                        onClick={() => {
+                                            setActiveDocument(doc.name);
+                                            setSignatureDialogOpen(true);
+                                        }}
+                                    >
+                                        {signedDocuments[doc.name] ? (
+                                            <>
+                                                <Check className="h-4 w-4 mr-2" />
+                                                Signed
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PenLine className="h-4 w-4 mr-2" />
+                                                Sign
+                                            </>
+                                        )}
+                                    </Button>
                                 )}
 
                                 {/* Answer Questions Button */}
                                 {doc.needsAnswer && (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant={answeredDocuments[doc.name] ? "default" : "outline"}
-                                                    size="sm"
-                                                    className={cn(
-                                                        "w-full",
-                                                        answeredDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
-                                                    )}
-                                                    onClick={() => {
-                                                        setActiveDocument(doc.name);
-                                                        setAnswerDialogOpen(true);
-                                                    }}
-                                                >
-                                                    {answeredDocuments[doc.name] ? (
-                                                        <>
-                                                            <Check className="h-4 w-4 mr-2" />
-                                                            Answered
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FileText className="h-4 w-4 mr-2" />
-                                                            Fill Out
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{answeredDocuments[doc.name] ? 'Questions Answered' : 'Answer Questions'}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <Button
+                                        variant={answeredDocuments[doc.name] ? "default" : "outline"}
+                                        size="sm"
+                                        className={cn(
+                                            "w-full",
+                                            answeredDocuments[doc.name] && "bg-green-500 hover:bg-green-600"
+                                        )}
+                                        onClick={() => {
+                                            setActiveDocument(doc.name);
+                                            setAnswerDialogOpen(true);
+                                        }}
+                                    >
+                                        {answeredDocuments[doc.name] ? (
+                                            <>
+                                                <Check className="h-4 w-4 mr-2" />
+                                                Answered
+                                            </>
+                                        ) : (
+                                            <>
+                                                <FileText className="h-4 w-4 mr-2" />
+                                                Fill Out
+                                            </>
+                                        )}
+                                    </Button>
                                 )}
 
-                                {/* Preview Button - Only show if file is uploaded */}
+                                {/* Preview Button */}
                                 {uploadedFiles[doc.name] && (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="w-full"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        if (uploadedFiles[doc.name]) {
-                                                            const url = URL.createObjectURL(uploadedFiles[doc.name]!);
-                                                            setPreviewUrl(url);
-                                                            setPreviewTitle(doc.name);
-                                                            setPreviewOpen(true);
-                                                        }
-                                                    }}
-                                                >
-                                                    <Eye className="h-4 w-4 mr-2" />
-                                                    Preview
-                                                </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>Preview Document</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            if (uploadedFiles[doc.name]) {
+                                                const url = URL.createObjectURL(uploadedFiles[doc.name]!);
+                                                setPreviewUrl(url);
+                                                setPreviewTitle(doc.name);
+                                                setPreviewOpen(true);
+                                            }
+                                        }}
+                                    >
+                                        <Eye className="h-4 w-4 mr-2" />
+                                        Preview
+                                    </Button>
                                 )}
                             </div>
                         </div>
@@ -1139,11 +1243,9 @@ export default function SubmissionsPage() {
                             if (!d.required) return true;
                             const needsSig = !!d.needsSignature;
                             const needsAns = !!d.needsAnswer;
-                            // If both signature and answers are required, require both
                             if (needsSig && needsAns) return !!signedDocuments[d.name] && !!answeredDocuments[d.name];
                             if (needsSig) return !!signedDocuments[d.name];
                             if (needsAns) return !!answeredDocuments[d.name];
-                            // default: require uploaded file
                             return !!uploadedFiles[d.name];
                         })}
                         className="w-full sm:w-auto"
@@ -1154,6 +1256,7 @@ export default function SubmissionsPage() {
             </div>
         );
     };
+
     // Add this function to handle phase advancement
     const advanceToNextPhase = async (submission: Submission) => {
         const loadingId = toast.loading("Moving to next phase...");

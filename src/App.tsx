@@ -224,7 +224,7 @@ export default function App() {
           }
         />
         <Route
-          path="/signup"
+          path="/signu"
           element={
             <AuthRedirect user={user}>
               <SignupPage />

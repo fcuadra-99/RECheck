@@ -3,7 +3,7 @@ import { motion } from "framer-motion"
 
 import { SignupForm } from "@/components/parts/signu-form"
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <motion.div
       className="grid min-h-svh lg:grid-cols-2 overflow-clip"

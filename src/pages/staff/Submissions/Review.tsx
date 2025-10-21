@@ -91,7 +91,7 @@ function statm(params: Status) {
     "Check Manuscript": "Resend Manuscript",
     "Risk Assessment": "Check Manuscript",
     "Forms Check": "Resend Forms",
-    "Deploy Queue": "Forms Check",
+    "Deploy Queue": "Send Revision",
     "Send Revision": "Deploy Queue",
     "Check Revision": "Resend Revision",
     "Resend Revision": "Check Revision",
@@ -303,7 +303,7 @@ export const SReview = () => {
 
       const affectedFiles =
         tog === "deny"
-          ? requirementDocs.map((doc) => ({ name: doc.name, required: true }))
+          ? selectedFiles.map((fileName) => ({ name: fileName, required: true }))
           : [];
 
       if (type === "Assess") {
@@ -414,8 +414,9 @@ export const SReview = () => {
   // Determine which documents to show based on current status
   const requirementDocs =
     status === "Check Manuscript" ? manuscriptDocs :
-      status === "Forms Check" || status === "Deploy Queue" ? formsDocs :
-        status === "Check Revision" ? revisionDocs : [];
+      status === "Forms Check" ? formsDocs :
+        status === "Deploy Queue" ? [...manuscriptDocs, ...formsDocs] : // Show both manuscript and forms for Deploy Queue
+          status === "Check Revision" ? revisionDocs : [];
 
   // Get current documents based on active preview
   const getCurrentDocs = () => {
