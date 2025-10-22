@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils"
 
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import type { SubmTable } from "@/Data"
-import { data } from "@/Data"
 import { handleCheck } from "@/pages/staff/Submissions/Review"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -35,8 +34,33 @@ type StatusParam =
 
 type StatusValue = "Pending" | "Check" | "Assess" | "View" | "Assign";
 
-function stat(params: StatusParam | null | undefined): StatusValue {
+// FIXED: Get current user role from database
+async function getCurrentUserRole(): Promise<string> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return "Unknown";
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (error) throw error;
+    return profile?.role || "Unknown";
+  } catch (error) {
+    console.error("Error fetching user role:", error);
+    return "Unknown";
+  }
+}
+
+// FIXED: Make stat function async and get role from database
+async function stat(params: StatusParam | null | undefined): Promise<StatusValue> {
   if (!params) return "Pending"; // default for empty status
+
+  const userRole = await getCurrentUserRole();
+  console.log("Current user role:", userRole);
+  console.log("Current status:", params);
 
   let awa: Record<StatusParam, StatusValue> = {
     "Resend Manuscript": "Pending",
@@ -48,7 +72,7 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     "Send Revision": "Pending",
     "Check Revision": "Pending",
     "Resend Revision": "Pending",
-    "Assign Review": "Pending",
+    "Assign Review": "Assign",
     "Proposal Review": "Pending",
     "Revise Proposal": "Pending",
     "Data Collection": "Pending",
@@ -56,7 +80,7 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     "Study Report Check": "Pending",
   }
 
-  if (data.user.role === "Admin Assistant") {
+  if (userRole === "Admin Assistant") {
     awa = {
       "Resend Manuscript": "Check",
       "Check Manuscript": "Check",
@@ -67,7 +91,7 @@ function stat(params: StatusParam | null | undefined): StatusValue {
       "Send Revision": "Pending",
       "Check Revision": "Pending",
       "Resend Revision": "Pending",
-      "Assign Review": "Pending",
+      "Assign Review": "Assign",
       "Proposal Review": "Pending",
       "Revise Proposal": "Pending",
       "Data Collection": "View",
@@ -76,7 +100,7 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     }
   }
 
-  if (data.user.role === "Chairperson") {
+  if (userRole === "Chairperson") {
     awa = {
       "Resend Manuscript": "Assess",
       "Check Manuscript": "Check",
@@ -96,21 +120,20 @@ function stat(params: StatusParam | null | undefined): StatusValue {
     }
   }
 
-  // Add Reviewer role logic if needed
-  if (data.user.role === "Reviewer") {
+  if (userRole === "Admin") {
     awa = {
-      "Resend Manuscript": "Pending",
-      "Check Manuscript": "Pending",
-      "Risk Assessment": "Pending",
-      "Resend Forms": "Pending",
-      "Forms Check": "Pending",
-      "Deploy Queue": "Pending",
-      "Send Revision": "Pending",
-      "Check Revision": "Pending",
-      "Resend Revision": "Pending",
-      "Assign Review": "Pending",
+      "Resend Manuscript": "Check",
+      "Check Manuscript": "Check",
+      "Risk Assessment": "Assess",
+      "Resend Forms": "Check",
+      "Forms Check": "Check",
+      "Deploy Queue": "Check",
+      "Send Revision": "Check",
+      "Check Revision": "Check",
+      "Resend Revision": "Check",
+      "Assign Review": "Assign",
       "Proposal Review": "Check",
-      "Revise Proposal": "Pending",
+      "Revise Proposal": "Check",
       "Data Collection": "View",
       "Deviation Check": "Check",
       "Study Report Check": "Check",
@@ -154,7 +177,27 @@ export const columns: ColumnDef<SubmTable>[] = [
     ),
     cell: ({ row }) => {
       const navigate = useNavigate()
-      const status = stat(row.getValue("status"))
+      const [actionStatus, setActionStatus] = useState<StatusValue>("Pending");
+      const [isLoading, setIsLoading] = useState(true);
+
+      // FIXED: Fetch status asynchronously
+      useEffect(() => {
+        const fetchStatus = async () => {
+          setIsLoading(true);
+          try {
+            const status = await stat(row.getValue("status"));
+            setActionStatus(status);
+          } catch (error) {
+            console.error("Error fetching action status:", error);
+            setActionStatus("Pending");
+          } finally {
+            setIsLoading(false);
+          }
+        };
+
+        fetchStatus();
+      }, [row]);
+
       return (
         <div className="flex justify-center">
           <TooltipProvider>
@@ -163,11 +206,11 @@ export const columns: ColumnDef<SubmTable>[] = [
                 <RippleButton
                   className={cn(
                     "h-8 px-3 rounded-md text-sm font-medium",
-                    status === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
-                    status === "Check" && "",
-                    status === "Assess" && "",
-                    status === "View" && "bg-gray-500 text-white hover:bg-gray-600",
-                    status === "Assign" && ""
+                    actionStatus === "Pending" ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/10",
+                    actionStatus === "Check" && "",
+                    actionStatus === "Assess" && "",
+                    actionStatus === "View" && "bg-gray-500 text-white hover:bg-gray-600",
+                    actionStatus === "Assign" && ""
                   )}
                   onClick={() => {
                     handleCheck(
@@ -178,23 +221,29 @@ export const columns: ColumnDef<SubmTable>[] = [
                       formatDate(row.getValue("date")),
                       "",
                       row.getValue("status"),
-                      status
+                      actionStatus
                     )
                     navigate("/ssubm/sub1/sreview")
                   }}
-                  disabled={status === "Pending"}
+                  disabled={actionStatus === "Pending" || isLoading}
                 >
-                  {status === "Check" && <ClipboardCheck className="h-4 w-4 mr-2" />}
-                  {status === "Assess" && <Scale className="h-4 w-4 mr-2" />}
-                  {status === "View" && <Eye className="h-4 w-4 mr-2" />}
-                  {status === "Pending" && <Clock className="h-4 w-4 mr-2" />}
-                  {status === "Assign" && <UserRound className="h-4 w-4 mr-2" />}
-                  {status}
+                  {isLoading ? (
+                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <>
+                      {actionStatus === "Check" && <ClipboardCheck className="h-4 w-4 mr-2" />}
+                      {actionStatus === "Assess" && <Scale className="h-4 w-4 mr-2" />}
+                      {actionStatus === "View" && <Eye className="h-4 w-4 mr-2" />}
+                      {actionStatus === "Pending" && <Clock className="h-4 w-4 mr-2" />}
+                      {actionStatus === "Assign" && <UserRound className="h-4 w-4 mr-2" />}
+                    </>
+                  )}
+                  {isLoading ? "Loading..." : actionStatus}
                 </RippleButton>
               </TooltipTrigger>
               <TooltipContent>
                 <p>
-                  {status === "Pending" ? "Awaiting previous steps" : `Click to ${status}`}
+                  {actionStatus === "Pending" ? "Awaiting previous steps" : `Click to ${actionStatus}`}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -204,6 +253,7 @@ export const columns: ColumnDef<SubmTable>[] = [
     },
     size: 120,
   },
+  // ... rest of your column definitions remain the same
   {
     accessorKey: "proposal_id",
     enableHiding: false,
@@ -243,7 +293,7 @@ export const columns: ColumnDef<SubmTable>[] = [
       const [email, setEmail] = useState<string | null>(null)
       const [org, setOrg] = useState<string | null>(null)
       const [category, setCategory] = useState<string | null>(null)
-      
+
       fname;
       lname;
 

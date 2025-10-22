@@ -83,6 +83,7 @@ const navConfig = {
     icon: BookCopy,
     items: [
       { title: "Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
+      { title: "Submissions", url: "/ssubm/sub1", role: "Chairperson" },
       { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
       { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
     ],
@@ -93,8 +94,8 @@ const navConfig = {
     icon: BookCopy,
     items: [
       { title: "Deviations", url: "/ssubm/dev1", role: "Admin Assistant" },
-      { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
-      { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+      { title: "Deviations", url: "/ssubm/dev1", role: "Chairperson" },
+      { title: "Deviations", url: "/ssubm/sub2", role: "Researcher" },
     ],
   },
   admin: {
@@ -103,8 +104,8 @@ const navConfig = {
     icon: UserCheck,
     items: [
       { title: "User Management", url: "/admin/userroles", role: "Admin" },
-      { title: "Phase Management", url: "/sdevi/sub2", role: "Researcher" },
-      { title: "Files Management", url: "/sdevi/sub1", role: "Admin Assistant" },
+      { title: "Phase Management", url: "/sdevi/sub2", role: "Admin" },
+      { title: "Files Management", url: "/sdevi/sub1", role: "Admin" },
 
     ],
   },
@@ -156,7 +157,7 @@ export const data: AppData = {
   user: {
     fname: "shad",
     lname: "cn",
-    role: "Chairperson", // change dynamically
+    role: "Chairperson",
     email: "m@example.com",
     avatar: "/avatars/avatar.png",
     org: "",
