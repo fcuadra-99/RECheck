@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen, FileCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -733,9 +733,12 @@ export default function PhaseContent({
         return (
             <div className="space-y-2">
                 {storedFiles.map((f) => (
-                    <div key={f.name} className="flex flex-col sm:flex-row sm:items-center justify-between border p-3 rounded gap-2 sm:gap-0">
-                        <div className="font-medium truncate">{f.name}</div>
-                        <div className="flex gap-2">
+                    <div key={f.name} className="flex items-center justify-between border p-3 rounded gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <FileCheck className="h-6 w-6 flex-shrink-0" />
+                            <div className="font-medium truncate">{f.name}</div>
+                        </div>
+                        <div className="flex gap-2 flex-shrink-0">
                             <Button variant="outline" size="sm" onClick={() => openPreview(submission!.proposal_id, phaseIndex, f.name, f.name)}>
                                 View
                             </Button>

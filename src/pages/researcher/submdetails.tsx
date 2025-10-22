@@ -116,7 +116,7 @@ const getActivePhaseIndex = (status: string) => {
         "Send Forms": 2, "Forms Check": 2, "Resend Forms": 2,
         "Deploy Queue": 3, "Send Revision": 3, "Check Revision": 3, "Resend Revision": 3,
         "Assign Review": 4, "Proposal Review": 4, "Revise Proposal": 4,
-        "Data Collection": 5, "Deviation Check": 5, "Send Deviation Report": 5, 
+        "Data Collection": 5, "Deviation Check": 5, "Send Deviation Report": 5,
         "Send Study Report": 5, "Revise Documents": 5, "Study Report Check": 5,
         "Send Report": 6, "Archive Files": 6,
     };
@@ -127,7 +127,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
     const [historyFiles, setHistoryFiles] = useState<DocumentItem[] | null>(null);
     const [latestComment, setLatestComment] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<number>(0);
-    
+
     const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
     const [answeredDocuments, setAnsweredDocuments] = useState<{ [key: string]: boolean }>({});
     const [signedDocuments, setSignedDocuments] = useState<{ [key: string]: boolean }>({});
@@ -256,10 +256,19 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                                 activeSubmission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300"
                             )}
                         >
+                            {/* Add status-specific icons */}
                             {activeSubmission.status.includes("Resend") && <RefreshCcw className="w-3 h-3" />}
                             {activeSubmission.status.includes("Check") && <Clock className="w-3 h-3" />}
                             {activeSubmission.status === "Deploy Queue" && <Check className="w-3 h-3" />}
                             {activeSubmission.status === "Data Collection" && <BarChart3 className="w-3 h-3" />}
+                            {activeSubmission.status === "Risk Assessment" && <Shield className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Forms") && <ClipboardList className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Revision") && <Rocket className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Review") && <Users className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Deviation") && <Flag className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Archive") && <Archive className="w-3 h-3" />}
+                            {activeSubmission.status.includes("Send") && !activeSubmission.status.includes("Resend") && <FileText className="w-3 h-3" />}
+
                             <span className="truncate">{activeSubmission.status}</span>
                         </Badge>
                     </div>
@@ -304,9 +313,9 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                                     ${isUpcoming ? "phase-upcoming text-white" : "text-gray-800"}
                                 `}
                             >
-                                {(() => { 
-                                    const Icon = phaseIcons[idx]; 
-                                    return Icon ? <Icon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> : null; 
+                                {(() => {
+                                    const Icon = phaseIcons[idx];
+                                    return Icon ? <Icon className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" /> : null;
                                 })()}
                                 <span className="truncate hidden sm:inline">{phase.title}</span>
                                 <span className="truncate sm:hidden">Phase {idx + 1}</span>
@@ -496,7 +505,7 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
     // Common documents for all categories in Forms Check
     const commonFormsDocs = [
         uploadableDoc("All Grades"),
-        uploadableDoc("Updated CV"), 
+        uploadableDoc("Updated CV"),
         uploadableDoc("Minutes of Proposal Defense"),
         ...(isGrad ? [uploadableDoc("Defense Receipt")] : []),
         paymentReceipt,

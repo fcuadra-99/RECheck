@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Check, Clock, FileStack, FileText, RefreshCcw } from "lucide-react";
+import { Archive, BarChart3, Check, ClipboardList, Clock, FileStack, FileText, Flag, RefreshCcw, Rocket, Shield, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
     Table,
@@ -206,16 +206,28 @@ export default function SubmissionsPage() {
                                             <Badge
                                                 variant={submission.status.includes("Resend") ? "destructive" : "outline"}
                                                 className={cn(
-                                                    "font-medium",
+                                                    "font-medium inline-flex items-center gap-1",
                                                     submission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
                                                     submission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300",
                                                     submission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300"
                                                 )}
                                             >
-                                                {submission.status.includes("Resend") && <RefreshCcw className="w-3 h-3 mr-1" />}
-                                                {submission.status.includes("Check") && <Clock className="w-3 h-3 mr-1" />}
-                                                {submission.status === "Deploy Queue" && <Check className="w-3 h-3 mr-1" />}
-                                                {submission.status === "Data Collection" && <BarChart3 className="w-3 h-3 mr-1" />}
+                                                {/* Add all status-specific icons */}
+                                                {submission.status.includes("Resend") && <RefreshCcw className="w-3 h-3" />}
+                                                {submission.status.includes("Check") && <Clock className="w-3 h-3" />}
+                                                {submission.status === "Deploy Queue" && <Check className="w-3 h-3" />}
+                                                {submission.status === "Data Collection" && <BarChart3 className="w-3 h-3" />}
+                                                {submission.status === "Risk Assessment" && <Shield className="w-3 h-3" />}
+                                                {submission.status.includes("Forms") && !submission.status.includes("Send") && <ClipboardList className="w-3 h-3" />}
+                                                {submission.status.includes("Revision") && <Rocket className="w-3 h-3" />}
+                                                {submission.status.includes("Review") && <Users className="w-3 h-3" />}
+                                                {submission.status.includes("Deviation") && <Flag className="w-3 h-3" />}
+                                                {submission.status.includes("Archive") && <Archive className="w-3 h-3" />}
+                                                {submission.status.includes("Send") && !submission.status.includes("Resend") && <FileText className="w-3 h-3" />}
+                                                {submission.status.includes("Assign") && <Users className="w-3 h-3" />}
+                                                {submission.status.includes("Proposal") && <FileText className="w-3 h-3" />}
+                                                {submission.status.includes("Study Report") && <BarChart3 className="w-3 h-3" />}
+
                                                 <span className="truncate">{submission.status}</span>
                                             </Badge>
                                         </TableCell>
@@ -307,8 +319,8 @@ export default function SubmissionsPage() {
                 profiles={profiles}
                 userId={userId}
                 onSubmissionUpdate={(updatedSubmission) => {
-                    setSubmissions(prev => 
-                        prev.map(s => 
+                    setSubmissions(prev =>
+                        prev.map(s =>
                             s.proposal_id === updatedSubmission.proposal_id ? updatedSubmission : s
                         )
                     );
