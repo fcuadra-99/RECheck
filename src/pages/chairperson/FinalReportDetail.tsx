@@ -47,7 +47,7 @@ const FinalReportDetail: React.FC = () => {
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
   const [certificateUrl, setCertificateUrl] = useState<string | null>(null);
-
+  console.log (certificateUrl, showCertificatePreview);
   useEffect(() => {
     if (id) {
       loadReport();
