@@ -44,6 +44,9 @@ interface PdfFileRow {
     placeholders: DbPlaceholder[];
 }
 
+// Increased threshold - typical checkbox size is around 15-20px, so this should catch most checkboxes
+const SMALL_FIELD_THRESHOLD = 30;
+
 export function PdfFormViewer({
     document,
     onAnswersSubmit,
@@ -63,7 +66,8 @@ export function PdfFormViewer({
     const [displayScale, setDisplayScale] = useState<number>(1.5);
     const [cssScale, setCssScale] = useState<number>(1);
     const [debugMode, setDebugMode] = useState(false);
-    console.log(setDebugMode)
+    
+    console.log(setDebugMode);
 
     // Signature dialog states
     const [openSig, setOpenSig] = useState(false);
@@ -190,21 +194,76 @@ export function PdfFormViewer({
         return () => {
             cancelled = true;
         };
-    }, [pdfUrl, currentPage, pdfDoc]); // Fixed: added pdfDoc dependency
+    }, [pdfUrl, currentPage, pdfDoc]);
+
+    // 🔍 Check if a field should be a checkbox based on size
+    const shouldBeCheckbox = (placeholder: DbPlaceholder): boolean => {
+        return placeholder.width < SMALL_FIELD_THRESHOLD && placeholder.height < SMALL_FIELD_THRESHOLD;
+    };
+
+    // 🔍 Get grouped checkboxes (fields with same name)
+    const getCheckboxGroups = () => {
+        const groups: Record<string, number[]> = {};
+        placeholders.forEach(ph => {
+            if (shouldBeCheckbox(ph) && ph.type === "text") {
+                if (!groups[ph.name]) {
+                    groups[ph.name] = [];
+                }
+                groups[ph.name].push(ph.id);
+            }
+        });
+        return groups;
+    };
+
+    // ✅ Check if all fields are filled (ignores checkboxes)
+    const allFieldsFilled = (): boolean => {
+        return placeholders.every(placeholder => {
+            // Skip checkboxes - they're optional
+            if (shouldBeCheckbox(placeholder)) {
+                return true;
+            }
+            
+            const value = answers[String(placeholder.id)];
+            
+            if (!value || (typeof value === "string" && value.trim() === "")) {
+                return false;
+            }
+            
+            return true;
+        });
+    };
+
+    // 🎯 Handle checkbox change (radio button behavior for same names)
+    const handleCheckboxChange = (placeholderId: number, placeholderName: string) => {
+        const checkboxGroups = getCheckboxGroups();
+        const groupIds = checkboxGroups[placeholderName] || [];
+
+        setAnswers(prev => {
+            const newAnswers = { ...prev };
+            
+            // If this is part of a group, uncheck all others in the group
+            if (groupIds.length > 1) {
+                groupIds.forEach(id => {
+                    if (id !== placeholderId) {
+                        newAnswers[String(id)] = "";
+                    }
+                });
+            }
+            
+            // Toggle current checkbox
+            const currentValue = prev[String(placeholderId)];
+            newAnswers[String(placeholderId)] = currentValue === "/" ? "" : "/";
+            
+            return newAnswers;
+        });
+    };
 
     // 💾 Save & Upload
     const handleSubmit = async () => {
         try {
-            const missing = placeholders
-                .filter((p) => p.page === currentPage)
-                .filter((p) => {
-                    const v = answers[String(p.id)];
-                    return !v || (typeof v === "string" && v.trim() === "");
-                });
-
-            if (missing.length) {
-                const names = missing.map((m) => m.name).slice(0, 5).join(", ");
-                toast.error(`Please fill all required fields: ${names}`);
+            // Check if all fields are filled (ignores checkboxes)
+            if (!allFieldsFilled()) {
+                toast.error("Please fill all required fields before submitting");
                 return;
             }
 
@@ -231,13 +290,24 @@ export function PdfFormViewer({
                 const y = height - (ph.y - ph.height) - 40;
 
                 if (ph.type === "text") {
-                    page.drawText(value, {
-                        x,
-                        y,
-                        size: 10,
-                        font,
-                        color: rgb(0, 0, 0),
-                    });
+                    // For checkboxes, draw a checkmark
+                    if (shouldBeCheckbox(ph) && value === "/") {
+                        page.drawText("/", {
+                            x: x + ph.width / 2 - 3, // Center the checkmark
+                            y: y + ph.height / 2 - 6,
+                            size: 12,
+                            font,
+                            color: rgb(0, 0, 0),
+                        });
+                    } else {
+                        page.drawText(value, {
+                            x,
+                            y,
+                            size: 10,
+                            font,
+                            color: rgb(0, 0, 0),
+                        });
+                    }
                 } else if (ph.type === "image" && value.startsWith("data:image")) {
                     const imgBytes = await fetch(value).then((r) => r.arrayBuffer());
                     const image = await pdfDoc.embedPng(imgBytes);
@@ -285,6 +355,8 @@ export function PdfFormViewer({
         (p) => p.page === currentPage
     );
 
+    const checkboxGroups = getCheckboxGroups();
+
     return (
         <div className="absolute inset-0 flex h-full">
             {/* 🧾 Sidebar with text inputs */}
@@ -293,29 +365,65 @@ export function PdfFormViewer({
                 <div className="flex-1 overflow-y-auto p-3 space-y-3">
                     {placeholders
                         .filter((p) => p.type === "text" && p.page === currentPage)
-                        .map((ph) => (
-                            <div key={ph.id} className="flex flex-col gap-1">
-                                <label className="text-sm font-medium text-gray-700">
-                                    {ph.name}
-                                </label>
-                                <Input
-                                    value={answers[String(ph.id)] || ""}
-                                    onChange={(e) =>
-                                        setAnswers((prev) => ({
-                                            ...prev,
-                                            [String(ph.id)]: e.target.value,
-                                        }))
-                                    }
-                                    placeholder={`Enter ${ph.name}`}
-                                    className="w-full"
-                                />
-                            </div>
-                        ))}
+                        .map((ph) => {
+                            const isCheckbox = shouldBeCheckbox(ph);
+                            const isChecked = answers[String(ph.id)] === "/";
+                            const hasSameNameGroup = checkboxGroups[ph.name] && checkboxGroups[ph.name].length > 1;
+
+                            return (
+                                <div key={ph.id} className="flex flex-col gap-1">
+                                    {isCheckbox ? (
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type={hasSameNameGroup ? "radio" : "checkbox"}
+                                                id={`field-${ph.id}`}
+                                                checked={isChecked}
+                                                onChange={() => handleCheckboxChange(ph.id, ph.name)}
+                                                className="w-4 h-4"
+                                            />
+                                            <label 
+                                                htmlFor={`field-${ph.id}`}
+                                                className="text-sm font-medium text-gray-700 cursor-pointer"
+                                            >
+                                                {ph.name}
+                                                {hasSameNameGroup && " (Select one)"}
+                                            </label>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <label className="text-sm font-medium text-gray-700">
+                                                {ph.name}
+                                            </label>
+                                            <Input
+                                                value={answers[String(ph.id)] || ""}
+                                                onChange={(e) =>
+                                                    setAnswers((prev) => ({
+                                                        ...prev,
+                                                        [String(ph.id)]: e.target.value,
+                                                    }))
+                                                }
+                                                placeholder={`Enter ${ph.name}`}
+                                                className="w-full"
+                                            />
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
                 </div>
                 <div className="p-4 border-t">
-                    <Button onClick={handleSubmit} className="w-full">
-                        Save & Upload
+                    <Button 
+                        onClick={handleSubmit} 
+                        className="w-full"
+                        disabled={!allFieldsFilled()}
+                    >
+                        {allFieldsFilled() ? "Save & Upload" : "Fill All Required Fields to Submit"}
                     </Button>
+                    {!allFieldsFilled() && (
+                        <p className="text-xs text-red-500 mt-2 text-center">
+                            Please fill all required form fields before submitting
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -362,25 +470,32 @@ export function PdfFormViewer({
                         {/* ✏️ Render text placeholders as live text */}
                         {pagePlaceholders
                             .filter((p) => p.type === "text")
-                            .map((ph) => (
-                                <div
-                                    key={ph.id}
-                                    className={`absolute select-none text-[15px] p-[11.5px] font-bold text-gray-900 font-sans ${debugMode ? "border border-blue-400 bg-blue-50/30" : ""
-                                        }`}
-                                    style={{
-                                        left:
-                                            ph.x * displayScale * cssScale + PLACEHOLDER_OFFSET.x + "px",
-                                        top:
-                                            ph.y * displayScale * cssScale + PLACEHOLDER_OFFSET.y + "px",
-                                        width: ph.width * displayScale * cssScale + "px",
-                                        height: ph.height * displayScale * cssScale + "px",
-                                        whiteSpace: "nowrap",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {answers[String(ph.id)] || ""}
-                                </div>
-                            ))}
+                            .map((ph) => {
+                                const isCheckbox = shouldBeCheckbox(ph);
+                                const displayValue = isCheckbox 
+                                    ? (answers[String(ph.id)] === "/" ? "/" : "")
+                                    : answers[String(ph.id)] || "";
+
+                                return (
+                                    <div
+                                        key={ph.id}
+                                        className={`absolute select-none text-[15px] p-[11.5px] font-bold text-gray-900 font-sans ${debugMode ? "border border-blue-400 bg-blue-50/30" : ""
+                                            }`}
+                                        style={{
+                                            left:
+                                                ph.x * displayScale * cssScale + PLACEHOLDER_OFFSET.x + "px",
+                                            top:
+                                                ph.y * displayScale * cssScale + PLACEHOLDER_OFFSET.y + "px",
+                                            width: ph.width * displayScale * cssScale + "px",
+                                            height: ph.height * displayScale * cssScale + "px",
+                                            whiteSpace: "nowrap",
+                                            textOverflow: "ellipsis",
+                                        }}
+                                    >
+                                        {displayValue}
+                                    </div>
+                                );
+                            })}
 
                         {/* ✍️ Signature placeholders */}
                         {pagePlaceholders

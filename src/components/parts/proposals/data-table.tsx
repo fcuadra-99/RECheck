@@ -159,7 +159,8 @@ export function DataTable<TData, TValue>({
         .filter(s => ["Admin Assistant", "Chairperson"].includes(s.actor))
         .sort((a, b) => a.sort_order - b.sort_order)
     )
-    .map(s => s.name), [phases]);
+    .map(s => s.name)
+    .filter(status => status !== "Deviation Check" && status !== "Study Report Check"), [phases]);
 
   const uniqueStatuses = [...new Set(statuses)];
   
