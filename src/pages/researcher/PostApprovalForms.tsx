@@ -9,7 +9,7 @@ export default function FormsTemplates() {
   const [selectedAction, setSelectedAction] = useState<'fill-online' | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
 
-  // handleTemplateUploadComplete removed as upload functionality is no longer needed
+  // haandleTemplateUploadComplete removed as upload functionality is no longer needed
 
   const handleCancel = () => {
     setSelectedAction(null);
