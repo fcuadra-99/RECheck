@@ -75,8 +75,8 @@ const FinalReportSubmission: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [currentFillingDocId, setCurrentFillingDocId] = useState<string | null>(null);
-  const [showCertificatePreview, setShowCertificatePreview] = useState(false);
-  const [certificateUrl, setCertificateUrl] = useState<string | null>(null);
+ 
+ 
   
   // Final report template URL
   const FINAL_REPORT_TEMPLATE_URL = '/templates/Protocol_Final_Report_Template.pdf';

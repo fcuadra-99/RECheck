@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, } from 'react';
 import { BookOpen } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
-import { supabase } from '../../DB';
+
 
 export default function FormsTemplates() {
   const [selectedAction, setSelectedAction] = useState<'fill-online' | null>(null);
