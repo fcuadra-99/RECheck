@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import { Search, Filter, Eye, FileText, Calendar, Clock, AlertTriangle, CheckCircle } from 'lucide-react';
 import type { ResearcherDeviationReport } from '../../types/deviationReport';
 

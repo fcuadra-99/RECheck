@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 import { Eye, FileText, Calendar, User, CheckCircle, Clock, AlertCircle, Search, Filter } from 'lucide-react';
 

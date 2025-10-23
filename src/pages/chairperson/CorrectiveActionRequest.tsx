@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import DigitalSignaturePad from '../../components/DigitalSignaturePad';
 import SignatureDisplay from '../../components/SignatureDisplay';
 

@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../DB';
 import CryptoJS from 'crypto-js';
 
 export interface SignatureData {

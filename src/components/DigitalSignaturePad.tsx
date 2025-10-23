@@ -13,6 +13,12 @@ interface DigitalSignaturePadProps {
   disabled?: boolean;
 }
 
+// Helper function to format role name for display
+const formatRoleName = (role: 'researcher' | 'chairperson'): string => {
+  if (role === 'researcher') return 'Researcher';
+  return role.charAt(0).toUpperCase() + role.slice(1);
+};
+
 export default function DigitalSignaturePad({
   deviationReportId,
   userRole,
@@ -170,7 +176,7 @@ export default function DigitalSignaturePad({
         <div className="flex items-center">
           <Pen className="h-5 w-5 text-blue-600 mr-2" />
           <h3 className="text-lg font-semibold text-gray-900">
-            {userRole === 'researcher' ? 'Researcher Signature' : 'Chairperson Review Signature'}
+            {formatRoleName(userRole)} {userRole === 'chairperson' ? 'Review ' : ''}Signature
           </h3>
         </div>
         <div className="text-sm text-gray-500">
@@ -181,8 +187,8 @@ export default function DigitalSignaturePad({
       <div className="mb-4">
         <p className="text-sm text-gray-600 mb-2">
           {userRole === 'researcher' 
-            ? 'By signing below, I certify that the information provided in this deviation report is accurate and complete to the best of my knowledge.'
-            : 'By signing below, I certify that I have reviewed this deviation report and my assessment is complete and accurate.'
+            ? `By signing below as a ${formatRoleName(userRole)}, I certify that the information provided in this deviation report is accurate and complete to the best of my knowledge.`
+            : `By signing below as a ${formatRoleName(userRole)}, I certify that I have reviewed this deviation report and my assessment is complete and accurate.`
           }
         </p>
       </div>

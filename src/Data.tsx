@@ -1,13 +1,12 @@
-// Removed misplaced duplicate 'Message' tab object
 import {
   BookCopy,
-  Megaphone,
+  ClipboardCheck,
+  FileCheck,
   GalleryVerticalEnd,
   LayoutDashboard,
-  PencilRuler,
-  User,
+  Settings,
+  UserCheck,
   type LucideIcon,
-  FileText,
 } from "lucide-react"
 
 export type {
@@ -15,14 +14,17 @@ export type {
   Organization,
   NavItem,
   Submissions,
-  AppData
+  AppData,
+  SubmTable,
 };
 
 type User = {
-  name: string;
+  fname: string;
+  lname: string;
   role: string;
   email: string;
   avatar: string;
+  org: string;
 };
 
 type Organization = {
@@ -39,111 +41,171 @@ type NavItem = {
   items?: {
     title: string;
     url: string;
+    role: string;
   }[];
+};
+
+type SubmTable = {
+  proposal_id: string;
+  proposal_title: string;
+  status: string;
 };
 
 type Submissions = {
   month: string;
   desktop: number;
   mobile: number;
-}; 
+};
 
 type AppData = {
   user: User;
   main: Organization[];
   navMain: NavItem[];
   navSecondary: NavItem[];
-  subm: Submissions[]
-  projects: any[];
+  subm: Submissions[];
+  projects: unknown[];
 };
 
+// ====== BASE NAV CONFIG ======
+const navConfig = {
+  dashboard: {
+    title: "Dashboard",
+    url: "/sdash",
+    icon: LayoutDashboard,
+    items: [
+      { title: "Dashboard", url: "/sdash", role: "Admin Assistant" },
+      { title: "Dashboard", url: "/sdash/sub2", role: "Researcher" },
+      { title: "Dashboard", url: "/sdash/sub2", role: "Reviewer" },
+      { title: "Dashboard", url: "/sdash", role: "Chairperson" },
+    ],
+  },
+  submissions: {
+    title: "Submissions",
+    url: "/ssubm",
+    icon: BookCopy,
+    items: [
+      { title: "Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
+      { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
+      { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+    ],
+  },
+  deviations: {
+    title: "Deviations",
+    url: "/sdevi",
+    icon: BookCopy,
+    items: [
+      { title: "Deviations", url: "/sdevi", role: "Admin Assistant" },
+      { title: "Report Deviation", url: "/sdevi/report", role: "Researcher" },
+      { title: "My Deviations", url: "/sdevi/submitted", role: "Researcher" },
+      { title: "Deviations", url: "/sdevi/sub1", role: "Reviewer" },
+      { title: "Deviations", url: "/chairperson/deviations", role: "Chairperson" },
+      { title: "Resolution Reviews", url: "/chairperson/resolution-reviews", role: "Chairperson" },
+    ],
+  },
+  postApproval: {
+    title: "Post Approval",
+    url: "/researcher/post-approval-forms",
+    icon: ClipboardCheck,
+    items: [
+      { title: "New Form", url: "/researcher/post-approval-forms", role: "Researcher" },
+      { title: "Forms Submitted", url: "/researcher/template-submissions", role: "Researcher" },
+    ],
+  },
+  finalReports: {
+    title: "Final Reports",
+    url: "/researcher/final-report",
+    icon: FileCheck,
+    items: [
+      { title: "My Reports", url: "/researcher/final-report", role: "Researcher" },
+      { title: "Manage Reports", url: "/chairperson/final-reports", role: "Chairperson" },
+    ],
+  },
+  formsReview: {
+    title: "Post Approval Forms",
+    url: "/chairperson/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Submissions", url: "/chairperson/template-submissions", role: "Chairperson" },
+    ],
+  },
+  admin: {
+    title: "Admin",
+    url: "/admin",
+    icon: UserCheck,
+    items: [
+      { title: "User Management", url: "/admin/userroles", role: "Admin" },
+      { title: "Phase Management", url: "/sdevi/sub2", role: "Researcher" },
+      { title: "Files Management", url: "/sdevi/sub1", role: "Admin Assistant" },
+
+    ],
+  },
+};
+
+// ====== NAV FILTER FUNCTION ======
+export function generateNav(role: string): NavItem[] {
+  const roleIsAdmin = role === "Admin";
+  const roleIsChair = role === "Chairperson";
+
+  return Object.values(navConfig)
+    .map((section) => {
+      let items = section.items ?? [];
+
+      // Admin sees everything
+      if (roleIsAdmin) {
+        return {
+          ...section,
+          isActive: true,
+          items,
+        };
+      }
+
+      // Chairperson sees ONLY Chairperson items
+      if (roleIsChair) {
+        if (section.title === "Admin") {
+          return null; // skip Admin section entirely
+        }
+        items = items.filter((i) => i.role === "Chairperson");
+
+        return items.length > 0
+          ? { ...section, isActive: true, items }
+          : null;
+      }
+
+      // Everyone else gets only their allowed sub-items
+      items = items.filter((i) => i.role === role);
+
+      return items.length > 0
+        ? { ...section, isActive: true, items }
+        : null;
+    })
+    .filter(Boolean) as NavItem[];
+}
+
+
+// ====== APP DATA ======
 export const data: AppData = {
   user: {
-    name: "shadcn",
-    role: "Researcher",
+    fname: "shad",
+    lname: "cn",
+    role: "Chairperson", // change dynamically
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "/avatars/avatar.png",
+    org: "",
   },
   main: [
     {
-      name: 'Acme Inc',
+      name: "Acme Inc",
       logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    }
-  ],
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/sdash",
-      icon: LayoutDashboard,
-      isActive: true,
-      items: [
-        {
-          title: "Dash Sub1",
-          url: "/sdash/sub1",
-        },
-        {
-          title: "Dash Sub2",
-          url: "/sdash/sub2",
-        },
-        {
-          title: "Dash Sub3",
-          url: "/sdash/sub3",
-        },
-      ],
-    },
-    {
-      title: "Submissions",
-      url: "/ssubm",
-      icon: BookCopy,
-      isActive: true,
-      items: [
-        {
-          title: "Subm Sub1",
-          url: "/ssubm/sub1",
-        },
-        {
-          title: "Subm Sub2",
-          url: "/ssubm/sub2",
-        },
-        {
-          title: "Subm Sub3",
-          url: "/ssubm/sub3",
-        },
-      ],
-    },
-      {
-        title: "Submitted Forms",
-        url: "/researcher/template-submissions",
-        icon: FileText,
-        isActive: true,
-      },
-    {
-      title: "Assign Reviewer",
-      url: "/sassign-reviewer",
-      icon: User,
-      isActive: true,
-    },
-    {
-      title: "Review Submission",
-      url: "/sreview-submission",
-      icon: BookCopy,
-      isActive: true,
-    },
-    {
-      title: "Deviation Management",
-      url: "/sdevi",
-      icon: PencilRuler,
-      isActive: true,
-    },
-    {
-      title: "Create announcement",
-      url: "/screate-announcement",
-      icon: Megaphone,
-      isActive: true,
+      plan: "Enterprise",
     },
   ],
+  navMain: generateNav("Admin"),
   navSecondary: [
+    {
+      title: "Settings",
+      url: "#",
+      icon: Settings,
+    },
   ],
   subm: [
     { month: "January", desktop: 186, mobile: 80 },

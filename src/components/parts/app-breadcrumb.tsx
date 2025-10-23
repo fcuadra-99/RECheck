@@ -10,37 +10,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 
-export function AppBreadcrumb({
-  items,
-}: {
-  items: {
-    title: string
-    url: string
-    items?: {
-      title: string
-      url: string
-    }[]
-  }[]
-}) {
-
-
-  function FTWU(items: any[], targetUrl: string): string | null {
-    for (const item of items) {
-      if (item.url === targetUrl) {
-        return item.title;
-      }
-
-      if (item.items) {
-        const foundInChildren = FTWU(item.items, targetUrl);
-        if (foundInChildren) {
-          return foundInChildren;
-        }
-      }
-    }
-    return null;
-  }
-
-
+export function AppBreadcrumb() {
   function Pathingy() {
     const path = useLocation().pathname
     const paths = path.split("/")
@@ -54,7 +24,7 @@ export function AppBreadcrumb({
       if (root == path) {
         pathc.push(
           <BreadcrumbItem>
-            <BreadcrumbPage>{FTWU(items, path)}</BreadcrumbPage>
+            <BreadcrumbPage>{paths[p]}</BreadcrumbPage>
           </BreadcrumbItem>
         )
       }
@@ -63,7 +33,7 @@ export function AppBreadcrumb({
           <>
             <BreadcrumbItem>
               <BreadcrumbLink href={root}>
-                {FTWU(items, root)}
+                {paths[p]}
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator>
@@ -74,17 +44,32 @@ export function AppBreadcrumb({
       }
     }
 
-
     return pathc
   }
 
-  //console.log(path.split("/").length - 1)
-
   return (
-    <Breadcrumb className="flex space-1">
-      <BreadcrumbList className="ml-9 md:ml-0 transition-all duration-150 ease-out" >
+    <Breadcrumb className="bg-accent z-100 backdrop-blur-md md:pl-64">
+      <BreadcrumbPortal>
         {Pathingy()}
-      </BreadcrumbList>
+      </BreadcrumbPortal>
     </Breadcrumb>
   )
+}
+
+
+"use client";
+
+import { createPortal } from "react-dom";
+
+export function BreadcrumbPortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null; // SSR guard
+
+  return createPortal(
+    <Breadcrumb className="bg-white/30 backdrop-blur-xs fixed top-0 md:left-64 w-full z-[1] py-3 border-b-2 md:pl-5 sm:pl-14.5 pl-14.5">
+      <BreadcrumbList className="ml-0 transition-all duration-150 ease-out w-auto">
+        {children}
+      </BreadcrumbList>
+    </Breadcrumb>,
+    document.body
+  );
 }

@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../DB';
 
 export interface UploadResult {
   url: string;
@@ -125,8 +125,38 @@ export class FileUploadService {
    * Upload multiple files
    */
   static async uploadFiles(files: File[], options: UploadOptions): Promise<UploadResult[]> {
-    const uploadPromises = files.map(file => this.uploadFile(file, options));
-    return Promise.all(uploadPromises);
+    // If no files, return empty array
+    if (!files || files.length === 0) {
+      return [];
+    }
+    
+    // Log for debugging
+    console.log(`Attempting to upload ${files.length} files to ${options.bucket}/${options.folder}`);
+    
+    // Process files sequentially to avoid overwhelming the storage API
+    const results: UploadResult[] = [];
+    
+    for (const file of files) {
+      try {
+        const result = await this.uploadFile(file, options);
+        results.push(result);
+        
+        if (result.error) {
+          console.error(`Error uploading file ${file.name}:`, result.error);
+        } else {
+          console.log(`Successfully uploaded ${file.name} to ${result.path}`);
+        }
+      } catch (err) {
+        console.error(`Exception uploading file ${file.name}:`, err);
+        results.push({
+          url: '',
+          path: '',
+          error: `Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+        });
+      }
+    }
+    
+    return results;
   }
 
   /**

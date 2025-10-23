@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../DB';
 
 export interface ReviewAttachment {
   id: string;

@@ -12,7 +12,7 @@ import {
     DialogFooter,
 } from '@/components/animate-ui/headless/dialog';
 
-export const Diademo: React.FC<{
+export const Dialogue: React.FC<{
     title: string;
     desc: string;
     cont: string;

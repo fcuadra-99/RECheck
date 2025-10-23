@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../DB';
 import type { FinalReportFilter, UpdateFinalReportPayload } from '../types/finalReport';
 
 const TABLE = 'final_reports';
@@ -28,11 +28,11 @@ export async function updateFinalReport(payload: UpdateFinalReportPayload) {
   return { data, error };
 }
 
-export async function createFinalReportDraft(input: { submission_id: string; title: string; attachments?: string[] }) {
+export async function createFinalReportDraft(input: { proposal_date: string; title: string; attachments?: string[] }) {
   const { data: auth } = await supabase.auth.getUser();
   const researcherId = auth?.user?.id;
   const insertPayload: any = {
-    submission_id: input.submission_id,
+    proposal_date: input.proposal_date,
     title: input.title,
     attachments: input.attachments || [],
     researcher_id: researcherId,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import AttachmentList from '../../components/AttachmentList';
 import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, AlertCircle, Download, Eye } from 'lucide-react';
 
@@ -21,7 +21,7 @@ interface TemplateSubmission {
   signature_image?: string;
 }
 
-export default function ResearcherSubmissionDetail() {
+export default function TemplateSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);

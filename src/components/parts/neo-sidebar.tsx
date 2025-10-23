@@ -1,14 +1,7 @@
 'use client';
 
 import * as React from 'react';
-
-import { data as DATA } from "@/Data"
-import { sidebarMenus } from "@/constants/sidebarMenus"
-
-import type { NavItem } from "@/Data"
-import useAuth from "@/hooks/useAuth"
-import { useUserRole } from "@/hooks/useUserRole"
-
+import { data as DATA, generateNav, type NavItem } from "@/Data";
 import {
   SidebarProvider,
   SidebarTrigger,
@@ -21,191 +14,274 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/animate-ui/radix/sidebar';
-import { 
-  Collapsible, 
-  CollapsibleTrigger, 
-  CollapsibleContent 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
 } from '@/components/animate-ui/radix/collapsible';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/animate-ui/radix/dropdown-menu';
-import { BadgeCheck, ChevronsUpDown, ChevronRight } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/animate-ui/radix/dropdown-menu';
+import {
+  ChevronRight,
+  ChevronsUpDown,
+  CircleUserRound,
+  LogOut,
+  Settings,
+} from 'lucide-react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
+import { supabase } from '@/DB';
+import { toast } from 'sonner';
+import { createPortal } from 'react-dom';
 
+interface RadixSidebarDemoProps {
+  fname: string;
+  lname: string;
+  email: string;
+  org: string;
+  role: string;
+  userId: string;
+}
 
-
-export function RadixSidebarDemo({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function RadixSidebarDemo({
+  fname,
+  lname,
+  email,
+  role,
+  userId,
+  ...props
+}: RadixSidebarDemoProps & React.ComponentProps<typeof Sidebar>) {
   const isMobile = useIsMobile();
-  const { user } = useAuth();
-  const { role: userRole } = useUserRole(user);
   const main = DATA.main[0];
+  const navigate = useNavigate();
 
-  
-  const role: keyof typeof sidebarMenus = (userRole as keyof typeof sidebarMenus) || (DATA.user.role as keyof typeof sidebarMenus) || "Researcher";
-  const menu: NavItem[] = sidebarMenus[role] || sidebarMenus["Researcher"];
- 
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
+
+  // ----------------------------
+  // Dynamic nav items based on role
+  // ----------------------------
+  const navItems = React.useMemo(() => {
+    if (!role) return [];
+    return generateNav(role);
+  }, [role]);
+
+  // ----------------------------
+  // Avatar fetching (keep intact)
+  // ----------------------------
+  React.useEffect(() => {
+    if (!userId) return;
+
+    const fetchAvatar = async () => {
+      try {
+        const { data: publicUrlData } = supabase.storage
+          .from("profiles")
+          .getPublicUrl(`${userId}/avatar.png`);
+
+        const url = publicUrlData?.publicUrl;
+
+        if (!url) {
+          setAvatarUrl(null);
+          return;
+        }
+
+        const res = await fetch(url, { method: "HEAD" });
+        if (res.ok) {
+          setAvatarUrl(url);
+        } else {
+          setAvatarUrl(null);
+        }
+      } catch (err) {
+        console.error("Avatar fetch error:", err);
+        setAvatarUrl(null);
+      }
+    };
+
+    fetchAvatar();
+  }, [userId]);
+
+  main;
+
+  // ----------------------------
+  // Logout handler
+  // ----------------------------
+  const handleLogout = async () => {
+    const loading = toast.loading("Logging Out...");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setTimeout(() => {
+          navigate("/login", { replace: true });
+        }, 100);
+        toast.success("Logged out successfully!");
+      }
+    } catch (err) {
+      console.error("Logout error:", err);
+      toast.error("An unexpected error occurred during logout.");
+    } finally {
+      toast.dismiss(loading);
+    }
+  };
+
+  // ----------------------------
+  // Render
+  // ----------------------------
   return (
-    <>
-      <SidebarProvider>
-        <Sidebar {...props}>
-          <SidebarHeader>
-            {/* Team Switcher */}
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <SidebarMenuButton
-                    size="lg"
-                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  >
-                    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                      <main.logo className="size-4" />
-                    </div>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        RECheck
-                      </span>
-                      <span className="truncate text-xs">
-                        UIC REC
-                      </span>
-                    </div>
-                  </SidebarMenuButton>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
-            {/* Team Switcher */}
-          </SidebarHeader>
+    <SidebarProvider>
+      <Sidebar {...props}>
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Avatar>
+                    <AvatarImage src={"logoo.png"} className="w-auto h-auto contain-content " />
+                  </Avatar>
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold">RECheck</span>
+                  <span className="truncate text-xs">UIC REC</span>
+                </div>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
 
-          <SidebarContent>
-            {/* Nav Main */}
-            <SidebarGroup>
-              <SidebarGroupLabel>Platform</SidebarGroupLabel>
-              <SidebarMenu>
-                {menu.map((item: NavItem) => (
-                  <SidebarMenuItem key={item.title}>
-                    {item.items && item.items.length > 0 ? (
-                      <Collapsible defaultOpen={false}>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton className="w-full">
-                            {item.icon && <item.icon />}
-                            <span>{item.title}</span>
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenu className="pl-4 mt-1">
-                            {item.items.map((subItem) => (
-                              <SidebarMenuItem key={subItem.title}>
-                                <SidebarMenuButton asChild>
-                                  <Link to={subItem.url} className="flex items-center gap-2 w-full">
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            ))}
-                          </SidebarMenu>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ) : (
-                      <SidebarMenuButton asChild tooltip={item.title}>
-                        <Link to={item.url} className="flex items-center gap-2 w-full">
-                          {item.icon && <item.icon />}
-                          <span>{item.title}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    )}
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroup>
-            {/* Nav Main */}
-          </SidebarContent>
-          <SidebarFooter>
-            {/* Nav User */}
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Platform</SidebarGroupLabel>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton
-                      size="lg"
-                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                    >
+              {navItems.map((item: NavItem) => (
+                <Collapsible key={item.title}>
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton tooltip={item.title}>
+                        {item.icon && <item.icon />}
+                        <span>{item.title}</span>
+                        {item.items?.length ? (
+                          <ChevronRight className="ml-auto transition-transform duration-300 group-data-[state=open]/collapsible:rotate-90" />
+                        ) : null}
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    {item.items?.length ? (
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {item.items.map((subItem) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton asChild>
+                                <Link to={subItem.url}>
+                                  <span>{subItem.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    ) : null}
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton size="lg">
+                    <Avatar className="h-8 w-8 rounded-xl border-2 border-primary">
+                      {avatarUrl ? (
+                        <AvatarImage src={avatarUrl} className="w-full h-full object-cover" />
+                      ) : (
+                        <AvatarFallback className="rounded-lg">{lname[0]?.toUpperCase()}</AvatarFallback>
+                      )}
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">{`${lname}, ${fname}`}</span>
+                      <span className="truncate text-xs">{email}</span>
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-67 md:min-w-60 rounded-md"
+                  side={isMobile ? "bottom" : "bottom"}
+                  align="center"
+                  sideOffset={10}
+                >
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                       <Avatar className="h-8 w-8 rounded-lg">
-                        <AvatarImage
-                          src={DATA.user.avatar}
-                          alt={DATA.user.name}
-                        />
-                        <AvatarFallback className="rounded-lg">{DATA.user.name[0].toUpperCase()}</AvatarFallback>
+                        {avatarUrl ? (
+                          <AvatarImage src={avatarUrl} />
+                        ) : (
+                          <AvatarFallback className="rounded-lg">{lname[0]?.toUpperCase()}</AvatarFallback>
+                        )}
                       </Avatar>
                       <div className="grid flex-1 text-left text-sm leading-tight">
-                        <span className="truncate font-semibold">
-                          {DATA.user.name}
-                        </span>
-                        <span className="truncate text-xs">
-                          {DATA.user.email}
-                        </span>
+                        <span className="truncate font-semibold">{`${lname}, ${fname}`}</span>
+                        <span className="truncate text-xs">{email}</span>
                       </div>
-                      <ChevronsUpDown className="ml-auto size-4" />
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
-                    side={isMobile ? 'bottom' : 'right'}
-                    align="end"
-                    sideOffset={4}
-                  >
-                    <DropdownMenuLabel className="p-0 font-normal">
-                      <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                        <Avatar className="h-8 w-8 rounded-lg">
-                          <AvatarImage
-                            src={DATA.user.avatar}
-                            alt={DATA.user.name}
-                          />
-                          <AvatarFallback className="rounded-lg">
-                            {DATA.user.name[0].toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="grid flex-1 text-left text-sm leading-tight">
-                          <span className="truncate font-semibold">
-                            {DATA.user.name}
-                          </span>
-                          <span className="truncate text-xs">
-                            {DATA.user.email}
-                          </span>
-                        </div>
-                      </div>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuGroup>
-                      <Link to="/profile">
-                        <DropdownMenuItem>
-                          <BadgeCheck />
-                          Profile
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link to="/settings">
-                        <DropdownMenuItem>
-                          <BadgeCheck />
-                          Settings
-                        </DropdownMenuItem>
-                      </Link>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator />
-                    <a href="/login">
+                    </div>
+                  </DropdownMenuLabel>
+
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <Link to="/profile">
                       <DropdownMenuItem>
-                        <BadgeCheck />
-                        Logout
+                        <CircleUserRound />
+                        Profile
                       </DropdownMenuItem>
-                    </a>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
-            {/* Nav User */}
-          </SidebarFooter>
-        </Sidebar>
-        <SidebarTrigger className="mx-4 my-2 min-md:invisible md:transition-none z-30 fixed" onClick={() => console.log("ww")} />
-      </SidebarProvider >
-    </>
+                    </Link>
+                    <Link to="/settings">
+                      <DropdownMenuItem>
+                        <Settings />
+                        Settings
+                      </DropdownMenuItem>
+                    </Link>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarTriggerPortal />
+    </SidebarProvider>
+  );
+}
+
+// Sidebar trigger portal
+export function SidebarTriggerPortal() {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <SidebarTrigger className="mx-2 mt-0.5 fixed top-2 left-2 md:hidden sm:visible z-[2]" />,
+    document.body
   );
 }

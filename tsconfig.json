@@ -1,5 +1,7 @@
 {
-  "files": [],
+  "files": [
+    "./vite-env.d.ts"
+  ],
   "references": [
     {
       "path": "./tsconfig.app.json"
@@ -9,7 +11,6 @@
     }
   ],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"

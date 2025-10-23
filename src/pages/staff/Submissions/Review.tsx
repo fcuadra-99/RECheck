@@ -1,0 +1,916 @@
+import { RippleButton } from "@/components/animate-ui/buttons/ripple";
+import { Button } from "@/components/ui/button";
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/DB";
+import { toast } from "sonner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  FileText,
+  User,
+  Mail,
+  Calendar,
+  CheckCircle,
+  Pencil,
+  Shield,
+  Zap,
+  Ban,
+  Check,
+  X,
+  Badge,
+  X as CloseIcon,
+} from "lucide-react";
+
+type Status =
+  | "Check Manuscript"
+  | "Risk Assessment"
+  | "Forms Check"
+  | "Deploy Queue"
+  | "Send Revision"
+  | "Check Revision"
+  | "Resend Revision"
+  | "Assign Review"
+  | "Proposal Review"
+  | "Revise Proposal"
+  | "Data Collection"
+  | "Deviation Check"
+  | "Study Report Check"
+  | "Revise Documents";
+
+let ide = "";
+let titlee = "";
+let researchere = "";
+let emaile = "";
+let statuse: Status;
+let submDatee = "";
+let typee = "";
+
+export function handleCheck(
+  _id: string,
+  _title: string,
+  _researcher: string,
+  _email: string,
+  _submDate: string,
+  _reviewer: string,
+  _status: Status,
+  _type: string
+) {
+  ide = _id;
+  titlee = _title;
+  researchere = _researcher;
+  emaile = _email;
+  statuse = _status;
+  submDatee = _submDate;
+  typee = _type;
+}
+
+function stat(params: Status) {
+  const awa = {
+    "Check Manuscript": "Risk Assessment",
+    "Risk Assessment": "Send Forms",
+    "Forms Check": "Deploy Queue",
+    "Deploy Queue": "Assign Review",
+    "Send Revision": "Check Revision",
+    "Check Revision": "Assign Review",
+    "Resend Revision": "Check Revision",
+    "Assign Review": "Proposal Review",
+    "Proposal Review": "Data Collection",
+    "Revise Proposal": "Proposal Review",
+    "Data Collection": "Data Collection",
+    "Deviation Check": "Data Collection",
+    "Study Report Check": " Send Final Report",
+    "Revise Documents": "Deviation Check",
+  };
+  return awa[params];
+}
+
+function statm(params: Status) {
+  const awa = {
+    "Check Manuscript": "Resend Manuscript",
+    "Risk Assessment": "Check Manuscript",
+    "Forms Check": "Resend Forms",
+    "Deploy Queue": "Send Revision",
+    "Send Revision": "Deploy Queue",
+    "Check Revision": "Resend Revision",
+    "Resend Revision": "Check Revision",
+    "Assign Review": "Proposal Review",
+    "Proposal Review": "Revise Proposal",
+    "Revise Proposal": "Proposal Review",
+    "Data Collection": "Data Collection",
+    "Deviation Check": "Revise Documents",
+    "Study Report Check": "Revise Documents",
+    "Revise Documents": "Deviation Check",
+  };
+  return awa[params];
+}
+
+export const SReview = () => {
+  const [activePreview, setActivePreview] = React.useState<"manuscript" | "forms" | "revision" | null>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const navigate = useNavigate();
+
+  isFullscreen
+
+  const [tog, setTog] = React.useState("");
+  const [msg, setMsg] = React.useState("");
+  const [selectedFiles, setSelectedFiles] = React.useState<string[]>([]);
+  const [selectedReviewer, setSelectedReviewer] = React.useState<string>("");
+  const [reviewers, setReviewers] = React.useState<any[]>([]);
+  const [isLoadingReviewers, setIsLoadingReviewers] = React.useState(false);
+
+  const [id] = React.useState(ide.toString());
+  const [title] = React.useState(titlee || "Unknown");
+  const [researcher] = React.useState(researchere || "Unknown");
+  const [email] = React.useState(emaile || "Unknown");
+  const [submDate] = React.useState(submDatee || "Unknown");
+  const [status] = React.useState(statuse || "Unknown");
+  const [type] = React.useState(typee || "Unknown");
+
+  const [selectedDoc, setSelectedDoc] = React.useState<string>("");
+  const [docURL, setDocURL] = React.useState<string>("");
+  const [manuscriptDocs, setManuscriptDocs] = React.useState<{ name: string; file: string }[]>([]);
+  const [formsDocs, setFormsDocs] = React.useState<{ name: string; file: string }[]>([]);
+  const [revisionDocs, setRevisionDocs] = React.useState<{ name: string; file: string }[]>([]);
+
+  React.useEffect(() => {
+    if (!title) navigate("/ssubm/sub1");
+  }, [navigate, title]);
+
+  // Fetch reviewers for Assign status
+  React.useEffect(() => {
+    if (type === "Assign") {
+      fetchReviewers();
+    }
+  }, [type]);
+
+  const fetchReviewers = async () => {
+    setIsLoadingReviewers(true);
+    try {
+      const { data: reviewersData, error } = await supabase
+        .from('profiles')
+        .select('id, fname, lname, email')
+        .in('role', ['Reviewer', 'Admin'])
+
+      if (error) throw error;
+
+      // Get assignment counts for each reviewer
+      const reviewersWithCounts = await Promise.all(
+        (reviewersData || []).map(async (reviewer) => {
+          const { count } = await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .eq('reviewer', reviewer.id)
+            .eq('status', 'Assigned');
+
+          return {
+            ...reviewer,
+            assignedCount: count || 0
+          };
+        })
+      );
+
+      setReviewers(reviewersWithCounts);
+    } catch (error: any) {
+      toast.error("Failed to fetch reviewers: " + error.message);
+    } finally {
+      setIsLoadingReviewers(false);
+    }
+  };
+
+  // Fetch documents from bucket dynamically
+  React.useEffect(() => {
+    if (!id) return;
+
+    // In your SReview component's fetchDocs function
+    const fetchDocs = async () => {
+      try {
+        const manuscriptPhase = "Send Manuscript";
+        const formsPhase = "Send Forms";
+        const revisionPhase = "Send Revision";
+
+        // List files for manuscript
+        const { data: manuList, error: manuErr } = await supabase.storage
+          .from("documents")
+          .list(`${id}/${manuscriptPhase}`);
+
+        if (manuErr) throw manuErr;
+
+        // Filter out system files
+        const validManuFiles = manuList?.filter(f =>
+          !f.name.startsWith('.') &&
+          !f.name.includes('emptyfolderplaceholder')
+        ) || [];
+
+        setManuscriptDocs(
+          validManuFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
+        );
+
+        // Repeat the same filtering for forms and revision lists...
+        const { data: formsList, error: formsErr } = await supabase.storage
+          .from("documents")
+          .list(`${id}/${formsPhase}`);
+
+        if (formsErr) throw formsErr;
+
+        const validFormsFiles = formsList?.filter(f =>
+          !f.name.startsWith('.') &&
+          !f.name.includes('emptyfolderplaceholder')
+        ) || [];
+
+        setFormsDocs(
+          validFormsFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
+        );
+
+        // For revision phase
+        if (status === "Check Revision") {
+          const { data: revisionList, error: revisionErr } = await supabase.storage
+            .from("documents")
+            .list(`${id}/${revisionPhase}`);
+
+          if (revisionErr) throw revisionErr;
+
+          const validRevisionFiles = revisionList?.filter(f =>
+            !f.name.startsWith('.') &&
+            !f.name.includes('emptyfolderplaceholder')
+          ) || [];
+
+          setRevisionDocs(
+            validRevisionFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
+          );
+        }
+      } catch (err: any) {
+        toast.error("Failed to fetch documents: " + err.message);
+      }
+    };
+
+    fetchDocs();
+  }, [id, status]);
+
+  React.useEffect(() => {
+    if (selectedDoc && activePreview) {
+      fetchDoc();
+    }
+  }, [selectedDoc, activePreview]);
+
+  async function fetchDoc() {
+    if (!selectedDoc || !activePreview) return;
+
+    let phase = "";
+    if (activePreview === "manuscript") {
+      phase = "Send Manuscript";
+    } else if (activePreview === "forms") {
+      phase = "Send Forms";
+    } else if (activePreview === "revision") {
+      phase = "Send Revision";
+    }
+
+    const path = `${id}/${phase}/${selectedDoc}`;
+
+    setDocURL(""); // Show skeleton while loading
+    try {
+      const { data, error } = await supabase.storage
+        .from("documents")
+        .createSignedUrl(path, 60);
+
+      if (error || !data?.signedUrl) {
+        toast.error("Failed to load document");
+        setDocURL(""); // Document does not exist
+        return;
+      }
+
+      setDocURL(data.signedUrl);
+    } catch (err) {
+      toast.error("Failed to load document");
+      setDocURL("");
+    }
+  }
+
+  React.useEffect(() => {
+    if (!id) {
+      navigate("/ssubm/sub1");
+    }
+  }, [id, navigate]);
+
+  async function handleSubmit() {
+    const loading = toast.loading("Loading...");
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const actorId = userData?.user?.id;
+      if (!actorId) throw new Error("No logged-in user found.");
+
+      const affectedFiles =
+        tog === "deny"
+          ? selectedFiles.map((fileName) => ({ name: fileName, required: true }))
+          : [];
+
+      if (type === "Assess") {
+        if (!tog) {
+          toast.error("Please select a review type before submitting.");
+          return;
+        }
+
+        const { error } = await supabase
+          .from("proposals")
+          .update({
+            status: stat(status),
+            review_type: tog,
+            updated_on: new Date().toISOString(),
+          })
+          .eq("proposal_id", id);
+
+        if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "assess",
+          paper_id: id,
+          comment: `Risk assessment set as "${tog}"`,
+          affected_files: JSON.stringify([]),
+          actor: actorId,
+        });
+
+        toast.success(`Risk assessment saved as "${tog}"`);
+      } else if (type === "Assign") {
+        if (!selectedReviewer) {
+          toast.error("Please select a reviewer before submitting.");
+          return;
+        }
+
+        const { error } = await supabase
+          .from("proposals")
+          .update({
+            reviewer: selectedReviewer,
+            status: "Assigned",
+            updated_on: new Date().toISOString(),
+          })
+          .eq("proposal_id", id);
+
+        if (error) throw error;
+
+        const reviewer = reviewers.find(r => r.id === selectedReviewer);
+        const reviewerName = reviewer ? `${reviewer.fname} ${reviewer.lname}` : 'Unknown Reviewer';
+
+        await supabase.from("history").insert({
+          history_type: "assignment",
+          paper_id: id,
+          comment: `Assigned to reviewer: ${reviewerName}`,
+          actor: actorId,
+          action: "Assign Reviewer",
+          history_date: new Date().toISOString(),
+        });
+
+        toast.success(`Assigned to ${reviewerName}`);
+      } else if (tog === "deny") {
+        const { error } = await supabase
+          .from("proposals")
+          .update({
+            status: statm(status),
+            updated_on: new Date().toISOString(),
+          })
+          .eq("proposal_id", id);
+
+        if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "deny",
+          paper_id: id,
+          comment: msg || "Revision requested",
+          affected_files: JSON.stringify(affectedFiles),
+          actor: actorId,
+        });
+
+        toast.success("Revision requested");
+      } else {
+        const { error } = await supabase
+          .from("proposals")
+          .update({
+            status: stat(status),
+            updated_on: new Date().toISOString(),
+          })
+          .eq("proposal_id", id);
+
+        if (error) throw error;
+
+        await supabase.from("history").insert({
+          history_type: "approve",
+          paper_id: id,
+          comment: "Phase approved",
+          affected_files: JSON.stringify([]),
+          actor: actorId,
+        });
+
+        toast.success("Phase approved");
+      }
+    } catch (error: any) {
+      toast.error("Submit Error: " + error.message);
+    } finally {
+      toast.dismiss(loading);
+      navigate("/ssubm/sub1");
+    }
+  }
+
+  // Determine which documents to show based on current status
+  const requirementDocs =
+    status === "Check Manuscript" ? manuscriptDocs :
+      status === "Forms Check" ? formsDocs :
+        status === "Deploy Queue" ? [...manuscriptDocs, ...formsDocs] : // Show both manuscript and forms for Deploy Queue
+          status === "Check Revision" ? revisionDocs : [];
+
+  // Get current documents based on active preview
+  const getCurrentDocs = () => {
+    switch (activePreview) {
+      case "manuscript":
+        return manuscriptDocs;
+      case "forms":
+        return formsDocs;
+      case "revision":
+        return revisionDocs;
+      default:
+        return [];
+    }
+  };
+
+  const getPreviewTitle = () => {
+    switch (activePreview) {
+      case "manuscript":
+        return "Manuscript Documents";
+      case "forms":
+        return "Forms Documents";
+      case "revision":
+        return "Revision Documents";
+      default:
+        return "Document Preview";
+    }
+  };
+
+  const handleOpenPreview = (type: "manuscript" | "forms" | "revision") => {
+    setActivePreview(type);
+    const docs = getCurrentDocsBasedOnType(type);
+    if (docs.length > 0) {
+      setSelectedDoc(docs[0].file);
+    }
+    setIsFullscreen(false);
+  };
+
+  const getCurrentDocsBasedOnType = (type: "manuscript" | "forms" | "revision") => {
+    switch (type) {
+      case "manuscript":
+        return manuscriptDocs;
+      case "forms":
+        return formsDocs;
+      case "revision":
+        return revisionDocs;
+      default:
+        return [];
+    }
+  };
+
+  const handleClosePreview = () => {
+    setActivePreview(null);
+    setSelectedDoc("");
+    setDocURL("");
+    setIsFullscreen(false);
+  };
+
+  const renderFullscreenPreview = () => {
+    const currentDocs = getCurrentDocs();
+
+    return (
+      <div className="fixed inset-0 z-50 flex bg-white">
+        {/* Sidebar - File List */}
+        <div className="w-80 bg-gray-50 border-r flex flex-col">
+          {/* Sidebar Header */}
+          <div className="p-4 border-b bg-white">
+            <h2 className="text-lg font-semibold">{getPreviewTitle()}</h2>
+            <p className="text-sm text-gray-500 mt-1">Select a document to view</p>
+          </div>
+
+          {/* File List */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+            {currentDocs.map((doc) => (
+              <Button
+                key={doc.file}
+                variant={selectedDoc === doc.file ? "default" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent event bubbling
+                  setSelectedDoc(doc.file);
+                }}
+                className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm truncate text-ellipsis">{doc.name}</span>
+                </div>
+              </Button>
+            ))}
+            {currentDocs.length === 0 && (
+              <div className="text-center text-gray-500 py-8">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No documents available</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Main Content - Document Preview */}
+        <div className="flex-1 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b bg-white">
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-semibold">
+                {selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
+              </h3>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent event bubbling
+                  handleClosePreview();
+                }}
+                className="flex items-center gap-2"
+              >
+                <CloseIcon className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+          </div>
+
+          {/* Document Content */}
+          <div className="flex-1 relative bg-gray-100">
+            {docURL === null ? (
+              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg">Document does not exist.</p>
+                  <p className="text-sm text-gray-400 mt-2">The requested document could not be found.</p>
+                </div>
+              </div>
+            ) : !docURL ? (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <Skeleton className="w-64 h-8 mx-auto mb-4" />
+                  <Skeleton className="w-full h-[600px] max-w-4xl mx-auto" />
+                </div>
+              </div>
+            ) : (
+              <iframe
+                src={docURL}
+                className="absolute inset-0 w-full h-full border-0"
+                title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      {/* Proposal Info */}
+      <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+        <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <FileText className="text-primary w-5 h-5" /> Proposal Details
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal ID</div>
+              <div className="text-sm font-medium">{id}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal Title</div>
+              <div className="text-sm font-medium">{title}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <User className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Researcher Name</div>
+              <div className="text-sm font-medium">{researcher}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Mail className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Researcher Email</div>
+              <div className="text-sm font-medium">{email}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Proposal Status</div>
+              <div className="text-sm font-medium">{status}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-muted-foreground" />
+            <div>
+              <div className="text-xs text-muted-foreground">Submission Date</div>
+              <div className="text-sm font-medium">{submDate}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Review Documents */}
+      <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+        <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <FileText className="text-primary w-5 h-5" /> Review Documents
+        </h2>
+
+        {/* Manuscript */}
+        <div className="flex justify-between items-center py-3 border-b">
+          <p className="font-medium flex items-center gap-2 text-sm">
+            <FileText className="w-4 h-4" /> Manuscript
+          </p>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => handleOpenPreview("manuscript")}
+          >
+            View Details
+          </Button>
+        </div>
+
+        {/* Forms */}
+        <div className="flex justify-between items-center py-3 border-b">
+          <p className="font-medium flex items-center gap-2 text-sm">
+            <FileText className="w-4 h-4" /> Forms
+          </p>
+          <Button
+            variant="outline"
+            type="button"
+            disabled={(status === "Check Manuscript" || status === "Risk Assessment")}
+            onClick={() => handleOpenPreview("forms")}
+          >
+            View Details
+          </Button>
+        </div>
+
+        {/* Revision Documents */}
+        {status === "Check Revision" && (
+          <div className="flex justify-between items-center py-3">
+            <p className="font-medium flex items-center gap-2 text-sm">
+              <FileText className="w-4 h-4" /> Revision Documents
+            </p>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => handleOpenPreview("revision")}
+            >
+              View Details
+            </Button>
+          </div>
+        )}
+      </section>
+
+      {/* Fullscreen Document Preview */}
+      {activePreview && renderFullscreenPreview()}
+
+      {/* Form Section - Only wrap the actual form controls */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleSubmit();
+        }}
+      >
+        {/* Reviewer Assignment */}
+        <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
+          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+            <User className="text-primary w-5 h-5" /> Assign Reviewer
+          </h2>
+
+          {isLoadingReviewers ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-4 p-4 border rounded-lg">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                  <Skeleton className="h-8 w-20" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reviewers.map((reviewer) => (
+                <div
+                  key={reviewer.id}
+                  className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${selectedReviewer === reviewer.id
+                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                    : "hover:border-gray-300 hover:bg-gray-50"
+                    } ${reviewer.assignedCount >= 3 ? "opacity-60 cursor-not-allowed" : ""
+                    }`}
+                  onClick={() => {
+                    if (reviewer.assignedCount < 3) {
+                      setSelectedReviewer(reviewer.id);
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-center h-12 w-12 bg-gray-100 rounded-full">
+                      <User className="h-6 w-6 text-gray-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-sm">
+                        {reviewer.fname} {reviewer.lname}
+                      </h3>
+                      <p className="text-xs text-gray-500">{reviewer.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      className={
+                        reviewer.assignedCount >= 3
+                          ? "bg-red-50 text-red-700 border-red-300"
+                          : reviewer.assignedCount >= 2
+                            ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                            : "bg-green-50 text-green-700 border-green-300"
+                      }
+                    >
+                      {reviewer.assignedCount}/3 assigned
+                    </Badge>
+
+                    {selectedReviewer === reviewer.id ? (
+                      <Check className="h-5 w-5 text-primary" />
+                    ) : reviewer.assignedCount >= 3 ? (
+                      <X className="h-5 w-5 text-red-500" />
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+
+              {reviewers.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <User className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p>No reviewers available</p>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* Status Management */}
+        <section hidden={type !== "Check"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
+          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+            <Pencil className="text-primary w-5 h-5" /> Status Management
+          </h2>
+          <RadioGroup defaultValue="approve" value={tog} onValueChange={setTog} className="space-y-4">
+            {/* Approve */}
+            <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
+              <RadioGroupItem
+                value="approve"
+                className="my-auto mr-4 w-4 h-4 z-0"
+              />
+              <div>
+                <div className="text-sm font-medium flex items-center gap-2">Approve <CheckCircle className="w-3 h-3 text-green-500" /></div>
+                <div className="text-muted-foreground text-xs">
+                  {status === "Deploy Queue" ? "Queue proposal for Send Revision" :
+                    status === "Check Revision" ? "Queue proposal for Assign Review" :
+                      `Queue proposal for ${stat(status)}`}
+                </div>
+              </div>
+            </div>
+
+            {/* Deny */}
+            <div className="bg-card flex flex-col p-4 rounded-xl shadow-sm border-2 space-y-3">
+              <div className="flex items-center">
+                <RadioGroupItem
+                  value="deny"
+                  className="my-auto mr-4 w-4 h-4 z-0"
+                />
+                <div>
+                  <div className="text-sm font-medium flex items-center gap-2">Request Revision <Pencil className="w-3 h-3 text-orange-500" /></div>
+                  <div className="text-muted-foreground text-xs">
+                    Select which files to revise and leave a comment
+                  </div>
+                </div>
+              </div>
+
+              {tog === "deny" && (
+                <div className="ml-8 space-y-2">
+                  {requirementDocs.map((doc) => (
+                    <label key={doc.file} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedFiles.includes(doc.name)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFiles((prev) => [...prev, doc.name]);
+                          } else {
+                            setSelectedFiles((prev) =>
+                              prev.filter((f) => f !== doc.name)
+                            );
+                          }
+                        }}
+                      />
+                      <span>{doc.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {tog === "deny" && (
+                <Textarea
+                  placeholder="Type your message here."
+                  className="resize-none mt-2 z-50 text-sm"
+                  value={msg}
+                  onChange={(event) => setMsg(event.target.value)}
+                />
+              )}
+            </div>
+          </RadioGroup>
+        </section>
+
+        {/* Risk Assessment */}
+        <section hidden={type !== "Assess"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Shield className="text-primary w-5 h-5" /> Risk Assessment
+          </h2>
+          <RadioGroup
+            defaultValue="Full Board"
+            value={tog}
+            onValueChange={setTog}
+            required
+            className="space-y-4"
+          >
+            <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
+              <RadioGroupItem
+                value="Full Board"
+                className="my-auto mr-4 w-4 h-4 z-0"
+              />
+              <div>
+                <div className="text-base font-medium flex items-center gap-2"><Shield className="w-4 h-4 text-red-500 mr-2" />Full Board Review</div>
+                <div className="text-sm text-muted-foreground">
+                  Requires review by the full ethics board.
+                </div>
+              </div>
+            </div>
+            <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
+              <RadioGroupItem
+                value="Expedited"
+                className="my-auto mr-4 w-4 h-4 z-0"
+              />
+              <div>
+                <div className="text-base font-medium flex items-center gap-2"><Zap className="w-4 h-4 text-yellow-500 mr-2" />Expedited Review</div>
+                <div className="text-sm text-muted-foreground">
+                  Can be reviewed by a smaller ethics committee.
+                </div>
+              </div>
+            </div>
+            <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
+              <RadioGroupItem
+                value="Exempt"
+                className="my-auto mr-4 w-4 h-4 z-0"
+              />
+              <div>
+                <div className="text-base font-medium flex items-center gap-2"><Ban className="w-4 h-4 text-green-500 mr-2" />Exempt Review</div>
+                <div className="text-sm text-muted-foreground">
+                  Does not require board-level review.
+                </div>
+              </div>
+            </div>
+          </RadioGroup>
+        </section>
+
+        {/* Buttons */}
+        <section className="my-8 flex gap-4">
+          <RippleButton
+            type="submit"
+            className="w-24 z-0"
+            hidden={type === "Pending" || type === "View"}
+            disabled={
+              (type === "Check" || type === "Assess") ? tog === "" :
+                (type === "Assign") ? !selectedReviewer : false
+            }
+          >
+            Submit
+          </RippleButton>
+          <RippleButton
+            type="button"
+            variant="outline"
+            className="w-24 z-0"
+            onClick={() => navigate("/ssubm/sub1")}
+          >
+            Back
+          </RippleButton>
+        </section>
+      </form>
+    </main>
+  );
+};
+
+export default SReview;

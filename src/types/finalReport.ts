@@ -1,7 +1,7 @@
 // Final Report domain types
 export interface FinalReport {
   id: string;
-  submission_id: string; // link to original submission/proposal
+  proposal_date: string; // link to original proposal (using date as primary key)
   title: string;
   researcher_id: string;
   researcher_name?: string;

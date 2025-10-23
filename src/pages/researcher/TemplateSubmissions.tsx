@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import { Eye, FileText, Calendar, CheckCircle, Clock, AlertCircle, Filter } from 'lucide-react';
 
 interface TemplateSubmission {

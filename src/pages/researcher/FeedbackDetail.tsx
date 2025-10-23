@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../DB';
 import { FileUploadService, UPLOAD_CONFIGS } from '../../services/fileUploadService';
 import SignatureDisplay from '../../components/SignatureDisplay';
 import type { ResearcherDeviationReport } from '../../types/deviationReport';
