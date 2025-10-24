@@ -21,6 +21,7 @@ import {
   X,
   Badge,
   X as CloseIcon,
+  Crown,
 } from "lucide-react";
 
 type Status =
@@ -116,9 +117,9 @@ export const SReview = () => {
   const [tog, setTog] = React.useState("");
   const [msg, setMsg] = React.useState("");
   const [selectedFiles, setSelectedFiles] = React.useState<string[]>([]);
-  const [selectedReviewer, setSelectedReviewer] = React.useState<string>("");
   const [reviewers, setReviewers] = React.useState<any[]>([]);
   const [isLoadingReviewers, setIsLoadingReviewers] = React.useState(false);
+  const [currentUserRole, setCurrentUserRole] = React.useState<string>("");
 
   const [id] = React.useState(ide.toString());
   const [title] = React.useState(titlee || "Unknown");
@@ -133,17 +134,113 @@ export const SReview = () => {
   const [manuscriptDocs, setManuscriptDocs] = React.useState<{ name: string; file: string }[]>([]);
   const [formsDocs, setFormsDocs] = React.useState<{ name: string; file: string }[]>([]);
   const [revisionDocs, setRevisionDocs] = React.useState<{ name: string; file: string }[]>([]);
+  const [reviewComments, setReviewComments] = React.useState<any[]>([]);
+
+  const [selectedReviewers, setSelectedReviewers] = React.useState<string[]>([]);
+  const [currentUserId, setCurrentUserId] = React.useState<string>("");
+  const [reviewType, setReviewType] = React.useState<"Full Board" | "Expedited" | "Exempt" | null>(null);
+  const [requiredReviewerCount, setRequiredReviewerCount] = React.useState<number>(0);
 
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
 
-  // Fetch reviewers for Assign status
+  // Fetch current user role
+  React.useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+
+        // Fetch user role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (profile) {
+          setCurrentUserRole(profile.role);
+          toast(profile.role)
+        }
+      }
+    };
+    getCurrentUser();
+  }, []);
+
+  // Fetch proposal data to get review type
   React.useEffect(() => {
     if (type === "Assign") {
+      fetchProposalData();
       fetchReviewers();
     }
-  }, [type]);
+  }, [type, id]);
+
+  // Auto-select yourself when review type is Exempt
+  React.useEffect(() => {
+    if (reviewType === "Exempt" && currentUserId) {
+      // Check if current user is a reviewer and available
+      const currentUserReviewer = reviewers.find(r => r.id === currentUserId);
+      if (currentUserReviewer && currentUserReviewer.assignedCount < 3) {
+        setSelectedReviewers([currentUserId]);
+      }
+    }
+  }, [reviewType, currentUserId, reviewers]);
+
+  // Fetch review comments
+  React.useEffect(() => {
+    if (currentUserRole === "Reviewer" && id) {
+      fetchReviewComments();
+    }
+  }, [currentUserRole, id]);
+
+  const fetchReviewComments = async () => {
+    try {
+      const { data: comments, error } = await supabase
+        .from('history')
+        .select(`
+          *,
+          profiles:fname,
+          profiles:lname
+        `)
+        .eq('paper_id', id)
+        .eq('history_type', 'deny')
+        .order('history_date', { ascending: false });
+
+      if (error) throw error;
+      setReviewComments(comments || []);
+    } catch (error: any) {
+      console.error("Failed to fetch review comments:", error.message);
+    }
+  };
+
+  const fetchProposalData = async () => {
+    try {
+      const { data: proposalData, error } = await supabase
+        .from('proposals')
+        .select('review_type')
+        .eq('proposal_id', id)
+        .single();
+
+      if (error) throw error;
+
+      if (proposalData?.review_type) {
+        const reviewType = proposalData.review_type as "Full Board" | "Expedited" | "Exempt";
+        setReviewType(reviewType);
+
+        // Set required reviewer count based on review type
+        if (reviewType === "Full Board") {
+          setRequiredReviewerCount(6);
+        } else if (reviewType === "Expedited") {
+          setRequiredReviewerCount(4);
+        } else if (reviewType === "Exempt") {
+          setRequiredReviewerCount(1);
+        }
+      }
+    } catch (error: any) {
+      toast.error("Failed to fetch proposal data: " + error.message);
+    }
+  };
 
   const fetchReviewers = async () => {
     setIsLoadingReviewers(true);
@@ -151,22 +248,32 @@ export const SReview = () => {
       const { data: reviewersData, error } = await supabase
         .from('profiles')
         .select('id, fname, lname, email')
-        .in('role', ['Reviewer', 'Admin'])
+        .in('role', ['Reviewer', 'Admin', 'Chairperson']);
 
       if (error) throw error;
 
-      // Get assignment counts for each reviewer
+      // Get assignment counts for each reviewer from both old and new systems
       const reviewersWithCounts = await Promise.all(
         (reviewersData || []).map(async (reviewer) => {
-          const { count } = await supabase
+          // Count from old reviewer column
+          const { count: oldCount } = await supabase
             .from('proposals')
             .select('*', { count: 'exact', head: true })
             .eq('reviewer', reviewer.id)
-            .eq('status', 'Assigned');
+            .eq('status', 'Proposal Review');
+
+          // Count from new reviewers array (check if reviewer is in any reviewers array)
+          const { count: newCount } = await supabase
+            .from('proposals')
+            .select('*', { count: 'exact', head: true })
+            .contains('reviewer', [reviewer.id])
+            .eq('status', 'Proposal Review');
+
+          const totalAssignments = (oldCount || 0) + (newCount || 0);
 
           return {
             ...reviewer,
-            assignedCount: count || 0
+            assignedCount: totalAssignments
           };
         })
       );
@@ -183,7 +290,6 @@ export const SReview = () => {
   React.useEffect(() => {
     if (!id) return;
 
-    // In your SReview component's fetchDocs function
     const fetchDocs = async () => {
       try {
         const manuscriptPhase = "Send Manuscript";
@@ -293,6 +399,13 @@ export const SReview = () => {
     }
   }, [id, navigate]);
 
+  // Auto-set to deny for reviewers
+  React.useEffect(() => {
+    if (currentUserRole === "Reviewer" && type === "Check") {
+      setTog("deny");
+    }
+  }, [currentUserRole, type]);
+
   async function handleSubmit() {
     const loading = toast.loading("Loading...");
 
@@ -333,75 +446,109 @@ export const SReview = () => {
 
         toast.success(`Risk assessment saved as "${tog}"`);
       } else if (type === "Assign") {
-        if (!selectedReviewer) {
-          toast.error("Please select a reviewer before submitting.");
+        if (!reviewType) {
+          toast.error("Review type not found. Please complete risk assessment first.");
+          return;
+        }
+
+        if (selectedReviewers.length !== requiredReviewerCount) {
+          toast.error(`Please select exactly ${requiredReviewerCount} reviewer(s) for ${reviewType} review`);
           return;
         }
 
         const { error } = await supabase
           .from("proposals")
           .update({
-            reviewer: selectedReviewer,
-            status: "Assigned",
+            review_type: reviewType,
+            reviewer: selectedReviewers,
+            status: "Proposal Review",
             updated_on: new Date().toISOString(),
           })
           .eq("proposal_id", id);
 
         if (error) throw error;
 
-        const reviewer = reviewers.find(r => r.id === selectedReviewer);
-        const reviewerName = reviewer ? `${reviewer.fname} ${reviewer.lname}` : 'Unknown Reviewer';
+        // Create history entry
+        const reviewerNames = selectedReviewers.map(reviewerId => {
+          const reviewer = reviewers.find(r => r.id === reviewerId);
+          return reviewer ? `${reviewer.fname} ${reviewer.lname}` : 'Unknown';
+        }).join(', ');
+
+        await supabase.from("proposals").update(
+          {
+            reviewer: selectedReviewers,
+          }).eq("proposal_id", id)
+          ;
 
         await supabase.from("history").insert({
           history_type: "assignment",
           paper_id: id,
-          comment: `Assigned to reviewer: ${reviewerName}`,
+          comment: `Assigned to ${selectedReviewers.length} reviewer(s) for ${reviewType} review: ${reviewerNames}`,
           actor: actorId,
-          action: "Assign Reviewer",
+          action: "Assign Reviewers",
           history_date: new Date().toISOString(),
         });
 
-        toast.success(`Assigned to ${reviewerName}`);
+        toast.success(`Assigned ${selectedReviewers.length} reviewer(s) for ${reviewType} review`);
       } else if (tog === "deny") {
-        const { error } = await supabase
-          .from("proposals")
-          .update({
-            status: statm(status),
-            updated_on: new Date().toISOString(),
-          })
-          .eq("proposal_id", id);
+        // For reviewers, don't update the status, just add a comment
+        if (currentUserRole === "Reviewer") {
+          await supabase.from("history").insert({
+            history_type: "deny",
+            paper_id: id,
+            comment: msg || "Reviewer comments",
+            affected_files: JSON.stringify(affectedFiles),
+            actor: actorId,
+            action: "Reviewer Feedback",
+            history_date: new Date().toISOString(),
+          });
 
-        if (error) throw error;
+          toast.success("Review comments submitted");
+        } else {
+          // For non-reviewers, update status as before
+          const { error } = await supabase
+            .from("proposals")
+            .update({
+              status: statm(status),
+              updated_on: new Date().toISOString(),
+            })
+            .eq("proposal_id", id);
 
-        await supabase.from("history").insert({
-          history_type: "deny",
-          paper_id: id,
-          comment: msg || "Revision requested",
-          affected_files: JSON.stringify(affectedFiles),
-          actor: actorId,
-        });
+          if (error) throw error;
 
-        toast.success("Revision requested");
+          await supabase.from("history").insert({
+            history_type: "deny",
+            paper_id: id,
+            comment: msg || "Revision requested",
+            affected_files: JSON.stringify(affectedFiles),
+            actor: actorId,
+          });
+
+          toast.success("Revision requested");
+        }
       } else {
-        const { error } = await supabase
-          .from("proposals")
-          .update({
-            status: stat(status),
-            updated_on: new Date().toISOString(),
-          })
-          .eq("proposal_id", id);
+        // Only allow approval for non-reviewers
+        if (currentUserRole !== "Reviewer") {
+          const { error } = await supabase
+            .from("proposals")
+            .update({
+              status: stat(status),
+              updated_on: new Date().toISOString(),
+            })
+            .eq("proposal_id", id);
 
-        if (error) throw error;
+          if (error) throw error;
 
-        await supabase.from("history").insert({
-          history_type: "approve",
-          paper_id: id,
-          comment: "Phase approved",
-          affected_files: JSON.stringify([]),
-          actor: actorId,
-        });
+          await supabase.from("history").insert({
+            history_type: "approve",
+            paper_id: id,
+            comment: "Phase approved",
+            affected_files: JSON.stringify([]),
+            actor: actorId,
+          });
 
-        toast.success("Phase approved");
+          toast.success("Phase approved");
+        }
       }
     } catch (error: any) {
       toast.error("Submit Error: " + error.message);
@@ -410,6 +557,19 @@ export const SReview = () => {
       navigate("/ssubm/sub1");
     }
   }
+
+  // Update the useEffect that handles reviewer selection
+  React.useEffect(() => {
+    if (currentUserId && type === "Assign") {
+      // Always add current user as assigner
+      setSelectedReviewers(prev => {
+        if (!prev.includes(currentUserId)) {
+          return [...prev, currentUserId];
+        }
+        return prev;
+      });
+    }
+  }, [currentUserId, type]);
 
   // Determine which documents to show based on current status
   const requirementDocs =
@@ -569,6 +729,19 @@ export const SReview = () => {
     );
   };
 
+  const getReviewTypeIcon = (type: string) => {
+    switch (type) {
+      case "Full Board":
+        return <Shield className="w-4 h-4 text-red-500" />;
+      case "Expedited":
+        return <Zap className="w-4 h-4 text-yellow-500" />;
+      case "Exempt":
+        return <Ban className="w-4 h-4 text-green-500" />;
+      default:
+        return <Shield className="w-4 h-4 text-gray-500" />;
+    }
+  };
+
   return (
     <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       {/* Proposal Info */}
@@ -621,6 +794,34 @@ export const SReview = () => {
           </div>
         </div>
       </section>
+
+      {/* Review Comments Section - Only show for reviewers */}
+      {currentUserRole === "Reviewer" && reviewComments.length > 0 && (
+        <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+          <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+            <User className="text-primary w-5 h-5" /> Review Comments
+          </h2>
+          <div className="space-y-4">
+            {reviewComments.map((comment, index) => (
+              <div key={index} className="border rounded-lg p-4 bg-gray-50">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="font-medium text-sm">
+                    {comment.profiles?.fname && comment.profiles?.lname
+                      ? `${comment.profiles.fname} ${comment.profiles.lname}`
+                      : 'Reviewer'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {new Date(comment.history_date).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="text-sm text-gray-700">
+                  {comment.comment || "No specific comments provided"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Review Documents */}
       <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
@@ -687,8 +888,38 @@ export const SReview = () => {
         {/* Reviewer Assignment */}
         <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
-            <User className="text-primary w-5 h-5" /> Assign Reviewer
+            <User className="text-primary w-5 h-5" /> Assign Reviewers
           </h2>
+
+          {/* Review Type Display */}
+          {reviewType && (
+            <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+              <h3 className="text-sm font-medium mb-2">Review Type</h3>
+              <div className="flex items-center gap-3 p-3 bg-white rounded-md border">
+                {getReviewTypeIcon(reviewType)}
+                <div>
+                  <div className="font-medium text-sm">{reviewType} Review</div>
+                  <div className="text-xs text-gray-500">
+                    {reviewType === "Full Board" ? "5 reviewers required" :
+                      reviewType === "Expedited" ? "3 reviewers required" :
+                        "1 reviewer required (auto-assigned to you)"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selection Counter */}
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-medium">
+                Selected: {selectedReviewers.length} / {requiredReviewerCount} reviewers
+              </span>
+              <span className="text-xs text-blue-600 flex items-center gap-1">
+                <Crown className="h-3 w-3" /> You are automatically assigned as chairperson
+              </span>
+            </div>
+          </div>
 
           {isLoadingReviewers ? (
             <div className="space-y-3">
@@ -705,53 +936,73 @@ export const SReview = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {reviewers.map((reviewer) => (
-                <div
-                  key={reviewer.id}
-                  className={`flex items-center justify-between p-4 border rounded-lg cursor-pointer transition-all ${selectedReviewer === reviewer.id
-                    ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                    : "hover:border-gray-300 hover:bg-gray-50"
-                    } ${reviewer.assignedCount >= 3 ? "opacity-60 cursor-not-allowed" : ""
-                    }`}
-                  onClick={() => {
-                    if (reviewer.assignedCount < 3) {
-                      setSelectedReviewer(reviewer.id);
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center h-12 w-12 bg-gray-100 rounded-full">
-                      <User className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium text-sm">
-                        {reviewer.fname} {reviewer.lname}
-                      </h3>
-                      <p className="text-xs text-gray-500">{reviewer.email}</p>
-                    </div>
-                  </div>
+              {reviewers.map((reviewer) => {
+                const isSelected = selectedReviewers.includes(reviewer.id);
+                const canSelect = reviewer.assignedCount < 3 &&
+                  (reviewType === "Exempt" ? reviewer.id === currentUserId : selectedReviewers.length < requiredReviewerCount);
 
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      className={
-                        reviewer.assignedCount >= 3
-                          ? "bg-red-50 text-red-700 border-red-300"
-                          : reviewer.assignedCount >= 2
-                            ? "bg-yellow-50 text-yellow-700 border-yellow-300"
-                            : "bg-green-50 text-green-700 border-green-300"
+                return (
+                  <div
+                    key={reviewer.id}
+                    className={`flex items-center justify-between p-4 border rounded-lg transition-all ${isSelected
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                      : canSelect
+                        ? "hover:border-gray-300 hover:bg-gray-50 cursor-pointer"
+                        : "opacity-50 cursor-not-allowed"
+                      } ${reviewer.id === currentUserId ? "border-l-4 border-l-blue-500" : ""}`}
+                    // In the reviewer click handler, prevent removal of assigner
+                    onClick={() => {
+                      // Prevent removing the assigner (current user)
+                      if (reviewer.id === currentUserId) return;
+
+                      if (!canSelect && !isSelected) return;
+
+                      if (isSelected) {
+                        setSelectedReviewers(prev => prev.filter(id => id !== reviewer.id));
+                      } else {
+                        setSelectedReviewers(prev => [...prev, reviewer.id]);
                       }
-                    >
-                      {reviewer.assignedCount}/3 assigned
-                    </Badge>
+                    }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center h-12 w-12 bg-gray-100 rounded-full">
+                        <User className="h-6 w-6 text-gray-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-sm flex items-center gap-2">
+                          {reviewer.fname} {reviewer.lname}
+                          {reviewer.id === currentUserId && (
+                            <Crown className="h-3 w-3 mr-1" />
+                          )}
+                        </h3>
+                        <p className="text-xs text-gray-500">{reviewer.email}</p>
+                      </div>
+                    </div>
 
-                    {selectedReviewer === reviewer.id ? (
-                      <Check className="h-5 w-5 text-primary" />
-                    ) : reviewer.assignedCount >= 3 ? (
-                      <X className="h-5 w-5 text-red-500" />
-                    ) : null}
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        className={
+                          reviewer.assignedCount >= 3
+                            ? "bg-red-50 text-red-700 border-red-300"
+                            : reviewer.assignedCount >= 2
+                              ? "bg-yellow-50 text-yellow-700 border-yellow-300"
+                              : "bg-green-50 text-green-700 border-green-300"
+                        }
+                      >
+                        {reviewer.assignedCount}/3 assigned
+                      </Badge>
+
+                      <div className="flex items-center gap-2">
+                        {isSelected ? (
+                          <Check className="h-5 w-5 text-primary" />
+                        ) : reviewer.assignedCount >= 3 ? (
+                          <X className="h-5 w-5 text-red-500" />
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {reviewers.length === 0 && (
                 <div className="text-center py-8 text-gray-500">
@@ -768,41 +1019,54 @@ export const SReview = () => {
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
             <Pencil className="text-primary w-5 h-5" /> Status Management
           </h2>
-          <RadioGroup defaultValue="approve" value={tog} onValueChange={setTog} className="space-y-4">
-            {/* Approve */}
-            <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
-              <RadioGroupItem
-                value="approve"
-                className="my-auto mr-4 w-4 h-4 z-0"
-              />
-              <div>
-                <div className="text-sm font-medium flex items-center gap-2">Approve <CheckCircle className="w-3 h-3 text-green-500" /></div>
-                <div className="text-muted-foreground text-xs">
-                  {status === "Deploy Queue" ? "Queue proposal for Send Revision" :
-                    status === "Check Revision" ? "Queue proposal for Assign Review" :
-                      `Queue proposal for ${stat(status)}`}
+          <RadioGroup
+            value={tog}
+            onValueChange={currentUserRole === "Reviewer" ? undefined : setTog}
+            className="space-y-4"
+          >
+            {/* Approve - Hidden for reviewers */}
+            {currentUserRole !== "Reviewer" && (
+              <div className="bg-card flex items-start p-4 rounded-xl shadow-sm border-2">
+                <RadioGroupItem
+                  value="approve"
+                  className="my-auto mr-4 w-4 h-4 z-0"
+                />
+                <div>
+                  <div className="text-sm font-medium flex items-center gap-2">Approve <CheckCircle className="w-3 h-3 text-green-500" /></div>
+                  <div className="text-muted-foreground text-xs">
+                    {status === "Deploy Queue" ? "Queue proposal for Send Revision" :
+                      status === "Check Revision" ? "Queue proposal for Assign Review" :
+                        `Queue proposal for ${stat(status)}`}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Deny */}
+            {/* Deny - Auto-selected and required for reviewers */}
             <div className="bg-card flex flex-col p-4 rounded-xl shadow-sm border-2 space-y-3">
               <div className="flex items-center">
                 <RadioGroupItem
                   value="deny"
                   className="my-auto mr-4 w-4 h-4 z-0"
+                  checked={tog === "deny"}
+                  disabled={currentUserRole === "Reviewer"}
                 />
                 <div>
-                  <div className="text-sm font-medium flex items-center gap-2">Request Revision <Pencil className="w-3 h-3 text-orange-500" /></div>
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    {currentUserRole === "Reviewer" ? "Reviewer Comments" : "Request Revision"}
+                    <Pencil className="w-3 h-3 text-orange-500" />
+                  </div>
                   <div className="text-muted-foreground text-xs">
-                    Select which files to revise and leave a comment
+                    {currentUserRole === "Reviewer"
+                      ? "Provide your review comments and feedback"
+                      : "Select which files to revise and leave a comment"}
                   </div>
                 </div>
               </div>
 
               {tog === "deny" && (
                 <div className="ml-8 space-y-2">
-                  {requirementDocs.map((doc) => (
+                  {currentUserRole !== "Reviewer" && requirementDocs.map((doc) => (
                     <label key={doc.file} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -825,10 +1089,15 @@ export const SReview = () => {
 
               {tog === "deny" && (
                 <Textarea
-                  placeholder="Type your message here."
+                  placeholder={
+                    currentUserRole === "Reviewer"
+                      ? "Type your review comments here..."
+                      : "Type your message here."
+                  }
                   className="resize-none mt-2 z-50 text-sm"
                   value={msg}
                   onChange={(event) => setMsg(event.target.value)}
+                  required={currentUserRole === "Reviewer"}
                 />
               )}
             </div>
@@ -894,10 +1163,10 @@ export const SReview = () => {
             hidden={type === "Pending" || type === "View"}
             disabled={
               (type === "Check" || type === "Assess") ? tog === "" :
-                (type === "Assign") ? !selectedReviewer : false
+                (type === "Assign") ? selectedReviewers.length !== requiredReviewerCount : false
             }
           >
-            Submit
+            {currentUserRole === "Reviewer" && type === "Check" ? "Submit Comments" : "Submit"}
           </RippleButton>
           <RippleButton
             type="button"

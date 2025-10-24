@@ -154,6 +154,16 @@ export default function PhaseContent({
     };
 
     const getFilesNeedingRevision = (submission: Submission): DocumentItem[] => {
+        // For Revise Proposal status, show all documents but don't require them
+        if (submission.status === "Revise Proposal") {
+            // Return all available documents for this phase but mark them as not required
+            const allDocuments = getPhaseDocuments(submission);
+            return allDocuments.map(doc => ({
+                ...doc,
+                required: false // Make all documents optional for Revise Proposal
+            }));
+        }
+
         if (submission.status === "Send Revision") {
             if (historyFiles && historyFiles.length > 0) {
                 return historyFiles;
@@ -179,29 +189,38 @@ export default function PhaseContent({
         const loadingId = toast.loading("Submitting forms...");
 
         try {
-            const incomplete = docs.filter(doc => {
-                if (!doc.required) return false;
-                const needsSig = !!doc.needsSignature;
-                const needsAns = !!doc.needsAnswer;
+            // For Revise Proposal, skip the completeness check since all documents are optional
+            if (submission.status !== "Revise Proposal") {
+                const incomplete = docs.filter(doc => {
+                    if (!doc.required) return false;
+                    const needsSig = !!doc.needsSignature;
+                    const needsAns = !!doc.needsAnswer;
 
-                if (needsSig && needsAns) return !(signedDocuments[doc.name] && answeredDocuments[doc.name]);
-                if (needsSig) return !signedDocuments[doc.name];
-                if (needsAns) return !answeredDocuments[doc.name];
-                return !uploadedFiles[doc.name];
-            });
-
-            if (incomplete.length > 0) {
-                const missing = incomplete.map(doc => {
-                    const issues: string[] = [];
-                    if (doc.needsSignature && !signedDocuments[doc.name]) issues.push("signature");
-                    if (doc.needsAnswer && !answeredDocuments[doc.name]) issues.push("answers");
-                    if (!doc.needsSignature && !doc.needsAnswer && !uploadedFiles[doc.name]) issues.push("upload");
-                    return `${doc.name} (missing ${issues.join(" and ")})`;
+                    if (needsSig && needsAns) return !(signedDocuments[doc.name] && answeredDocuments[doc.name]);
+                    if (needsSig) return !signedDocuments[doc.name];
+                    if (needsAns) return !answeredDocuments[doc.name];
+                    return !uploadedFiles[doc.name];
                 });
-                throw new Error(`Please complete all required documents:\n${missing.join("\n")}`);
+
+                if (incomplete.length > 0) {
+                    const missing = incomplete.map(doc => {
+                        const issues: string[] = [];
+                        if (doc.needsSignature && !signedDocuments[doc.name]) issues.push("signature");
+                        if (doc.needsAnswer && !answeredDocuments[doc.name]) issues.push("answers");
+                        if (!doc.needsSignature && !doc.needsAnswer && !uploadedFiles[doc.name]) issues.push("upload");
+                        return `${doc.name} (missing ${issues.join(" and ")})`;
+                    });
+                    throw new Error(`Please complete all required documents:\n${missing.join("\n")}`);
+                }
             }
 
+            // Upload files that are present (only for Revise Proposal, files are optional)
             for (const doc of docs) {
+                // Skip if no file was uploaded and this is an optional document in Revise Proposal
+                if (!uploadedFiles[doc.name] && submission.status === "Revise Proposal") {
+                    continue;
+                }
+
                 let filePath: string | null = null;
                 const uploadStatus = phaseUploadStatus(getActivePhaseIndex(submission.status));
 
@@ -278,21 +297,32 @@ export default function PhaseContent({
                 }
             }
 
-            const nextStatus = getNextStatus(submission.status);
-            const { error: statusError } = await supabase.from("proposals").update({ status: nextStatus }).eq("proposal_id", submission.proposal_id);
+            // Update the next status - Revise Proposal goes to Assign Review
+            let nextStatus = getNextStatus(submission.status);
+
+            // Override for Revise Proposal to go directly to Assign Review
+            if (submission.status === "Revise Proposal") {
+                nextStatus = "Assign Review";
+            }
+
+            const { error: statusError } = await supabase.from("proposals")
+                .update({ status: nextStatus })
+                .eq("proposal_id", submission.proposal_id);
             if (statusError) throw new Error(statusError.message);
 
             const { data: userData } = await supabase.auth.getUser();
             const actorId = userData?.user?.id || "unknown";
-            const affectedFiles = docs.map((d) => ({ name: d.name, required: d.required }));
+            const affectedFiles = docs
+                .filter(doc => uploadedFiles[doc.name] || signedDocuments[doc.name] || answeredDocuments[doc.name])
+                .map((d) => ({ name: d.name, required: d.required }));
 
             const { error: historyError } = await supabase.from("history").insert({
                 history_type: "submission",
                 paper_id: submission.proposal_id,
-                comment: "Phase submitted",
+                comment: submission.status === "Revise Proposal" ? "Proposal revisions submitted" : "Phase submitted",
                 actor: actorId,
                 affected_files: affectedFiles,
-                action: "Submit Phase",
+                action: submission.status === "Revise Proposal" ? "Submit Revisions" : "Submit Phase",
                 history_date: new Date().toISOString(),
             });
             if (historyError) throw new Error(historyError.message);
@@ -307,33 +337,45 @@ export default function PhaseContent({
                 onSubmissionUpdate(updated as Submission);
             }
 
-            toast.success("Phase submitted successfully", { id: loadingId });
+            toast.success(
+                submission.status === "Revise Proposal"
+                    ? "Revisions submitted successfully"
+                    : "Phase submitted successfully",
+                { id: loadingId }
+            );
         } catch (err: any) {
             console.error(err);
             toast.error("Submission failed: " + (err.message || err), { id: loadingId });
         }
     };
-
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = getFilesNeedingRevision(submission);
         const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);
 
         return (
             <div className="space-y-4">
-                {isResendStatus && docs.length > 0 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        <div className="flex items-start gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                            <div className="text-sm text-amber-800">
-                                <div className="font-medium">Revision Required</div>
-                                <div>Please revise the following documents based on reviewer feedback:</div>
-                                {latestComment && (
-                                    <div className="mt-2 p-2 bg-amber-100 rounded text-amber-900">
-                                        <strong>Reviewer Comment:</strong> {latestComment}
-                                    </div>
-                                )}
+                {(isResendStatus || submission.status === "Revise Proposal") && docs.length > 0 && (
+                    <div className="space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-start gap-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                <div className="text-sm text-amber-800">
+                                    <div className="font-medium">Revision Required</div>
+                                    <div>Please revise the following documents based on reviewer feedback:</div>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Show revision comments from history */}
+                        <RevisionComments />
+
+                        {/* Show latest comment if available (backward compatibility) */}
+                        {latestComment && (
+                            <div className="border-l-4 border-amber-500 bg-amber-50 rounded-r-lg p-4">
+                                <div className="font-medium text-amber-900 mb-2">Latest Comment:</div>
+                                <div className="text-sm text-amber-800">{latestComment}</div>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -545,7 +587,7 @@ export default function PhaseContent({
                         disabled={
                             !docs.every((d) => {
                                 if (!d.required) return true;
-                                const needsSig = !!d.needsSignature;
+                                const needsSig = !!!!!!!!d.needsSignature;
                                 const needsAns = !!d.needsAnswer;
                                 if (needsSig && needsAns) return !!signedDocuments[d.name] && !!answeredDocuments[d.name];
                                 if (needsSig) return !!signedDocuments[d.name];
@@ -553,7 +595,7 @@ export default function PhaseContent({
                                 return !!uploadedFiles[d.name];
                             })
                         }
-                        hidden={!submission.status.includes("Send")}
+                        hidden={!submission.status.includes("Send") && submission.status !== "Revise Proposal"}
                         className="w-full sm:w-auto"
                     >
                         {isResendStatus ? "Submit Revisions" : "Submit Phase"}
@@ -752,11 +794,86 @@ export default function PhaseContent({
         );
     };
 
+    const [historyComments, setHistoryComments] = useState<{ comment: string; actor: string; history_date: string }[]>([]);
+    const fetchHistoryComments = async (proposalId: number) => {
+        try {
+            const { data, error } = await supabase
+                .from("history")
+                .select("comment, actor, history_date")
+                .eq("paper_id", proposalId)
+                .eq("history_type", "review")
+                .order("history_date", { ascending: false })
+                .limit(1);
+
+            if (error) {
+                console.error("Error fetching history comments:", error);
+                return [];
+            }
+
+            return data || [];
+        } catch (err) {
+            console.error("Failed to fetch history comments:", err);
+            return [];
+        }
+    };
+
+    useEffect(() => {
+        const loadHistoryComments = async () => {
+            if (submission?.proposal_id) {
+                const comments = await fetchHistoryComments(submission.proposal_id);
+                setHistoryComments(comments);
+            }
+        };
+
+        loadHistoryComments();
+    }, [submission?.proposal_id]);
+
+    const RevisionComments = () => {
+        if (historyComments.length === 0) {
+            return null;
+        }
+
+        return (
+            <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-sm text-blue-800">
+                            <div className="font-medium">Reviewer Comments</div>
+                            <div>Please review the following comments from the chairperson:</div>
+                        </div>
+                    </div>
+                </div>
+
+                {historyComments.map((comment, index) => (
+                    <div key={index} className="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="font-medium text-blue-900">
+                                Comment from Chairperson
+                            </div>
+                            <div className="text-xs text-blue-700">
+                                {new Date(comment.history_date).toLocaleDateString()} at{' '}
+                                {new Date(comment.history_date).toLocaleTimeString()}
+                            </div>
+                        </div>
+                        <div className="text-sm text-blue-800 whitespace-pre-wrap">
+                            {comment.comment}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     const phaseHasNoRequiredFiles = (phaseIndex: number, submission: Submission): boolean => {
         const noFilePhases = [3, 4, 5, 6];
         if (noFilePhases.includes(phaseIndex)) {
             const currentPhase = phases[phaseIndex];
             if (currentPhase?.statuses.includes(submission.status)) {
+                // For Revise Proposal, we DO have files to show (even though they're optional)
+                if (submission.status === "Revise Proposal") {
+                    return false; // Return false to indicate files SHOULD be shown
+                }
                 return true;
             }
         }
@@ -875,6 +992,7 @@ export default function PhaseContent({
             const { data: userData } = await supabase.auth.getUser();
             const actorId = userData?.user?.id || "unknown";
 
+
             const { error: historyError } = await supabase.from("history").insert({
                 history_type: "deviation_report",
                 paper_id: submission!.proposal_id,
@@ -918,7 +1036,7 @@ export default function PhaseContent({
                 <>
                     {["Check Manuscript", "Forms Check"].includes(submission.status) ? (
                         <PastPhaseFilesList phaseIndex={phaseIndex} />
-                    ) : phaseUploadStatus(phaseIndex) && submission.researcher === userId ? (
+                    ) : (phaseUploadStatus(phaseIndex) || submission.status === "Revise Proposal") && submission.researcher === userId ? (
                         <>
                             {phaseIndex === 5 && submission.status === "Data Collection" ? (
                                 renderDataCollectionActions()
@@ -926,8 +1044,10 @@ export default function PhaseContent({
                                 <>
                                     <div
                                         className="mb-2 text-sm text-gray-600"
-                                        hidden={!submission.status.includes("Send")}>
-                                        Upload required documents for this phase.
+                                        hidden={!submission.status.includes("Send") && submission.status !== "Revise Proposal"}>
+                                        {submission.status === "Revise Proposal"
+                                            ? "Review and update documents as needed (all files are optional)"
+                                            : "Upload required documents for this phase."}
                                     </div>
                                     {renderPhaseFilesForActive(submission)}
                                 </>
@@ -1100,6 +1220,21 @@ export default function PhaseContent({
 
 // Helper functions needed by PhaseContent
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
+    if (submission.status === "Revise Proposal" || submission.status === "Send Revision") {
+        const manuscriptDocs = [
+            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
+            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
+            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
+            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
+            submission.category === "Graduate"
+                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false }
+                : null,
+        ].filter(Boolean) as DocumentItem[];
+
+        const formsDocs = getFormsDocuments(submission);
+        return [...manuscriptDocs, ...formsDocs];
+    }
+
     if (submission.status === "Send Revision") {
         const manuscriptDocs = [
             { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, Pencil } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,27 @@ import { toast } from "sonner";
 import { Label } from "recharts";
 
 /* ----------------- types ----------------- */
+interface RevisionRequirement {
+    manuscript: boolean;
+    ethics_form: boolean;
+    data_management_plan: boolean;
+    other_documents: boolean;
+    other_comments: string;
+}
+
+interface ProposalDocument {
+    document_id: number;
+    proposal_id: number;
+    doc_type: string;
+    file_path: string;
+    uploaded_at: string;
+    revision_number: number;
+}
+
+interface DocumentSelection {
+    [key: number]: boolean; // document_id -> selected
+}
+
 interface Submission {
     proposal_id: number;
     proposal_title: string;
@@ -32,7 +53,7 @@ interface Submission {
     researcher: string;
     status: string;
     date: string;
-    assigned_reviewer: string; // Reviewer who is assigned this proposal
+    assigned_reviewer: string;
 }
 
 interface Profile {
@@ -40,17 +61,22 @@ interface Profile {
     fname: string | null;
     lname: string | null;
     category?: string | null;
+    role?: string | null;
 }
 
 interface DocumentItem {
     name: string;
     url: string;
-    phase: 'phase1' | 'phase3'; // Documents from phase 1 or phase 3
+    phase: 'phase1' | 'phase3';
 }
 
 interface ReviewRecommendation {
     recommendation: 'approve' | 'revisions';
     comments: string;
+    reviewer_id: string;
+    reviewer_name: string;
+    submitted_at: string;
+    history_id?: number;
 }
 
 /* ----------------- component ----------------- */
@@ -59,14 +85,28 @@ export default function ReviewerPage() {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [proposalDocuments, setProposalDocuments] = useState<ProposalDocument[]>([]);
+    const [selectedDocuments, setSelectedDocuments] = useState<DocumentSelection>({});
+
+    const [revisionRequirements, setRevisionRequirements] = useState<RevisionRequirement>({
+        manuscript: false,
+        ethics_form: false,
+        data_management_plan: false,
+        other_documents: false,
+        other_comments: ''
+    });
 
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [submissionDocuments, setSubmissionDocuments] = useState<DocumentItem[]>([]);
     const [recommendation, setRecommendation] = useState<ReviewRecommendation>({
         recommendation: 'approve',
-        comments: ''
+        comments: '',
+        reviewer_id: '',
+        reviewer_name: '',
+        submitted_at: ''
     });
+    const [existingRecommendations, setExistingRecommendations] = useState<ReviewRecommendation[]>([]);
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -75,8 +115,25 @@ export default function ReviewerPage() {
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
+    const [userProfile, setUserProfile] = useState<Profile | null>(null);
+    const [isChairperson, setIsChairperson] = useState(false);
 
-    userId;
+    /* Fetch proposal documents from proposal_documents table */
+    const fetchProposalDocuments = async (proposalId: number) => {
+        try {
+            const { data, error } = await supabase
+                .from("proposal_documents")
+                .select("*")
+                .eq("proposal_id", proposalId)
+                .order("uploaded_at", { ascending: false });
+
+            if (error) throw error;
+            return data || [];
+        } catch (err) {
+            console.error("Failed to fetch proposal documents:", err);
+            return [];
+        }
+    };
 
     /* fetch initial data - only proposals assigned to current reviewer */
     useEffect(() => {
@@ -93,15 +150,30 @@ export default function ReviewerPage() {
                     return;
                 }
 
+                // Get user profile to check if chairperson
+                const { data: userProfileData, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("id, fname, lname, category, role")
+                    .eq("id", uid)
+                    .single();
+
+                if (profileError) {
+                    console.error("Error fetching user profile:", profileError);
+                } else if (userProfileData && mounted) {
+                    setUserProfile(userProfileData);
+                    setIsChairperson(userProfileData.role === 'Chairperson' || userProfileData.role === 'Admin' );
+                }
+
                 const { data: proposals, error } = await supabase
                     .from("proposals")
                     .select("*")
-                    .eq("reviewer", uid)
-                    .eq("status", "Assigned")
+                    .eq("status", "Proposal Review")
+                    .like("reviewer", `%${uid}%`)
                     .order("date", { ascending: false });
 
                 if (error) throw error;
                 const projs = (proposals || []) as Submission[];
+
                 if (mounted) setSubmissions(projs);
 
                 // Get researcher profiles
@@ -133,11 +205,12 @@ export default function ReviewerPage() {
         };
     }, []);
 
-    /* When active submission changes, load its documents */
+    /* When active submission changes, load its documents and recommendations */
     useEffect(() => {
-        const loadSubmissionDocuments = async () => {
+        const loadSubmissionData = async () => {
             if (!activeSubmission) {
                 setSubmissionDocuments([]);
+                setExistingRecommendations([]);
                 return;
             }
 
@@ -159,23 +232,121 @@ export default function ReviewerPage() {
                 })));
 
                 setSubmissionDocuments(documents);
+
+                // Load recommendations from history table - EXCLUDE current user's recommendations
+                const { data: recommendations, error } = await supabase
+                    .from("history")
+                    .select("*")
+                    .eq("paper_id", activeSubmission.proposal_id)
+                    .eq("history_type", "review_recommendation")
+                    .order("history_date", { ascending: false });
+
+                if (error) throw error;
+
+                // Filter out current user's recommendations to get only OTHER reviewers
+                const otherReviewersRecommendations = recommendations?.filter(rec => rec.actor !== userId) || [];
+
+                if (otherReviewersRecommendations.length === 0) {
+                    setExistingRecommendations([]);
+                } else {
+                    // Get unique reviewer IDs from OTHER reviewers
+                    const reviewerIds = [...new Set(otherReviewersRecommendations.map(rec => rec.actor).filter(Boolean))];
+
+                    // Fetch all reviewer profiles in one query
+                    let reviewerProfiles: Profile[] = [];
+                    if (reviewerIds.length > 0) {
+                        const { data: profilesData, error: profilesError } = await supabase
+                            .from("profiles")
+                            .select("id, fname, lname")
+                            .in("id", reviewerIds);
+
+                        if (!profilesError && profilesData) {
+                            reviewerProfiles = profilesData;
+                        }
+                    }
+
+                    // Transform history data to ReviewRecommendation format with proper names
+                    const transformedRecommendations: ReviewRecommendation[] = otherReviewersRecommendations.map(rec => {
+                        const reviewerProfile = reviewerProfiles.find(p => p.id === rec.actor);
+                        const reviewerName = reviewerProfile
+                            ? `${reviewerProfile.fname} ${reviewerProfile.lname}`.trim()
+                            : 'Unknown Reviewer';
+
+                        return {
+                            recommendation: rec.action?.includes('APPROVE') ? 'approve' : 'revisions',
+                            comments: rec.comment || '',
+                            reviewer_id: rec.actor || '',
+                            reviewer_name: reviewerName,
+                            submitted_at: rec.history_date,
+                            history_id: rec.history_id
+                        };
+                    });
+
+                    setExistingRecommendations(transformedRecommendations);
+                }
+
+                // Set current user's recommendation separately
+                if (userId) {
+                    // Check if current user has already submitted a recommendation
+                    const { data: userRecommendation, error: userRecError } = await supabase
+                        .from("history")
+                        .select("*")
+                        .eq("paper_id", activeSubmission.proposal_id)
+                        .eq("history_type", "review_recommendation")
+                        .eq("actor", userId)
+                        .order("history_date", { ascending: false })
+                        .single();
+
+                    if (userRecError && userRecError.code !== 'PGRST116') {
+                        console.error("Error fetching user recommendation:", userRecError);
+                    }
+
+                    const currentUserName = userProfile
+                        ? `${userProfile.fname} ${userProfile.lname}`.trim()
+                        : 'Unknown Reviewer';
+
+                    if (userRecommendation) {
+                        setRecommendation({
+                            recommendation: userRecommendation.action?.includes('APPROVE') ? 'approve' : 'revisions',
+                            comments: userRecommendation.comment || '',
+                            reviewer_id: userId,
+                            reviewer_name: currentUserName,
+                            submitted_at: userRecommendation.history_date
+                        });
+                    } else {
+                        setRecommendation({
+                            recommendation: 'approve',
+                            comments: '',
+                            reviewer_id: userId,
+                            reviewer_name: currentUserName,
+                            submitted_at: ''
+                        });
+                    }
+                }
+
             } catch (err) {
-                console.error("Failed to load documents:", err);
-                toast.error("Failed to load submission documents");
+                console.error("Failed to load submission data:", err);
+                toast.error("Failed to load submission data");
             }
+
+            // Load proposal documents for revision selection
+            const documents = await fetchProposalDocuments(activeSubmission.proposal_id);
+            setProposalDocuments(documents);
+
+            // Initialize selected documents state
+            const initialSelection: DocumentSelection = {};
+            documents.forEach(doc => {
+                initialSelection[doc.document_id] = false;
+            });
+            setSelectedDocuments(initialSelection);
         };
 
-        loadSubmissionDocuments();
-        setRecommendation({
-            recommendation: 'approve',
-            comments: ''
-        });
-    }, [activeSubmission]);
+        loadSubmissionData();
+    }, [activeSubmission, userId, userProfile]);
 
     /* List stored files for a phase */
     const listStoredFilesForPhase = async (submissionId: number, phase: 'phase1' | 'phase3'): Promise<{ name: string; url: string }[]> => {
         try {
-            // Map phase to storage folder names
             const phaseFolders = {
                 phase1: 'Send Manuscript',
                 phase3: 'Send Forms'
@@ -185,7 +356,6 @@ export default function ReviewerPage() {
             const { data, error } = await supabase.storage.from("documents").list(path);
 
             if (error) {
-                // If folder doesn't exist, return empty array
                 if (error.message.includes('not found')) {
                     return [];
                 }
@@ -195,7 +365,6 @@ export default function ReviewerPage() {
 
             if (!data || data.length === 0) return [];
 
-            // Map each file to a signed URL
             const signedFiles = await Promise.all(
                 data.map(async (f: any) => {
                     const { data: signed, error: signError } = await supabase.storage
@@ -218,6 +387,17 @@ export default function ReviewerPage() {
         }
     };
 
+    /* Reset revision requirements when submission changes */
+    useEffect(() => {
+        setRevisionRequirements({
+            manuscript: false,
+            ethics_form: false,
+            data_management_plan: false,
+            other_documents: false,
+            other_comments: ''
+        });
+    }, [activeSubmission]);
+
     /* Open document preview */
     const openPreview = async (url: string, filename: string) => {
         setPreviewUrl(url);
@@ -225,64 +405,125 @@ export default function ReviewerPage() {
         setPreviewOpen(true);
     };
 
-    /* Submit review recommendation */
+    /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
-        if (!activeSubmission || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
+        if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
             toast.error("Please provide review comments for revisions");
             return;
         }
 
-        const loadingId = toast.loading("Submitting recommendation...");
+        const loadingId = toast.loading(isChairperson ? "Submitting final decision..." : "Submitting recommendation...");
 
         try {
-            // Determine the next status based on recommendation
-            const nextStatus = recommendation.recommendation === 'approve'
-                ? "Data Collection"
-                : "Revise Proposal";
+            // Check if user has already submitted a recommendation
+            const { data: existingRec } = await supabase
+                .from("history")
+                .select("history_id")
+                .eq("paper_id", activeSubmission.proposal_id)
+                .eq("actor", userId)
+                .eq("history_type", "review_recommendation")
+                .single();
 
-            // Update proposal status based on recommendation
-            const { error: statusError } = await supabase
-                .from("proposals")
-                .update({
-                    status: nextStatus,  // Use dynamic status
-                })
-                .eq("proposal_id", activeSubmission.proposal_id);
-
-            if (statusError) throw statusError;
-
-            // Add to history
-            const { data: userData } = await supabase.auth.getUser();
-            const actorId = userData?.user?.id || "unknown";
-
-            const { error: historyError } = await supabase.from("history").insert({
-                history_type: "review",
+            const actionText = `REVIEW_RECOMMENDATION_${recommendation.recommendation.toUpperCase()}`;
+            const historyData = {
+                history_type: "review_recommendation",
                 paper_id: activeSubmission.proposal_id,
                 comment: recommendation.comments,
-                actor: actorId,
-                action: `Review - ${recommendation.recommendation.toUpperCase()}`,
+                actor: userId,
+                action: actionText,
                 history_date: new Date().toISOString(),
-            });
+            };
 
-            if (historyError) throw historyError;
-
-            // Update local state
-            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-            if (submissions.length > 1) {
-                setActiveSubmission(submissions[1]); // Set next submission as active
+            let error;
+            if (existingRec) {
+                const { error: updateError } = await supabase
+                    .from("history")
+                    .update(historyData)
+                    .eq("history_id", existingRec.history_id);
+                error = updateError;
             } else {
-                setActiveSubmission(null);
+                const { error: insertError } = await supabase
+                    .from("history")
+                    .insert([historyData]);
+                error = insertError;
             }
 
-            toast.success("Recommendation submitted successfully", { id: loadingId });
-            setRecommendation({
-                recommendation: 'approve',
-                comments: ''
-            });
+            if (error) throw error;
+
+            // CHAIRPERSON LOGIC: Move proposal to next state
+            if (isChairperson) {
+                const nextStatus = recommendation.recommendation === 'approve'
+                    ? "Data Collection"
+                    : "Revise Proposal";
+
+                // First verify the proposal exists
+                const { data: currentProposal, error: fetchError } = await supabase
+                    .from("proposals")
+                    .select("proposal_id, status")
+                    .eq("proposal_id", activeSubmission.proposal_id)
+                    .single();
+
+                if (fetchError) {
+                    console.error('Error fetching proposal:', fetchError);
+                    throw new Error(`Cannot find proposal: ${fetchError.message}`);
+                }
+
+                console.log('Current proposal:', currentProposal);
+
+                // Update proposal status with proper error handling
+                const { data: updateData, error: statusError } = await supabase
+                    .from("proposals")
+                    .update({
+                        status: nextStatus,
+                        updated_on: new Date().toISOString()
+                    })
+                    .eq("proposal_id", activeSubmission.proposal_id)
+                    .select();
+
+                if (statusError) {
+                    console.error('Update error:', statusError);
+                    throw statusError;
+                }
+
+                console.log('Update successful:', updateData);
+
+                // Add chairperson decision to history
+                const decisionHistoryData = {
+                    history_type: "review_decision",
+                    paper_id: activeSubmission.proposal_id,
+                    comment: `Chairperson ${recommendation.recommendation === 'approve' ? 'approved' : 'requested revisions for'} proposal: ${recommendation.comments}`,
+                    actor: userId,
+                    action: `CHAIRPERSON_DECISION_${recommendation.recommendation.toUpperCase()}`,
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
+                if (decisionError) throw decisionError;
+
+                // Update local state - remove the processed submission
+                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+
+                if (submissions.length > 1) {
+                    setActiveSubmission(submissions[1]);
+                } else {
+                    setActiveSubmission(null);
+                }
+
+                toast.success(
+                    `Proposal ${recommendation.recommendation === 'approve' ? 'approved and moved to Data Collection' : 'sent for revisions'}`,
+                    { id: loadingId }
+                );
+            } else {
+                // Regular reviewer - just show success message
+                toast.success(
+                    existingRec ? "Recommendation updated successfully" : "Recommendation submitted successfully",
+                    { id: loadingId }
+                );
+            }
 
         } catch (err: any) {
-            console.error(err);
-            toast.error("Failed to submit recommendation: " + (err.message || err), { id: loadingId });
+            console.error("Failed to submit recommendation:", err);
+            toast.error(`Failed to submit recommendation: ${err.message || 'Unknown error'}`, { id: loadingId });
         }
     };
 
@@ -298,9 +539,11 @@ export default function ReviewerPage() {
             phase1: { label: "Phase 1: Manuscript", variant: "default" as const },
             phase3: { label: "Phase 3: Forms", variant: "secondary" as const }
         };
-
         return config[phase];
     };
+
+    // Check if current user has submitted a recommendation for active submission
+    const hasUserSubmittedRecommendation = existingRecommendations.some(rec => rec.reviewer_id === userId);
 
     /* ---------- UI ---------- */
     return (
@@ -314,6 +557,12 @@ export default function ReviewerPage() {
                     <h1 className="text-xl sm:text-2xl font-semibold">Reviewer Dashboard</h1>
                     <p className="text-sm text-gray-500">
                         {submissions.length}/3 Proposals Assigned
+                        {isChairperson && (
+                            <Badge variant="secondary" className="ml-2">
+                                <Crown className="w-3 h-3 mr-1" />
+                                Chairperson
+                            </Badge>
+                        )}
                     </p>
                 </div>
             </div>
@@ -526,11 +775,54 @@ export default function ReviewerPage() {
                             )}
                         </div>
 
+                        {/* Review Recommendations Summary */}
+                        {existingRecommendations.length > 0 && (
+                            <div className="space-y-4 mb-6 border-t pt-6">
+                                <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    <span className="uppercase tracking-wide">Reviewer Recommendations</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {existingRecommendations.map((rec, index) => (
+                                        <div key={index} className="border rounded-lg p-4 bg-white">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="font-medium text-sm">{rec.reviewer_name}</div>
+                                                <Badge
+                                                    variant={rec.recommendation === 'approve' ? 'default' : 'outline'}
+                                                    className={cn(
+                                                        rec.recommendation === 'approve'
+                                                            ? "bg-green-100 text-green-800"
+                                                            : "bg-yellow-50 text-yellow-700 border-yellow-300"
+                                                    )}
+                                                >
+                                                    {rec.recommendation === 'approve' ? 'Approve' : 'Revisions Needed'}
+                                                </Badge>
+                                            </div>
+                                            {rec.comments && (
+                                                <p className="text-sm text-gray-600 mt-2">{rec.comments}</p>
+                                            )}
+                                            <div className="text-xs text-gray-400 mt-2">
+                                                {new Date(rec.submitted_at).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* review recommendation */}
                         <div className="space-y-4 border-t pt-6">
                             <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
                                 <MessageSquare className="w-3.5 h-3.5" />
-                                <span className="uppercase tracking-wide">Review Recommendation</span>
+                                <span className="uppercase tracking-wide">
+                                    {isChairperson ? 'Final Decision' : hasUserSubmittedRecommendation ? 'Your Recommendation' : 'Submit Your Recommendation'}
+                                </span>
+                                {isChairperson && (
+                                    <Badge variant="secondary" className="ml-2">
+                                        <Crown className="w-3 h-3 mr-1" />
+                                        Chairperson
+                                    </Badge>
+                                )}
                             </div>
 
                             <div className="grid gap-4">
@@ -541,20 +833,24 @@ export default function ReviewerPage() {
                                         className={cn(
                                             "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
                                             recommendation.recommendation === 'approve'
-                                                ? "border-green-500 bg-green-50"
+                                                ? isChairperson
+                                                    ? "border-green-600 bg-green-100"
+                                                    : "border-green-500 bg-green-50"
                                                 : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-25"
                                         )}
                                         onClick={() => setRecommendation(prev => ({
                                             ...prev,
                                             recommendation: 'approve',
-                                            comments: ''
+                                            comments: prev.recommendation === 'approve' ? prev.comments : ''
                                         }))}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
                                                 "w-6 h-6 rounded-full border-2 flex items-center justify-center",
                                                 recommendation.recommendation === 'approve'
-                                                    ? "border-green-500 bg-green-500"
+                                                    ? isChairperson
+                                                        ? "border-green-600 bg-green-600"
+                                                        : "border-green-500 bg-green-500"
                                                     : "border-gray-300"
                                             )}>
                                                 {recommendation.recommendation === 'approve' && (
@@ -563,13 +859,16 @@ export default function ReviewerPage() {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="default" className="bg-green-100 text-green-800">
+                                                    <Badge variant="default" className={isChairperson ? "bg-green-600 text-white" : "bg-green-100 text-green-800"}>
                                                         <Check className="w-3 h-3 mr-1" />
-                                                        Approve
+                                                        {isChairperson ? 'Approve & Move Forward' : 'Approve'}
                                                     </Badge>
                                                 </div>
                                                 <p className="text-sm text-gray-600 mt-2">
-                                                    Recommend this proposal for approval without changes.
+                                                    {isChairperson
+                                                        ? 'Approve this proposal and move it to Data Collection phase.'
+                                                        : 'Recommend this proposal for approval without changes.'
+                                                    }
                                                 </p>
                                             </div>
                                         </div>
@@ -580,7 +879,9 @@ export default function ReviewerPage() {
                                         className={cn(
                                             "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
                                             recommendation.recommendation === 'revisions'
-                                                ? "border-yellow-500 bg-yellow-50"
+                                                ? isChairperson
+                                                    ? "border-yellow-600 bg-yellow-100"
+                                                    : "border-yellow-500 bg-yellow-50"
                                                 : "border-gray-200 bg-white hover:border-yellow-300 hover:bg-yellow-25"
                                         )}
                                         onClick={() => setRecommendation(prev => ({
@@ -592,7 +893,9 @@ export default function ReviewerPage() {
                                             <div className={cn(
                                                 "w-6 h-6 rounded-full border-2 flex items-center justify-center",
                                                 recommendation.recommendation === 'revisions'
-                                                    ? "border-yellow-500 bg-yellow-500"
+                                                    ? isChairperson
+                                                        ? "border-yellow-600 bg-yellow-600"
+                                                        : "border-yellow-500 bg-yellow-500"
                                                     : "border-gray-300"
                                             )}>
                                                 {recommendation.recommendation === 'revisions' && (
@@ -601,12 +904,20 @@ export default function ReviewerPage() {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center gap-2">
-                                                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                                                        Revisions Needed
+                                                    <Badge variant="outline" className={cn(
+                                                        "border-yellow-300",
+                                                        isChairperson
+                                                            ? "bg-yellow-600 text-white border-yellow-600"
+                                                            : "bg-yellow-50 text-yellow-700"
+                                                    )}>
+                                                        {isChairperson ? 'Request Revisions' : 'Revisions Needed'}
                                                     </Badge>
                                                 </div>
                                                 <p className="text-sm text-gray-600 mt-2">
-                                                    Request specific revisions before approval.
+                                                    {isChairperson
+                                                        ? 'Request revisions and send proposal back to researcher.'
+                                                        : 'Request specific revisions before approval.'
+                                                    }
                                                 </p>
                                             </div>
                                         </div>
@@ -616,7 +927,7 @@ export default function ReviewerPage() {
                                 {/* Comments Section */}
                                 <div className="space-y-2">
                                     <Label>
-                                        Review Comments
+                                        {isChairperson ? 'Decision Comments' : 'Review Comments'}
                                         {recommendation.recommendation === 'revisions' && (
                                             <span className="text-red-500 ml-1">(Required)</span>
                                         )}
@@ -624,26 +935,71 @@ export default function ReviewerPage() {
                                     {recommendation.recommendation === 'revisions' ? (
                                         <Textarea
                                             id="comments"
-                                            placeholder="Please provide detailed comments about required revisions..."
+                                            placeholder={isChairperson
+                                                ? "Provide detailed comments about required revisions..."
+                                                : "Please provide detailed comments about required revisions..."
+                                            }
                                             value={recommendation.comments}
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
                                             rows={4}
                                             className="resize-none"
                                         />
                                     ) : (
-                                        <></>
+                                        <Textarea
+                                            id="comments"
+                                            placeholder={isChairperson
+                                                ? "Optional comments for approval decision..."
+                                                : "Optional comments for approval..."
+                                            }
+                                            value={recommendation.comments}
+                                            onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
+                                            rows={2}
+                                            className="resize-none"
+                                        />
                                     )}
                                 </div>
 
-                                <div className="flex justify-end">
-                                    <RippleButton
-                                        onClick={submitRecommendation}
-                                        disabled={recommendation.recommendation === 'revisions' && !recommendation.comments.trim()}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <Send className="w-4 h-4" />
-                                        Submit Recommendation
-                                    </RippleButton>
+                                <div className="flex justify-between items-center">
+                                    {hasUserSubmittedRecommendation && !isChairperson && (
+                                        <div className="text-sm text-green-600">
+                                            ✓ You have submitted your recommendation
+                                        </div>
+                                    )}
+                                    {isChairperson && (
+                                        <div className="text-sm text-purple-600 flex items-center gap-2">
+                                            <Crown className="w-4 h-4" />
+                                            Your decision will move the proposal to the next phase
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 ml-auto">
+                                        {hasUserSubmittedRecommendation && !isChairperson && (
+                                            <Button
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setRecommendation(prev => ({
+                                                        ...prev,
+                                                        comments: '',
+                                                        recommendation: 'approve'
+                                                    }));
+                                                }}
+                                            >
+                                                Edit Recommendation
+                                            </Button>
+                                        )}
+                                        <RippleButton
+                                            onClick={submitRecommendation}
+                                            disabled={recommendation.recommendation === 'revisions' && !recommendation.comments.trim()}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                            {isChairperson
+                                                ? 'Submit Final Decision'
+                                                : hasUserSubmittedRecommendation
+                                                    ? 'Update Recommendation'
+                                                    : 'Submit Recommendation'
+                                            }
+                                        </RippleButton>
+                                    </div>
                                 </div>
                             </div>
                         </div>

@@ -73,10 +73,10 @@ const navConfig = {
     url: "/sdash",
     icon: LayoutDashboard,
     items: [
-      { title: "Dashboard", url: "/sdash", role: "Admin Assistant" },
-      { title: "Dashboard", url: "/sdash/sub2", role: "Researcher" },
-      { title: "Dashboard", url: "/sdash/sub2", role: "Reviewer" },
-      { title: "Dashboard", url: "/sdash", role: "Chairperson" },
+      { title: "My Dashboard", url: "/sdash", role: "Admin Assistant" },
+      { title: "My Dashboard", url: "/sdash/sub2", role: "Researcher" },
+      { title: "My Dashboard", url: "/sdash/sub2", role: "Reviewer" },
+      { title: "My Dashboard", url: "/sdash", role: "Chairperson" },
     ],
   },
   submissions: {
@@ -84,9 +84,11 @@ const navConfig = {
     url: "/ssubm",
     icon: BookCopy,
     items: [
-      { title: "Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
-      { title: "Submissions", url: "/ssubm/sub2", role: "Researcher" },
-      { title: "Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+      { title: "Manage Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
+      { title: "Manage Submissions", url: "/ssubm/sub1", role: "Chairperson" },
+      { title: "My Submissions", url: "/ssubm/sub2", role: "Researcher" },
+      { title: "Review Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+      { title: "Review Submissions", url: "/ssubm/sub3", role: "Chairperson" },
     ],
   },
   deviations: {
@@ -94,10 +96,9 @@ const navConfig = {
     url: "/sdevi",
     icon: BookCopy,
     items: [
-      { title: "Deviations", url: "/sdevi", role: "Admin Assistant" },
+      { title: "Manage Deviations", url: "/sdevi", role: "Admin Assistant" },
       { title: "Report Deviation", url: "/sdevi/report", role: "Researcher" },
       { title: "My Deviations", url: "/sdevi/submitted", role: "Researcher" },
-      { title: "Deviations", url: "/sdevi/sub1", role: "Reviewer" },
       { title: "Deviations", url: "/chairperson/deviations", role: "Chairperson" },
       { title: "Resolution Reviews", url: "/chairperson/resolution-reviews", role: "Chairperson" },
     ],
@@ -146,12 +147,21 @@ export function generateNav(role: string): NavItem[] {
   const roleIsAdmin = role === "Admin";
   const roleIsChair = role === "Chairperson";
 
-  return Object.values(navConfig)
+  const filteredNav = Object.values(navConfig)
     .map((section) => {
       let items = section.items ?? [];
 
       // Admin sees everything
       if (roleIsAdmin) {
+        // Remove duplicate child items by title within this section
+        const uniqueItems = new Map();
+        items.forEach(item => {
+          if (!uniqueItems.has(item.title)) {
+            uniqueItems.set(item.title, item);
+          }
+        });
+        items = Array.from(uniqueItems.values());
+
         return {
           ...section,
           isActive: true,
@@ -179,8 +189,9 @@ export function generateNav(role: string): NavItem[] {
         : null;
     })
     .filter(Boolean) as NavItem[];
-}
 
+  return filteredNav;
+}
 
 // ====== APP DATA ======
 export const data: AppData = {
