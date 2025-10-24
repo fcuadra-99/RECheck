@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, Pencil } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -95,6 +95,10 @@ export default function ReviewerPage() {
         other_documents: false,
         other_comments: ''
     });
+
+    proposalDocuments;
+    selectedDocuments;
+    revisionRequirements;
 
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
