@@ -148,6 +148,8 @@ export const SReview = () => {
   const [riskAssessmentCompleted, setRiskAssessmentCompleted] = React.useState(false);
   const [riskAssessmentAnswers, setRiskAssessmentAnswers] = React.useState<Record<string, string>>({});
 
+  riskAssessmentAnswers;
+
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
