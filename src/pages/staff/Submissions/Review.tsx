@@ -22,7 +22,9 @@ import {
   Badge,
   X as CloseIcon,
   Crown,
+  FileCheck,
 } from "lucide-react";
+import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
 
 type Status =
   | "Check Manuscript"
@@ -141,6 +143,11 @@ export const SReview = () => {
   const [reviewType, setReviewType] = React.useState<"Full Board" | "Expedited" | "Exempt" | null>(null);
   const [requiredReviewerCount, setRequiredReviewerCount] = React.useState<number>(0);
 
+  // New states for risk assessment form
+  const [showRiskAssessmentForm, setShowRiskAssessmentForm] = React.useState(false);
+  const [riskAssessmentCompleted, setRiskAssessmentCompleted] = React.useState(false);
+  const [riskAssessmentAnswers, setRiskAssessmentAnswers] = React.useState<Record<string, string>>({});
+
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
@@ -167,6 +174,33 @@ export const SReview = () => {
     };
     getCurrentUser();
   }, []);
+
+  // Check if risk assessment form is already completed
+  React.useEffect(() => {
+    if (type === "Assess") {
+      checkRiskAssessmentCompletion();
+    }
+  }, [type, id]);
+
+  const checkRiskAssessmentCompletion = async () => {
+    try {
+      // Check if risk assessment form exists in storage
+      const { data } = await supabase.storage
+        .from("documents")
+        .list(`${id}/Risk Assessment`);
+
+      const hasRiskAssessment = data?.some(file =>
+        file.name.toLowerCase().includes('risk') ||
+        file.name.toLowerCase().includes('assessment')
+      );
+
+      if (hasRiskAssessment) {
+        setRiskAssessmentCompleted(true);
+      }
+    } catch (error) {
+      console.error("Error checking risk assessment completion:", error);
+    }
+  };
 
   // Fetch proposal data to get review type
   React.useEffect(() => {
@@ -406,6 +440,19 @@ export const SReview = () => {
     }
   }, [currentUserRole, type]);
 
+  // Handle risk assessment form completion
+  const handleRiskAssessmentComplete = (answers: Record<string, string>) => {
+    setRiskAssessmentAnswers(answers);
+    setRiskAssessmentCompleted(true);
+    setShowRiskAssessmentForm(false);
+    toast.success("Risk assessment form completed successfully");
+  };
+
+  // Start risk assessment process
+  const handleStartRiskAssessment = () => {
+    setShowRiskAssessmentForm(true);
+  };
+
   async function handleSubmit() {
     const loading = toast.loading("Loading...");
 
@@ -422,6 +469,11 @@ export const SReview = () => {
       if (type === "Assess") {
         if (!tog) {
           toast.error("Please select a review type before submitting.");
+          return;
+        }
+
+        if (!riskAssessmentCompleted) {
+          toast.error("Please complete the risk assessment form before selecting review type.");
           return;
         }
 
@@ -742,6 +794,35 @@ export const SReview = () => {
     }
   };
 
+  // Render risk assessment form viewer
+  // Render risk assessment form viewer
+  if (showRiskAssessmentForm) {
+    return (
+      <div className="fixed inset-0 bg-background z-50 flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b">
+          <div className="font-semibold text-lg">Risk Assessment Form</div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setShowRiskAssessmentForm(false);
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="flex-1 relative">
+          <PdfFormViewer
+            document="risk_assessment_form.pdf" // Replace with your actual risk assessment form name
+            onAnswersSubmit={handleRiskAssessmentComplete}
+            proposalId={parseInt(id)}
+            status="Risk Assessment"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       {/* Proposal Info */}
@@ -885,6 +966,58 @@ export const SReview = () => {
           handleSubmit();
         }}
       >
+        {/* Risk Assessment Form Section */}
+        {type === "Assess" && (
+          <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
+            <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+              <FileCheck className="text-primary w-5 h-5" /> Risk Assessment Form
+            </h2>
+
+            {!riskAssessmentCompleted ? (
+              <div className="text-center py-8 border-2 border-dashed rounded-lg bg-gray-50">
+                <FileCheck className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Complete Risk Assessment Form
+                </h3>
+                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                  Please complete the risk assessment form before selecting the review type.
+                  This form will help determine the appropriate level of review required.
+                </p>
+                <Button
+                  onClick={handleStartRiskAssessment}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <FileCheck className="h-4 w-4" />
+                  Start Risk Assessment Form
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <h4 className="font-medium text-green-800">Risk Assessment Completed</h4>
+                    <p className="text-sm text-green-600">
+                      The risk assessment form has been successfully completed. You may now select the review type.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStartRiskAssessment}
+                    className="flex items-center gap-2"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Edit Form
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Reviewer Assignment */}
         <section hidden={type !== "Assign"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
@@ -1104,8 +1237,8 @@ export const SReview = () => {
           </RadioGroup>
         </section>
 
-        {/* Risk Assessment */}
-        <section hidden={type !== "Assess"} className="bg-white p-6 rounded-lg shadow-md border mb-6">
+        {/* Risk Assessment - Only show if form is completed */}
+        <section hidden={type !== "Assess" || !riskAssessmentCompleted} className="bg-white p-6 rounded-lg shadow-md border mb-6">
           <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
             <Shield className="text-primary w-5 h-5" /> Risk Assessment
           </h2>
