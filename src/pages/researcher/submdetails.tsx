@@ -276,16 +276,6 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                 </div>
             </div>
 
-            {/* Reviewer Comment */}
-            {latestComment && (
-                <div className="mb-4 p-3 border rounded bg-amber-50 text-amber-800 flex items-start gap-2">
-                    <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm min-w-0">
-                        <div className="font-medium">Reviewer comment</div>
-                        <div className="whitespace-pre-wrap break-words">{latestComment}</div>
-                    </div>
-                </div>
-            )}
 
             {/* Tabs Section */}
             <Tabs value={`${activeTab}`} onValueChange={(v) => setActiveTab(Number(v))}>

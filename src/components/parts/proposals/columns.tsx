@@ -103,10 +103,10 @@ async function stat(params: StatusParam | null | undefined): Promise<StatusValue
   if (userRole === "Chairperson") {
     awa = {
       "Resend Manuscript": "Assess",
-      "Check Manuscript": "Check",
+      "Check Manuscript": "Pending",
       "Risk Assessment": "Assess",
       "Resend Forms": "Check",
-      "Forms Check": "Check",
+      "Forms Check": "Pending",
       "Deploy Queue": "Check",
       "Send Revision": "Pending",
       "Check Revision": "Check",

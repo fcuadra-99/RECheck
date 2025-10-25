@@ -135,8 +135,8 @@ const navConfig = {
     icon: UserCheck,
     items: [
       { title: "User Management", url: "/admin/userroles", role: "Admin" },
-      { title: "Phase Management", url: "/sdevi/sub2", role: "Researcher" },
-      { title: "Files Management", url: "/sdevi/sub1", role: "Admin Assistant" },
+      { title: "Phase Management", url: "/sdevi/sub2", role: "Admin" },
+      { title: "Files Management", url: "/sdevi/sub1", role: "Admin" },
 
     ],
   },

@@ -587,7 +587,7 @@ export default function PhaseContent({
                         disabled={
                             !docs.every((d) => {
                                 if (!d.required) return true;
-                                const needsSig = !!!!!!!!d.needsSignature;
+                                const needsSig = !!d.needsSignature;
                                 const needsAns = !!d.needsAnswer;
                                 if (needsSig && needsAns) return !!signedDocuments[d.name] && !!answeredDocuments[d.name];
                                 if (needsSig) return !!signedDocuments[d.name];
@@ -595,7 +595,7 @@ export default function PhaseContent({
                                 return !!uploadedFiles[d.name];
                             })
                         }
-                        hidden={!submission.status.includes("Send") && submission.status !== "Revise Proposal"}
+                        hidden={!submission.status.includes("Send") && !submission.status.includes("Resend") && submission.status !== "Revise Proposal"}
                         className="w-full sm:w-auto"
                     >
                         {isResendStatus ? "Submit Revisions" : "Submit Phase"}
