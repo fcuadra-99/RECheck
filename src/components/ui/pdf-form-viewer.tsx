@@ -66,7 +66,7 @@ export function PdfFormViewer({
     const [displayScale, setDisplayScale] = useState<number>(1.5);
     const [cssScale, setCssScale] = useState<number>(1);
     const [debugMode, setDebugMode] = useState(false);
-    
+
     console.log(setDebugMode);
 
     // Signature dialog states
@@ -222,13 +222,13 @@ export function PdfFormViewer({
             if (shouldBeCheckbox(placeholder)) {
                 return true;
             }
-            
+
             const value = answers[String(placeholder.id)];
-            
+
             if (!value || (typeof value === "string" && value.trim() === "")) {
                 return false;
             }
-            
+
             return true;
         });
     };
@@ -240,7 +240,7 @@ export function PdfFormViewer({
 
         setAnswers(prev => {
             const newAnswers = { ...prev };
-            
+
             // If this is part of a group, uncheck all others in the group
             if (groupIds.length > 1) {
                 groupIds.forEach(id => {
@@ -249,11 +249,11 @@ export function PdfFormViewer({
                     }
                 });
             }
-            
+
             // Toggle current checkbox
             const currentValue = prev[String(placeholderId)];
             newAnswers[String(placeholderId)] = currentValue === "/" ? "" : "/";
-            
+
             return newAnswers;
         });
     };
@@ -326,7 +326,10 @@ export function PdfFormViewer({
             });
 
             const formName = document.replace(/\.pdf$/i, "");
-            const storagePath = `${proposalId}/${status}/${formName}.pdf`;
+
+            // ✅ Transform "Resend" to "Send" in the status for storage path
+            const transformedStatus = status.replace(/^Resend /, "Send ");
+            const storagePath = `${proposalId}/${transformedStatus}/${formName}.pdf`;
 
             const { error: uploadError } = await supabase.storage
                 .from("documents")
@@ -381,7 +384,7 @@ export function PdfFormViewer({
                                                 onChange={() => handleCheckboxChange(ph.id, ph.name)}
                                                 className="w-4 h-4"
                                             />
-                                            <label 
+                                            <label
                                                 htmlFor={`field-${ph.id}`}
                                                 className="text-sm font-medium text-gray-700 cursor-pointer"
                                             >
@@ -412,8 +415,8 @@ export function PdfFormViewer({
                         })}
                 </div>
                 <div className="p-4 border-t">
-                    <Button 
-                        onClick={handleSubmit} 
+                    <Button
+                        onClick={handleSubmit}
                         className="w-full"
                         disabled={!allFieldsFilled()}
                     >
@@ -472,7 +475,7 @@ export function PdfFormViewer({
                             .filter((p) => p.type === "text")
                             .map((ph) => {
                                 const isCheckbox = shouldBeCheckbox(ph);
-                                const displayValue = isCheckbox 
+                                const displayValue = isCheckbox
                                     ? (answers[String(ph.id)] === "/" ? "/" : "")
                                     : answers[String(ph.id)] || "";
 
