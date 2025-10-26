@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import { RippleButton } from "@/components/animate-ui/buttons/ripple";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
+import PDFFormFiller from "@/components/PDFFormFiller";
 
 /* ----------------- types ----------------- */
 interface RevisionRequirement {
@@ -116,6 +117,11 @@ export default function ReviewerPage() {
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
+
+    // PDF template states
+    const [showPDFTemplate, setShowPDFTemplate] = useState(false);
+    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | null>(null);
+    const [templateUrl, setTemplateUrl] = useState<string>('');
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
@@ -549,6 +555,114 @@ export default function ReviewerPage() {
     // Check if current user has submitted a recommendation for active submission
     const hasUserSubmittedRecommendation = existingRecommendations.some(rec => rec.reviewer_id === userId);
 
+    /* Open PDF Template Handler */
+    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter') => {
+        try {
+            const templateFilename = type === 'ethical_clearance' 
+                ? 'V2 Ethical Clearance (2).pdf'
+                : '-Decision Letter.pdf';
+            
+            // Get the template URL from public folder
+            const templatePath = `/templates/${templateFilename}`;
+            
+            setTemplateUrl(templatePath);
+            setTemplateType(type);
+            setShowPDFTemplate(true);
+        } catch (error) {
+            console.error('Error loading template:', error);
+            toast.error('Failed to load template');
+        }
+    };
+
+    /* Save PDF Template Handler */
+    const handleSavePDFTemplate = async (pdfBytes: Uint8Array, _formData: Record<string, any>) => {
+        if (!activeSubmission || !userId) return;
+
+        try {
+            const loadingId = toast.loading("Saving and sending document...");
+
+            // Generate filename based on template type
+            const filename = templateType === 'ethical_clearance'
+                ? `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.pdf`
+                : `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.pdf`;
+
+            // Upload to Supabase Storage
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(`${activeSubmission.proposal_id}/Decisions/${filename}`, pdfBytes, {
+                    contentType: 'application/pdf',
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+
+            // Add history entry for document sent
+            const historyData = {
+                history_type: templateType === 'ethical_clearance' ? 'ethical_clearance_sent' : 'decision_letter_sent',
+                paper_id: activeSubmission.proposal_id,
+                comment: `${templateType === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter'} sent to researcher`,
+                actor: userId,
+                action: templateType === 'ethical_clearance' ? 'ETHICAL_CLEARANCE_SENT' : 'DECISION_LETTER_SENT',
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            // Now process the chairperson decision (approve or request revisions)
+            const nextStatus = templateType === 'ethical_clearance'
+                ? "Data Collection"
+                : "Revise Proposal";
+
+            // Update proposal status
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({
+                    status: nextStatus,
+                    updated_on: new Date().toISOString()
+                })
+                .eq("proposal_id", activeSubmission.proposal_id);
+
+            if (statusError) throw statusError;
+
+            // Add chairperson decision to history
+            const decisionHistoryData = {
+                history_type: "review_decision",
+                paper_id: activeSubmission.proposal_id,
+                comment: `Chairperson ${templateType === 'ethical_clearance' ? 'approved' : 'requested revisions for'} proposal and sent ${templateType === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter'}`,
+                actor: userId,
+                action: `CHAIRPERSON_DECISION_${templateType === 'ethical_clearance' ? 'APPROVE' : 'REVISIONS'}`,
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
+            if (decisionError) throw decisionError;
+
+            // Close the PDF template
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+
+            // Update local state - remove the processed submission
+            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+
+            if (submissions.length > 1) {
+                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
+                setActiveSubmission(nextSubmission || null);
+            } else {
+                setActiveSubmission(null);
+            }
+
+            toast.success(
+                `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,
+                { id: loadingId }
+            );
+        } catch (error: any) {
+            console.error('Error saving PDF template:', error);
+            toast.error(`Failed to save document: ${error.message || 'Unknown error'}`);
+        }
+    };
+
     /* ---------- UI ---------- */
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -963,6 +1077,42 @@ export default function ReviewerPage() {
                                     )}
                                 </div>
 
+                                {/* Template Buttons - Only for Chairperson */}
+                                {isChairperson && (
+                                    <div className="space-y-3 border-t pt-4">
+                                        <div className="text-sm font-medium text-gray-700 mb-2">
+                                            Generate Document for Researcher
+                                        </div>
+                                        
+                                        {recommendation.recommendation === 'approve' ? (
+                                            // Show Ethical Clearance button for Approve
+                                            <Button
+                                                onClick={() => handleOpenPDFTemplate('ethical_clearance')}
+                                                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
+                                            >
+                                                <FileSignature className="w-4 h-4" />
+                                                Fill & Send Ethical Clearance Form
+                                            </Button>
+                                        ) : (
+                                            // Show Decision Letter button for Revisions
+                                            <Button
+                                                onClick={() => handleOpenPDFTemplate('decision_letter')}
+                                                className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700"
+                                            >
+                                                <FileSignature className="w-4 h-4" />
+                                                Fill & Send Decision Letter
+                                            </Button>
+                                        )}
+                                        
+                                        <p className="text-xs text-gray-500 text-center">
+                                            {recommendation.recommendation === 'approve' 
+                                                ? 'This will open the Ethical Clearance form for you to fill and send to the researcher'
+                                                : 'This will open the Decision Letter template for you to customize and send to the researcher'
+                                            }
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between items-center">
                                     {hasUserSubmittedRecommendation && !isChairperson && (
                                         <div className="text-sm text-green-600">
@@ -1055,6 +1205,24 @@ export default function ReviewerPage() {
                             </a>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* PDF Template Modal - Full Screen */}
+            {showPDFTemplate && templateUrl && (
+                <div className="fixed inset-0 z-50 bg-white">
+                    <PDFFormFiller
+                        templateUrl={templateUrl}
+                        templateName={templateType === 'ethical_clearance' 
+                            ? 'Ethical_Clearance' 
+                            : 'Decision_Letter'}
+                        onSave={handleSavePDFTemplate}
+                        onCancel={() => {
+                            setShowPDFTemplate(false);
+                            setTemplateType(null);
+                            setTemplateUrl('');
+                        }}
+                    />
                 </div>
             )}
         </div>
