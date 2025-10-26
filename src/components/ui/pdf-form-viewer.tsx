@@ -76,7 +76,7 @@ export function PdfFormViewer({
 
     // 🧠 Load saved answers
     useEffect(() => {
-        const saved = localStorage.getItem(`answers_${document}`);
+        const saved = localStorage.getItem(`answers_${proposalId}_${document}`);
         if (saved) {
             try {
                 setAnswers(JSON.parse(saved));
@@ -84,7 +84,10 @@ export function PdfFormViewer({
                 console.warn("Failed to parse saved answers");
             }
         }
-    }, [document]);
+    }, [document, proposalId]); // Add proposalId to dependencies
+
+    // In handleSubmit:
+    localStorage.setItem(`answers_${proposalId}_${document}`, JSON.stringify(answers));
 
     // 🧩 Load PDF metadata + storage URL
     useEffect(() => {
