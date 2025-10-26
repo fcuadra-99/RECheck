@@ -189,7 +189,6 @@ export default function PhaseContent({
         const loadingId = toast.loading("Submitting forms...");
 
         try {
-            // For Revise Proposal, skip the completeness check since all documents are optional
             if (submission.status !== "Revise Proposal") {
                 const incomplete = docs.filter(doc => {
                     if (!doc.required) return false;
@@ -214,12 +213,17 @@ export default function PhaseContent({
                 }
             }
 
-            // Upload files that are present (only for Revise Proposal, files are optional)
             for (const doc of docs) {
-                // Skip if no file was uploaded and this is an optional document in Revise Proposal
                 if (!uploadedFiles[doc.name] && submission.status === "Revise Proposal") {
+                    toast.info(`Skipping optional document: ${doc.name}`);
                     continue;
                 }
+
+                const getStorageFilename = (docName: string): string => {
+                    if (docName === 'All Grades') return 'All Grades.pdf';
+                    const baseName = docName.replace(/\.pdf$/i, '');
+                    return `${baseName}.pdf`;
+                };
 
                 let filePath: string | null = null;
                 const uploadStatus = phaseUploadStatus(getActivePhaseIndex(submission.status));
@@ -227,127 +231,116 @@ export default function PhaseContent({
                 if (uploadedFiles[doc.name]) {
                     try {
                         const file = uploadedFiles[doc.name]!;
-                        const getStorageFilename = (docName: string): string => {
-                            if (docName === 'All Grades') return 'All Grades.pdf';
-                            const baseName = docName.replace(/\.pdf$/i, '');
-                            return `${baseName}.pdf`;
-                        };
+                        let aa = uploadStatus;
+
+                        if (uploadStatus === "Resend Manuscript" || uploadStatus === "Resend Forms") {
+                            aa = uploadStatus.replace("Resend ", "Send ");
+                        }
 
                         const storageFilename = getStorageFilename(doc.name);
-                        const path = `${submission.proposal_id}/${uploadStatus || 'other'}/${storageFilename}`;
+                        const path = `${submission.proposal_id}/${aa || 'other'}/${storageFilename}`;
                         const renamedFile = new File([file], storageFilename, { type: file.type });
 
-                        const { error: uploadError } = await supabase.storage.from('documents').upload(path, renamedFile, { upsert: true });
+                        toast.info(`Uploading: ${doc.name} → ${path}`);
+
+                        const { error: uploadError } = await supabase.storage
+                            .from('documents')
+                            .upload(path, renamedFile, { upsert: true });
+
                         if (uploadError) throw uploadError;
                         filePath = path;
+
                     } catch (uploadErr: any) {
-                        throw new Error(`Failed to upload file for ${doc.name}: ${uploadErr.message || uploadErr}`);
+                        throw new Error(`Upload failed for ${doc.name}: ${uploadErr.message || uploadErr}`);
                     }
                 }
 
                 if (["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
+                    toast.info(`Resend: Checking existing record for ${doc.name}`);
+
                     const { data: existingRecords } = await supabase
-                        .from('proposal_documents')
-                        .select('*')
-                        .eq('proposal_id', submission.proposal_id)
-                        .eq('doc_type', doc.name)
-                        .order('uploaded_at', { ascending: false })
+                        .from("proposal_documents")
+                        .select("*")
+                        .eq("proposal_id", submission.proposal_id)
+                        .eq("doc_type", doc.name)
+                        .order("uploaded_at", { ascending: false })
                         .limit(1);
 
-                    if (existingRecords && existingRecords.length > 0) {
-                        const { error: updateError } = await supabase
-                            .from('proposal_documents')
-                            .update({
-                                file_path: filePath || existingRecords[0].file_path,
-                                uploaded_at: filePath ? new Date().toISOString() : existingRecords[0].uploaded_at,
-                                revision_number: (existingRecords[0].revision_number || 1) + 1,
-                            })
-                            .eq('document_id', existingRecords[0].document_id);
+                    const originalRecord = existingRecords?.[0];
 
-                        if (updateError) {
-                            throw new Error(updateError.message || 'Failed to update document record');
-                        }
+                    if (originalRecord?.file_path) {
+                        toast.warning(`Deleting old file: ${originalRecord.file_path}`);
+
+                        const { error: deleteError } = await supabase.storage
+                            .from("documents")
+                            .remove([originalRecord.file_path]);
+
+                        if (deleteError) toast.error(`Failed delete: ${deleteError.message}`);
+                    }
+
+                    const newRevision = originalRecord?.revision_number
+                        ? originalRecord.revision_number + 1
+                        : 1;
+
+                    const updatedRecord = {
+                        file_path: filePath,
+                        uploaded_at: new Date().toISOString(),
+                        revision_number: newRevision,
+                    };
+
+                    if (originalRecord) {
+                        toast.info(`Updating DB record for ${doc.name}`);
+                        const { error } = await supabase
+                            .from("proposal_documents")
+                            .update(updatedRecord)
+                            .eq("document_id", originalRecord.document_id);
+                        if (error) throw new Error(error.message);
                     } else {
+                        toast.info(`Inserting new DB record for ${doc.name}`);
                         const record: any = {
                             proposal_id: submission.proposal_id,
                             doc_type: doc.name,
-                            file_path: filePath || "",
-                            uploaded_at: filePath ? new Date().toISOString() : null,
-                            revision_number: 1,
+                            ...updatedRecord,
                         };
-
-                        const { error: dbError } = await supabase.from('proposal_documents').insert(record);
-                        if (dbError) {
-                            throw new Error(dbError.message || 'Failed to record document submission');
-                        }
+                        const { error } = await supabase
+                            .from("proposal_documents")
+                            .insert(record);
+                        if (error) throw new Error(error.message);
                     }
-                } else {
-                    const record: any = {
+                }
+
+                else {
+                    toast.info(`Initial upload record for ${doc.name}`);
+                    const { error } = await supabase.from('proposal_documents').insert({
                         proposal_id: submission.proposal_id,
                         doc_type: doc.name,
                         file_path: filePath || "",
-                        uploaded_at: filePath ? new Date().toISOString() : null,
+                        uploaded_at: new Date().toISOString(),
                         revision_number: 1,
-                    };
-
-                    const { error: dbError } = await supabase.from('proposal_documents').insert(record);
-                    if (dbError) {
-                        throw new Error(dbError.message || 'Failed to record document submission');
-                    }
+                    });
+                    if (error) throw new Error(error.message);
                 }
             }
 
-            // Update the next status - Revise Proposal goes to Assign Review
-            let nextStatus = getNextStatus(submission.status);
+            let nextStatus = submission.status === "Revise Proposal"
+                ? "Assign Review"
+                : getNextStatus(submission.status);
 
-            // Override for Revise Proposal to go directly to Assign Review
-            if (submission.status === "Revise Proposal") {
-                nextStatus = "Assign Review";
-            }
+            toast.info(`Updating proposal status to: ${nextStatus}`);
 
             const { error: statusError } = await supabase.from("proposals")
                 .update({ status: nextStatus })
                 .eq("proposal_id", submission.proposal_id);
             if (statusError) throw new Error(statusError.message);
 
-            const { data: userData } = await supabase.auth.getUser();
-            const actorId = userData?.user?.id || "unknown";
-            const affectedFiles = docs
-                .filter(doc => uploadedFiles[doc.name] || signedDocuments[doc.name] || answeredDocuments[doc.name])
-                .map((d) => ({ name: d.name, required: d.required }));
+            toast.success("✅ Submission complete!", { id: loadingId });
 
-            const { error: historyError } = await supabase.from("history").insert({
-                history_type: "submission",
-                paper_id: submission.proposal_id,
-                comment: submission.status === "Revise Proposal" ? "Proposal revisions submitted" : "Phase submitted",
-                actor: actorId,
-                affected_files: affectedFiles,
-                action: submission.status === "Revise Proposal" ? "Submit Revisions" : "Submit Phase",
-                history_date: new Date().toISOString(),
-            });
-            if (historyError) throw new Error(historyError.message);
-
-            onUploadedFilesChange(Object.fromEntries(
-                Object.entries(uploadedFiles).filter(([key]) => !docs.some(d => d.name === key))
-            ));
-
-            const { data: refreshed } = await supabase.from("proposals").select("*").order("date", { ascending: false });
-            const updated = refreshed?.find((p: any) => p.proposal_id === submission.proposal_id);
-            if (updated) {
-                onSubmissionUpdate(updated as Submission);
-            }
-
-            toast.success(
-                submission.status === "Revise Proposal"
-                    ? "Revisions submitted successfully"
-                    : "Phase submitted successfully",
-                { id: loadingId }
-            );
         } catch (err: any) {
             console.error(err);
             toast.error("Submission failed: " + (err.message || err), { id: loadingId });
         }
     };
+
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = getFilesNeedingRevision(submission);
         const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);

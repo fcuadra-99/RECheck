@@ -170,7 +170,6 @@ export const SReview = () => {
 
         if (profile) {
           setCurrentUserRole(profile.role);
-          toast(profile.role)
         }
       }
     };
