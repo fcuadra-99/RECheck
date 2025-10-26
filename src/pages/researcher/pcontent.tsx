@@ -1049,9 +1049,138 @@ export default function PhaseContent({
         }
     };
 
+    // Component to display decision documents from chairperson
+    const DecisionDocuments = () => {
+        const [decisionDocs, setDecisionDocs] = useState<{ name: string; url: string; type: string }[]>([]);
+        const [loading, setLoading] = useState(true);
+
+        useEffect(() => {
+            const fetchDecisionDocuments = async () => {
+                try {
+                    const { data, error } = await supabase.storage
+                        .from('documents')
+                        .list(`${submission.proposal_id}/Decisions`);
+
+                    if (error) {
+                        if (!error.message.includes('not found')) {
+                            console.error('Error fetching decision documents:', error);
+                        }
+                        setDecisionDocs([]);
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (!data || data.length === 0) {
+                        setDecisionDocs([]);
+                        setLoading(false);
+                        return;
+                    }
+
+                    const docs = await Promise.all(
+                        data.map(async (file) => {
+                            const { data: signedData, error: signError } = await supabase.storage
+                                .from('documents')
+                                .createSignedUrl(`${submission.proposal_id}/Decisions/${file.name}`, 60 * 60);
+
+                            if (signError) {
+                                console.error('Error creating signed URL:', signError);
+                                return null;
+                            }
+
+                            const type = file.name.includes('Ethical_Clearance') ? 'ethical_clearance' : 'decision_letter';
+
+                            return {
+                                name: file.name,
+                                url: signedData.signedUrl,
+                                type
+                            };
+                        })
+                    );
+
+                    setDecisionDocs(docs.filter((doc): doc is { name: string; url: string; type: string } => doc !== null));
+                    setLoading(false);
+                } catch (err) {
+                    console.error('Error in fetchDecisionDocuments:', err);
+                    setDecisionDocs([]);
+                    setLoading(false);
+                }
+            };
+
+            fetchDecisionDocuments();
+        }, [submission.proposal_id]);
+
+        if (loading) return null;
+        if (decisionDocs.length === 0) return null;
+
+        return (
+            <div className="mb-6 space-y-3">
+                {decisionDocs.map((doc, index) => (
+                    <div
+                        key={index}
+                        className={cn(
+                            "border rounded-lg p-4 shadow-sm",
+                            doc.type === 'ethical_clearance' 
+                                ? "bg-green-50 border-green-200" 
+                                : "bg-yellow-50 border-yellow-200"
+                        )}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                {doc.type === 'ethical_clearance' ? (
+                                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
+                                    </div>
+                                ) : (
+                                    <div className="h-10 w-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                        <Pen className="h-5 w-5 text-yellow-600" />
+                                    </div>
+                                )}
+                                <div>
+                                    <h4 className="font-semibold text-gray-900">
+                                        {doc.type === 'ethical_clearance' 
+                                            ? 'Ethical Clearance Received' 
+                                            : 'Decision Letter Received'}
+                                    </h4>
+                                    <p className="text-sm text-gray-600">
+                                        {doc.type === 'ethical_clearance' 
+                                            ? 'Your proposal has been approved by the chairperson' 
+                                            : 'Chairperson has requested revisions to your proposal'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        onSetPreviewUrl(doc.url);
+                                        onSetPreviewTitle(doc.type === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter');
+                                        onOpenPreview(true);
+                                    }}
+                                >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View
+                                </Button>
+                                <a href={doc.url} download target="_blank" rel="noopener noreferrer">
+                                    <Button variant="outline" size="sm">
+                                        <Download className="h-4 w-4 mr-2" />
+                                        Download
+                                    </Button>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     // Add dialogs for study report and deviation upload
     return (
         <>
+            {/* Show decision documents if available */}
+            <DecisionDocuments />
+
             {isPast && (
                 <>
                     <div className="mb-2 text-sm text-gray-600">This phase is completed — view uploaded files below.</div>
