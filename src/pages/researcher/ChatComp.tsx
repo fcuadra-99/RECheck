@@ -33,24 +33,60 @@ const getAvatarUrl = (id: string) => {
   return data.publicUrl
 }
 
+const formatTime = (dateString: string) => {
+  return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  
+  if (date.toDateString() === today.toDateString()) return "Today"
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday"
+  return date.toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
+const groupMessagesByDay = (messages: Message[]) => {
+  const groups: { date: string; messages: Message[] }[] = []
+  
+  messages.forEach(message => {
+    const messageDate = formatDate(message.created_at)
+    const lastGroup = groups[groups.length - 1]
+    
+    if (lastGroup && lastGroup.date === messageDate) {
+      lastGroup.messages.push(message)
+    } else {
+      groups.push({ date: messageDate, messages: [message] })
+    }
+  })
+  
+  return groups
+}
+
 export function ChatPopup({ userId }: ChatPopupProps) {
   const [open, setOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-
-  const [users, setUsers] = useState<UserProfile[]>([]) // users with chat history (or search results)
+  const [users, setUsers] = useState<UserProfile[]>([])
   const [recipient, setRecipient] = useState<UserProfile | null>(null)
-
   const [messages, setMessages] = useState<Message[]>([])
   const [newMsg, setNewMsg] = useState("")
   const [loading, setLoading] = useState(false)
-
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
   const [unreadCount, setUnreadCount] = useState(0)
 
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const bottomRef = useRef<HTMLDivElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
-  // ————— responsive check —————
+  const messageGroups = groupMessagesByDay(messages)
+
+  // Responsive check
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
@@ -58,51 +94,93 @@ export function ChatPopup({ userId }: ChatPopupProps) {
     return () => window.removeEventListener("resize", check)
   }, [])
 
-  // ————— fetch users (only when opening or requested) —————
+  // Fetch users with chat history
   const fetchUsersWithChats = async () => {
-    // returns only users you have chat history with
     const { data: msgData } = await supabase.from("messages").select("sender_id, recipient_id")
     const ids = new Set<string>()
+    
     msgData?.forEach((m: any) => {
       if (m.sender_id === userId && m.recipient_id) ids.add(m.recipient_id)
       if (m.recipient_id === userId && m.sender_id) ids.add(m.sender_id)
     })
+    
     if (ids.size === 0) {
       setUsers([])
       return
     }
+    
     const { data } = await supabase.from("profiles").select("id, fname, lname, email").in("id", Array.from(ids))
     setUsers((data || []).map((u: any) => ({ ...u, avatar: getAvatarUrl(u.id) })))
   }
 
-  // ————— fetch messages for recipient (no clearing to avoid flicker) —————
-  const fetchMessagesForRecipient = async (r: UserProfile | null) => {
+  // Fetch messages with pagination
+  const fetchMessagesForRecipient = async (r: UserProfile | null, pageNum: number = 0, loadMore: boolean = false) => {
     if (!r) {
       setMessages([])
       setLoading(false)
+      setHasMore(false)
       return
     }
-    setLoading(true)
-    const { data } = await supabase
+
+    if (!loadMore) {
+      setLoading(true)
+    } else {
+      setLoadingMore(true)
+    }
+
+    const PAGE_SIZE = 50
+    const from = pageNum * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+
+    const { data, error, count } = await supabase
       .from("messages")
-      .select("*")
-      .or(
-        `and(sender_id.eq.${userId},recipient_id.eq.${r.id}),and(sender_id.eq.${r.id},recipient_id.eq.${userId})`
-      )
-      .order("created_at", { ascending: true })
-    setMessages((data as Message[]) || [])
+      .select("*", { count: 'exact' })
+      .or(`and(sender_id.eq.${userId},recipient_id.eq.${r.id}),and(sender_id.eq.${r.id},recipient_id.eq.${userId})`)
+      .order("created_at", { ascending: false })
+      .range(from, to)
+
+    if (error) {
+      console.error("Error fetching messages:", error)
+      setLoading(false)
+      setLoadingMore(false)
+      return
+    }
+
+    const messagesData = (data as Message[]) || []
+    
+    if (!loadMore) {
+      setMessages(messagesData.reverse())
+    } else {
+      setMessages(prev => [...messagesData.reverse(), ...prev])
+    }
+
+    const totalCount = count || 0
+    setHasMore(totalCount > (pageNum + 1) * PAGE_SIZE)
     setLoading(false)
-    // small delay then scroll to bottom
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40)
+    setLoadingMore(false)
+
+    if (!loadMore) {
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 40)
+    }
   }
 
-  // ————— realtime subscription (append only) —————
-  useEffect(() => {
-    if (!userId) return
-    let channel: RealtimeChannel | null = null
+  // Load more messages on scroll
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget
+    const scrollThreshold = 50
+    
+    if (element.scrollTop <= scrollThreshold && !loadingMore && hasMore && !loading && recipient) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      fetchMessagesForRecipient(recipient, nextPage, true)
+    }
+  }
 
-    // initial load happens when popup opens (see side effect below)
-    channel = supabase
+  // Real-time subscription
+  useEffect(() => {
+    if (!userId || !open) return
+
+    channelRef.current = supabase
       .channel("chat-room")
       .on<Message>(
         "postgres_changes",
@@ -110,35 +188,26 @@ export function ChatPopup({ userId }: ChatPopupProps) {
         async (payload) => {
           const msg = payload.new as Message
 
-          // if message belongs to current conversation -> append
-          if (
-            recipient &&
-            ((msg.sender_id === userId && msg.recipient_id === recipient.id) ||
-              (msg.sender_id === recipient.id && msg.recipient_id === userId))
-          ) {
-            setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]))
-            // auto scroll
+          // Add to current conversation
+          if (recipient && ((msg.sender_id === userId && msg.recipient_id === recipient.id) ||
+              (msg.sender_id === recipient.id && msg.recipient_id === userId))) {
+            setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]))
             setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 60)
-          } else if (msg.recipient_id === userId) {
-            // incoming to me but not in active chat -> increment unread
-            setUnreadCount((c) => c + 1)
+          } 
+          // Increment unread count for incoming messages
+          else if (msg.recipient_id === userId) {
+            setUnreadCount(c => c + 1)
           }
 
-          // if the message mentions a user not in the users list, fetch that single profile (avoid refetching whole list)
+          // Add new user to users list if needed
           const otherId = msg.sender_id === userId ? msg.recipient_id : msg.sender_id
-          if (otherId) {
-            const found = users.find((u) => u.id === otherId)
-            if (!found) {
-              // fetch single profile and add
-              const { data } = await supabase.from("profiles").select("id, fname, lname, email").eq("id", otherId).single()
-              if (data) {
-                setUsers((prev) => {
-                  const already = prev.some((p) => p.id === data.id)
-                  if (already) return prev
-                  const profile = { ...data, avatar: getAvatarUrl(data.id) }
-                  return [profile, ...prev]
-                })
-              }
+          if (otherId && !users.find(u => u.id === otherId)) {
+            const { data } = await supabase.from("profiles").select("id, fname, lname, email").eq("id", otherId).single()
+            if (data) {
+              setUsers(prev => {
+                if (prev.some(p => p.id === data.id)) return prev
+                return [{ ...data, avatar: getAvatarUrl(data.id) }, ...prev]
+              })
             }
           }
         }
@@ -146,46 +215,44 @@ export function ChatPopup({ userId }: ChatPopupProps) {
       .subscribe()
 
     return () => {
-      if (channel) supabase.removeChannel(channel)
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, recipient, users])
+  }, [userId, recipient, users, open])
 
-  // ————— open popup side-effects —————
+  // Open popup effects
   useEffect(() => {
     if (open) {
-      // initial load of users when popup opens
       fetchUsersWithChats()
-      // if there's a recipient preselected, load messages
       if (recipient) fetchMessagesForRecipient(recipient)
     }
-    // do not auto-close when open changes here
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // when recipient changes load its messages (without touching other state)
+  // Recipient change effects
   useEffect(() => {
     if (recipient) {
-      fetchMessagesForRecipient(recipient)
-      // focus after small delay for mobile keyboard
+      setPage(0)
+      fetchMessagesForRecipient(recipient, 0, false)
       setTimeout(() => textareaRef.current?.focus(), 120)
     } else {
       setMessages([])
+      setHasMore(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipient])
 
-  // autoscroll when messages appended
+  // Auto-scroll for new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    if (page === 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+  }, [messages, page])
 
-  // ————— send message (optimistic + append) —————
+  // Send message
   const sendMessage = async () => {
     if (!newMsg.trim() || !recipient) return
     const content = newMsg.trim()
 
-    // optimistic message (temporary id)
     const optimistic: Message = {
       id: `temp-${Math.random().toString(36).slice(2, 9)}`,
       sender_id: userId,
@@ -194,47 +261,41 @@ export function ChatPopup({ userId }: ChatPopupProps) {
       created_at: new Date().toISOString(),
     }
 
-    // append optimistically and clear input
-    setMessages((prev) => [...prev, optimistic])
+    setMessages(prev => [...prev, optimistic])
     setNewMsg("")
-    // keep focus stable
     setTimeout(() => textareaRef.current?.focus(), 10)
-    // insert to DB (realtime will deliver the saved row; we don't replace optimistic here to avoid re-renders that could cause focus loss)
+    
     await supabase.from("messages").insert({
       sender_id: userId,
       recipient_id: recipient.id,
       content,
     })
-    // no additional fetch here — realtime will append the canonical row when it arrives
   }
 
-  // ————— search users (for starting new chat) —————
+  // Search users
   const searchUsers = async (term: string) => {
     setSearch(term)
     if (term.length < 2) {
-      // show only history
       return fetchUsersWithChats()
     }
     const { data } = await supabase.from("profiles").select("id, fname, lname, email").ilike("fname", `%${term}%`)
     setUsers((data || []).map((u: any) => ({ ...u, avatar: getAvatarUrl(u.id) })))
   }
 
-  // ————— small helpers —————
   const selectUser = (u: UserProfile) => {
     setRecipient(u)
     setUnreadCount(0)
   }
 
-  // ————— UI —————
   return (
     <>
-      {/* trigger */}
+      {/* Trigger Button */}
       <Button
         variant="secondary"
         size="icon"
         className="size-12 fixed bottom-5 right-5 rounded-full shadow-lg bg-primary hover:bg-primary/90"
         onClick={() => {
-          setOpen((s) => !s)
+          setOpen(s => !s)
           if (!open) setUnreadCount(0)
         }}
         aria-label="Open chat"
@@ -247,7 +308,7 @@ export function ChatPopup({ userId }: ChatPopupProps) {
         )}
       </Button>
 
-      {/* popup with entrance animation only */}
+      {/* Chat Popup */}
       {open && (
         <motion.div
           initial={{ opacity: 0, scale: 0.98, y: 18 }}
@@ -258,130 +319,155 @@ export function ChatPopup({ userId }: ChatPopupProps) {
           role="dialog"
           aria-modal="true"
         >
-          {/* left: users */}
           {!isMobile ? (
+            // Desktop Layout
             <>
-              <div className="w-1/3 border-r">
-                <div className="flex flex-col h-full">
-                  <div className="p-2 border-b flex items-center gap-2">
-                    <Input
-                      placeholder="Search users..."
-                      value={search}
-                      onChange={(e) => searchUsers(e.target.value)}
-                    />
-                  </div>
-
-                  <ScrollArea className="flex-1">
-                    <div className="flex flex-col">
-                      {users.map((u) => (
-                        <button
-                          key={u.id}
-                          type="button"
-                          onClick={() => selectUser(u)}
-                          className={`w-full flex items-center gap-2 p-2 text-left hover:bg-accent rounded ${recipient?.id === u.id ? "bg-accent" : ""}`}
-                        >
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={u.avatar || ""} />
-                            <AvatarFallback>{u.fname?.[0] || "U"}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-sm truncate">{u.fname} {u.lname}</div>
-                            <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                          </div>
-                        </button>
-                      ))}
-                      {users.length === 0 && (
-                        <div className="p-3 text-sm text-muted-foreground">No chats yet</div>
-                      )}
-                    </div>
-                  </ScrollArea>
+              {/* Users Sidebar */}
+              <div className="w-1/3 border-r flex flex-col">
+                <div className="p-2 border-b">
+                  <Input
+                    placeholder="Search users..."
+                    value={search}
+                    onChange={(e) => searchUsers(e.target.value)}
+                  />
                 </div>
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="flex flex-col">
+                    {users.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => selectUser(u)}
+                        className={`w-full flex items-center gap-2 p-2 text-left hover:bg-accent rounded ${
+                          recipient?.id === u.id ? "bg-accent" : ""
+                        }`}
+                      >
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={u.avatar || ""} />
+                          <AvatarFallback>{u.fname?.[0] || "U"}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{u.fname} {u.lname}</div>
+                          <div className="text-xs text-muted-foreground truncate">{u.email}</div>
+                        </div>
+                      </button>
+                    ))}
+                    {users.length === 0 && (
+                      <div className="p-3 text-sm text-muted-foreground">No chats yet</div>
+                    )}
+                  </div>
+                </ScrollArea>
               </div>
 
-              <div className="flex-1">
-                {/* Chat panel */}
-                <div className="flex flex-col h-full">
-                  <div className="p-3 border-b flex items-center justify-between sticky top-0 bg-background z-10">
-                    <div className="flex items-center gap-2">
-                      {recipient ? (
-                        <>
-                          <Avatar>
-                            <AvatarImage src={recipient.avatar || ""} />
-                            <AvatarFallback>{recipient.fname?.[0] || "U"}</AvatarFallback>
-                          </Avatar>
-                          <span className="font-semibold">{recipient.fname} {recipient.lname}</span>
-                        </>
-                      ) : (
-                        <span className="text-muted-foreground">Select a user</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => setOpen(false)}>
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
+              {/* Chat Area */}
+              <div className="flex-1 flex flex-col">
+                <div className="p-3 border-b flex items-center justify-between sticky top-0 bg-background z-10">
+                  <div className="flex items-center gap-2">
+                    {recipient ? (
+                      <>
+                        <Avatar>
+                          <AvatarImage src={recipient.avatar || ""} />
+                          <AvatarFallback>{recipient.fname?.[0] || "U"}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-semibold">{recipient.fname} {recipient.lname}</span>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">Select a user</span>
+                    )}
                   </div>
+                  <Button size="icon" variant="ghost" onClick={() => setOpen(false)}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
 
-                  <ScrollArea className="flex-1 p-3">
-                    <div className="flex flex-col space-y-4">
-                      {loading ? (
-                        <div className="text-center text-sm text-muted-foreground">Loading...</div>
-                      ) : (
-                        messages.map((m) => (
-                          <motion.div
-                            key={m.id}
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -6 }}
-                            transition={{ duration: 0.16 }}
-                            className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
-                          >
-                            <div className={`px-3 py-2 rounded-lg max-w-[70%] text-sm ${m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"}`}>
-                              <div className="break-words">{m.content}</div>
-                              <div className={`text-xs mt-1 ${m.sender_id === userId ? "text-white/70" : "text-gray-600"}`}>
-                                {new Date(m.created_at).toLocaleTimeString()}
-                              </div>
+                <ScrollArea 
+                  className="flex-1 p-3 min-h-0" 
+                  onScroll={handleScroll}
+                  ref={scrollAreaRef}
+                >
+                  <div className="flex flex-col space-y-4">
+                    {loadingMore && (
+                      <div className="text-center text-sm text-muted-foreground py-2">
+                        Loading older messages...
+                      </div>
+                    )}
+                    {loading ? (
+                      <div className="text-center text-sm text-muted-foreground">Loading...</div>
+                    ) : (
+                      messageGroups.map((group, groupIndex) => (
+                        <div key={group.date + groupIndex}>
+                          <div className="flex items-center justify-center my-4">
+                            <div className="flex items-center">
+                              <div className="h-px bg-border flex-1" />
+                              <span className="px-3 text-xs text-muted-foreground font-medium">
+                                {group.date}
+                              </span>
+                              <div className="h-px bg-border flex-1" />
                             </div>
-                          </motion.div>
-                        ))
-                      )}
-                      <div ref={bottomRef} />
-                    </div>
-                  </ScrollArea>
-
-                  {/* input always mounted to avoid remounting focus loss */}
-                  <div className="p-3 border-t flex gap-2 bg-background">
-                    <textarea
-                      ref={textareaRef}
-                      value={newMsg}
-                      onChange={(e) => setNewMsg(e.target.value)}
-                      placeholder={recipient ? "Type a message..." : "Select a user to chat"}
-                      className="flex-1 resize-none rounded-md border px-3 py-2 min-h-[44px] focus:outline-none"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault()
-                          sendMessage()
-                        }
-                      }}
-                      disabled={!recipient}
-                    />
-                    <Button onClick={sendMessage} size="icon" disabled={!newMsg.trim() || !recipient}>
-                      <Send className="h-4 w-4" />
-                    </Button>
+                          </div>
+                          {group.messages.map((m) => (
+                            <motion.div
+                              key={m.id}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
+                            >
+                              <div className={`px-3 py-2 rounded-lg max-w-[70%] text-sm ${
+                                m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"
+                              }`}>
+                                <div className="break-words">{m.content}</div>
+                                <div className={`text-xs mt-1 ${
+                                  m.sender_id === userId ? "text-white/70" : "text-gray-600"
+                                }`}>
+                                  {formatTime(m.created_at)}
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                    <div ref={bottomRef} />
                   </div>
+                </ScrollArea>
+
+                <div className="p-3 border-t flex gap-2 bg-background">
+                  <textarea
+                    ref={textareaRef}
+                    value={newMsg}
+                    onChange={(e) => setNewMsg(e.target.value)}
+                    placeholder={recipient ? "Type a message..." : "Select a user to chat"}
+                    className="flex-1 resize-none rounded-md border px-3 py-2 min-h-[44px] focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        sendMessage()
+                      }
+                    }}
+                    disabled={!recipient}
+                  />
+                  <Button onClick={sendMessage} size="icon" disabled={!newMsg.trim() || !recipient}>
+                    <Send className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </>
           ) : (
-            /* mobile -> single column */
+            // Mobile Layout
             <div className="flex-1 flex flex-col">
               <div className="p-2 border-b flex items-center gap-2">
-                <Input placeholder="Search users..." value={search} onChange={(e) => searchUsers(e.target.value)} />
-                <Button size="icon" variant="ghost" onClick={() => setOpen(false)}><X className="h-5 w-5" /></Button>
+                <Input 
+                  placeholder="Search users..." 
+                  value={search} 
+                  onChange={(e) => searchUsers(e.target.value)} 
+                />
+                <Button size="icon" variant="ghost" onClick={() => setOpen(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
               </div>
 
               {!recipient ? (
-                <ScrollArea className="flex-1 p-3">
+                <ScrollArea className="flex-1 p-3 min-h-0">
                   <div className="flex flex-col space-y-1">
                     {users.map((u) => (
                       <button
@@ -390,43 +476,81 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                         onClick={() => selectUser(u)}
                         className="w-full flex items-center gap-2 p-2 text-left hover:bg-accent rounded"
                       >
-                        <Avatar className="h-8 w-8"><AvatarImage src={u.avatar || ""} /><AvatarFallback>{u.fname?.[0] || "U"}</AvatarFallback></Avatar>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={u.avatar || ""} />
+                          <AvatarFallback>{u.fname?.[0] || "U"}</AvatarFallback>
+                        </Avatar>
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm truncate">{u.fname} {u.lname}</div>
                           <div className="text-xs text-muted-foreground truncate">{u.email}</div>
                         </div>
                       </button>
                     ))}
-                    {users.length === 0 && <div className="p-3 text-sm text-muted-foreground">No chats yet</div>}
+                    {users.length === 0 && (
+                      <div className="p-3 text-sm text-muted-foreground">No chats yet</div>
+                    )}
                   </div>
                 </ScrollArea>
               ) : (
                 <>
                   <div className="p-3 border-b flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => setRecipient(null)}><ArrowLeft className="h-5 w-5" /></Button>
-                      <Avatar><AvatarImage src={recipient.avatar || ""} /><AvatarFallback>{recipient.fname?.[0] || "U"}</AvatarFallback></Avatar>
+                      <Button size="icon" variant="ghost" onClick={() => setRecipient(null)}>
+                        <ArrowLeft className="h-5 w-5" />
+                      </Button>
+                      <Avatar>
+                        <AvatarImage src={recipient.avatar || ""} />
+                        <AvatarFallback>{recipient.fname?.[0] || "U"}</AvatarFallback>
+                      </Avatar>
                       <span className="font-semibold">{recipient.fname} {recipient.lname}</span>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={() => setOpen(false)}><X className="h-5 w-5" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => setOpen(false)}>
+                      <X className="h-5 w-5" />
+                    </Button>
                   </div>
 
-                  <ScrollArea className="flex-1 p-3">
+                  <ScrollArea 
+                    className="flex-1 p-3 min-h-0"
+                    onScroll={handleScroll}
+                    ref={scrollAreaRef}
+                  >
                     <div className="flex flex-col space-y-4">
-                      {messages.map((m) => (
-                        <motion.div
-                          key={m.id}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.16 }}
-                          className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
-                        >
-                          <div className={`px-3 py-2 rounded-lg max-w-[80%] text-sm ${m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"}`}>
-                            <div className="break-words">{m.content}</div>
-                            <div className={`text-xs mt-1 ${m.sender_id === userId ? "text-white/70" : "text-gray-600"}`}>{new Date(m.created_at).toLocaleTimeString()}</div>
+                      {loadingMore && (
+                        <div className="text-center text-sm text-muted-foreground py-2">
+                          Loading older messages...
+                        </div>
+                      )}
+                      {messageGroups.map((group, groupIndex) => (
+                        <div key={group.date + groupIndex}>
+                          <div className="flex items-center justify-center my-4">
+                            <div className="flex items-center">
+                              <div className="h-px bg-border flex-1" />
+                              <span className="px-3 text-xs text-muted-foreground font-medium">
+                                {group.date}
+                              </span>
+                              <div className="h-px bg-border flex-1" />
+                            </div>
                           </div>
-                        </motion.div>
+                          {group.messages.map((m) => (
+                            <motion.div
+                              key={m.id}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
+                            >
+                              <div className={`px-3 py-2 rounded-lg max-w-[80%] text-sm ${
+                                m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"
+                              }`}>
+                                <div className="break-words">{m.content}</div>
+                                <div className={`text-xs mt-1 ${
+                                  m.sender_id === userId ? "text-white/70" : "text-gray-600"
+                                }`}>
+                                  {formatTime(m.created_at)}
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
                       ))}
                       <div ref={bottomRef} />
                     </div>
