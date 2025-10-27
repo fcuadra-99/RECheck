@@ -96,14 +96,14 @@ const FinalReportDetail: React.FC = () => {
       return;
     }
     
-    // When in "Requires Revision" status, only allow changing back to "Under Review"
-    if (report.status === 'Requires Revision' && editStatus !== 'Under Review') {
-      alert('When reviewing revised submissions, you can only change the status to "Under Review".');
+    // When in "Requires Revision" status, only allow changing back to "Pending Review" or "Approved"
+    if (report.status === 'Requires Revision' && editStatus !== 'Pending Review' && editStatus !== 'Approved') {
+      alert('When reviewing revised submissions, you can only change the status to "Pending Review" or "Approved".');
       return;
     }
 
-    // Type validation for editStatus
-    const validStatuses: FinalReportStatus[] = ['Under Review', 'Requires Revision', 'Approved', 'Rejected'];
+    // Type validation for editStatus - only allow specific statuses
+    const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved'];
     if (!validStatuses.includes(editStatus as FinalReportStatus)) {
       alert('Invalid status selected');
       return;
@@ -508,10 +508,9 @@ const FinalReportDetail: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Update</h2>
               
-              {/* Show review form only for pending, under review, or requires revision status */}
+              {/* Show review form only for pending or requires revision status */}
               {(report.status === 'Pending Review' || 
-                report.status === 'Under Review' || 
-                (report.status === 'Requires Revision' && report.status === editStatus)) ? (
+                report.status === 'Requires Revision') ? (
                 <div className="space-y-4">
                   {/* Status Selection */}
                   <div>
@@ -524,10 +523,8 @@ const FinalReportDetail: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="Pending Review">Pending Review</option>
-                      <option value="Under Review">Under Review</option>
                       <option value="Requires Revision">Requires Revision</option>
                       <option value="Approved">Approved</option>
-                      <option value="Rejected">Rejected</option>
                     </select>
                   </div>
 
