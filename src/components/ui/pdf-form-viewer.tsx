@@ -74,6 +74,8 @@ export function PdfFormViewer({
     const [activeSigId, setActiveSigId] = useState<number | null>(null);
     const sigPadRef = useRef<SignaturePad | null>(null);
 
+
+
     // 🧠 Load saved answers
     useEffect(() => {
         const saved = localStorage.getItem(`answers_${proposalId}_${document}`);
@@ -361,27 +363,64 @@ export function PdfFormViewer({
         (p) => p.page === currentPage
     );
 
-    const checkboxGroups = getCheckboxGroups();
+    const getUniqueCheckboxGroups = () => {
+        const groups: Record<string, DbPlaceholder[]> = {};
+        placeholders.forEach(ph => {
+            if (shouldBeCheckbox(ph) && ph.type === "text" && ph.page === currentPage) {
+                if (!groups[ph.name]) {
+                    groups[ph.name] = [];
+                }
+                groups[ph.name].push(ph);
+            }
+        });
+        return groups;
+    };
+
+    const uniqueCheckboxGroups = getUniqueCheckboxGroups();
+    const regularFields = placeholders.filter(
+        p => p.type === "text" && p.page === currentPage && !shouldBeCheckbox(p)
+    );
 
     return (
         <div className="absolute inset-0 flex h-full">
             {/* 🧾 Sidebar with text inputs */}
             <div className="w-80 border-r bg-white flex flex-col">
                 <div className="p-4 font-semibold border-b">Form Fields</div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                    {placeholders
-                        .filter((p) => p.type === "text" && p.page === currentPage)
-                        .map((ph) => {
-                            const isCheckbox = shouldBeCheckbox(ph);
-                            const isChecked = answers[String(ph.id)] === "/";
-                            const hasSameNameGroup = checkboxGroups[ph.name] && checkboxGroups[ph.name].length > 1;
 
-                            return (
-                                <div key={ph.id} className="flex flex-col gap-1">
-                                    {isCheckbox ? (
-                                        <div className="flex items-center gap-2">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                    {/* Regular text fields */}
+                    {regularFields.map((ph) => (
+                        <div key={ph.id} className="flex flex-col gap-1">
+                            <label className="text-sm font-medium text-gray-700">
+                                {ph.name}
+                            </label>
+                            <Input
+                                value={answers[String(ph.id)] || ""}
+                                onChange={(e) =>
+                                    setAnswers((prev) => ({
+                                        ...prev,
+                                        [String(ph.id)]: e.target.value,
+                                    }))
+                                }
+                                placeholder={`Enter ${ph.name}`}
+                                className="w-full"
+                            />
+                        </div>
+                    ))}
+
+                    {/* Grouped checkboxes - one line per group */}
+                    {Object.entries(uniqueCheckboxGroups).map(([groupName, placeholdersInGroup]) => (
+                        <div key={groupName} className="flex flex-col gap-2">
+                            <label className="text-sm font-bold text-gray-700">
+                                {groupName} {placeholdersInGroup.length > 1 && "(Select one)"}
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                                {placeholdersInGroup.map((ph) => {
+                                    const isChecked = answers[String(ph.id)] === "/";
+                                    return (
+                                        <div key={ph.id} className="flex items-center gap-2">
                                             <input
-                                                type={hasSameNameGroup ? "radio" : "checkbox"}
+                                                type={placeholdersInGroup.length > 1 ? "radio" : "checkbox"}
                                                 id={`field-${ph.id}`}
                                                 checked={isChecked}
                                                 onChange={() => handleCheckboxChange(ph.id, ph.name)}
@@ -389,34 +428,21 @@ export function PdfFormViewer({
                                             />
                                             <label
                                                 htmlFor={`field-${ph.id}`}
-                                                className="text-sm font-medium text-gray-700 cursor-pointer"
+                                                className="text-sm text-gray-700 cursor-pointer whitespace-wrap"
                                             >
-                                                {ph.name}
-                                                {hasSameNameGroup && " (Select one)"}
+                                                {placeholdersInGroup.length > 1
+                                                    ? `Option ${placeholdersInGroup.indexOf(ph) + 1}`
+                                                    : groupName
+                                                }
                                             </label>
                                         </div>
-                                    ) : (
-                                        <>
-                                            <label className="text-sm font-medium text-gray-700">
-                                                {ph.name}
-                                            </label>
-                                            <Input
-                                                value={answers[String(ph.id)] || ""}
-                                                onChange={(e) =>
-                                                    setAnswers((prev) => ({
-                                                        ...prev,
-                                                        [String(ph.id)]: e.target.value,
-                                                    }))
-                                                }
-                                                placeholder={`Enter ${ph.name}`}
-                                                className="w-full"
-                                            />
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
                 </div>
+
                 <div className="p-4 border-t">
                     <Button
                         onClick={handleSubmit}
