@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen, FileCheck } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen, FileCheck, Trash2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface Submission {
     proposal_id: number;
@@ -1049,6 +1050,74 @@ export default function PhaseContent({
         }
     };
 
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDeleteProposal = async () => {
+        if (!submission?.proposal_id) return;
+
+        setIsDeleting(true);
+        const loadingId = toast.loading("Deleting proposal...");
+
+        try {
+            // First, delete all associated files from storage
+            const { data: documents } = await supabase
+                .from("proposal_documents")
+                .select("file_path")
+                .eq("proposal_id", submission.proposal_id);
+
+            if (documents && documents.length > 0) {
+                const filePaths = documents
+                    .filter(doc => doc.file_path)
+                    .map(doc => doc.file_path);
+
+                if (filePaths.length > 0) {
+                    const { error: storageError } = await supabase.storage
+                        .from("documents")
+                        .remove(filePaths);
+
+                    if (storageError) {
+                        console.warn("Failed to delete some files:", storageError);
+                    }
+                }
+            }
+
+            // Delete document records
+            const { error: docsError } = await supabase
+                .from("proposal_documents")
+                .delete()
+                .eq("proposal_id", submission.proposal_id);
+
+            if (docsError) throw new Error(`Failed to delete document records: ${docsError.message}`);
+
+            // Delete history records
+            const { error: historyError } = await supabase
+                .from("history")
+                .delete()
+                .eq("paper_id", submission.proposal_id);
+
+            if (historyError) throw new Error(`Failed to delete history records: ${historyError.message}`);
+
+            // Finally, delete the proposal itself
+            const { error: proposalError } = await supabase
+                .from("proposals")
+                .delete()
+                .eq("proposal_id", submission.proposal_id);
+
+            if (proposalError) throw new Error(`Failed to delete proposal: ${proposalError.message}`);
+
+            toast.success("Proposal deleted successfully", { id: loadingId });
+
+            // Redirect to proposals list or refresh the page
+            window.location.reload();
+            
+        } catch (err: any) {
+            console.error("Delete error:", err);
+            toast.error("Failed to delete proposal: " + (err.message || err), { id: loadingId });
+            setIsDeleting(false);
+        }
+    };
+
     // Component to display decision documents from chairperson
     const DecisionDocuments = () => {
         const [decisionDocs, setDecisionDocs] = useState<{ name: string; url: string; type: string }[]>([]);
@@ -1109,6 +1178,8 @@ export default function PhaseContent({
             fetchDecisionDocuments();
         }, [submission.proposal_id]);
 
+
+
         if (loading) return null;
         if (decisionDocs.length === 0) return null;
 
@@ -1119,8 +1190,8 @@ export default function PhaseContent({
                         key={index}
                         className={cn(
                             "border rounded-lg p-4 shadow-sm",
-                            doc.type === 'ethical_clearance' 
-                                ? "bg-green-50 border-green-200" 
+                            doc.type === 'ethical_clearance'
+                                ? "bg-green-50 border-green-200"
                                 : "bg-yellow-50 border-yellow-200"
                         )}
                     >
@@ -1137,13 +1208,13 @@ export default function PhaseContent({
                                 )}
                                 <div>
                                     <h4 className="font-semibold text-gray-900">
-                                        {doc.type === 'ethical_clearance' 
-                                            ? 'Ethical Clearance Received' 
+                                        {doc.type === 'ethical_clearance'
+                                            ? 'Ethical Clearance Received'
                                             : 'Decision Letter Received'}
                                     </h4>
                                     <p className="text-sm text-gray-600">
-                                        {doc.type === 'ethical_clearance' 
-                                            ? 'Your proposal has been approved by the chairperson' 
+                                        {doc.type === 'ethical_clearance'
+                                            ? 'Your proposal has been approved by the chairperson'
                                             : 'Chairperson has requested revisions to your proposal'}
                                     </p>
                                 </div>
@@ -1178,6 +1249,44 @@ export default function PhaseContent({
     // Add dialogs for study report and deviation upload
     return (
         <>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to delete this proposal?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete:
+                            <ul className="list-disc list-inside mt-2 space-y-1">
+                                <li>The proposal "{submission.proposal_title}"</li>
+                                <li>All uploaded documents and files</li>
+                                <li>All history and review records</li>
+                            </ul>
+                            <p className="mt-3 font-medium text-amber-600">
+                                This action is irreversible!
+                            </p>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteProposal}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                "Yes, Delete Proposal"
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             {/* Show decision documents if available */}
             <DecisionDocuments />
 
@@ -1194,6 +1303,24 @@ export default function PhaseContent({
                         <PastPhaseFilesList phaseIndex={phaseIndex} />
                     ) : (phaseUploadStatus(phaseIndex) || submission.status === "Revise Proposal") && submission.researcher === userId ? (
                         <>
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-gray-900">{submission.proposal_title}</h1>
+                                    <p className="text-gray-600">{submission.description}</p>
+                                </div>
+
+                                {/* Delete Button - Only show for the proposal owner */}
+                                {submission.researcher === userId && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setDeleteDialogOpen(true)}
+                                        disabled={isDeleting}
+                                        className="flex items-center gap-2 border-red-600"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
                             {phaseIndex === 5 && submission.status === "Data Collection" ? (
                                 renderDataCollectionActions()
                             ) : (
