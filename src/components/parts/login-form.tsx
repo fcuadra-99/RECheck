@@ -23,28 +23,40 @@ export function LoginForm({
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        const loading = toast.loading("Logging In...")
+        const loading = toast.loading("Logging In...");
 
         try {
             const { data, error } = await supabase.auth.signInWithPassword({
                 email: formData.email,
-                password: formData.password
+                password: formData.password,
             });
 
             if (error) {
                 toast.error(error.message);
-            } else {
-                const lname = data.user.user_metadata?.lname;
-                toast.success(`User logged in: ${lname}`);
-                navigate("/sdash")
+                return;
             }
+
+            // ✅ Check if user email is verified
+            const isVerified = data.user?.email_confirmed_at;
+            if (!isVerified) {
+                toast.error("Please check your email to activate your account.");
+                // ✅ Sign out immediately if unverified
+                await supabase.auth.signOut();
+                return;
+            }
+
+            const lname = data.user.user_metadata?.lname;
+            toast.success(`Welcome back${lname ? `, ${lname}` : ""}!`);
+            navigate("/sdash");
+
         } catch (err) {
             console.error(err);
+            toast.error("Something went wrong. Try again.");
+        } finally {
+            toast.dismiss(loading);
         }
-        finally {
-            toast.dismiss(loading)
-        }
-    }
+    };
+
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({

@@ -31,7 +31,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-
 type Profile = {
     fname: string;
     lname: string;
@@ -44,6 +43,14 @@ type Profile = {
 interface AnnouncementsPageProps {
     user: any;
     profile: Profile;
+}
+
+// Custom chart data interface - no dependency on external types
+interface ProposalChartData {
+    month: string;
+    External: number;
+    Graduate: number;
+    Undergraduate: number;
 }
 
 export default function AnnouncementsPage({ user, profile }: AnnouncementsPageProps) {
@@ -59,14 +66,16 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
 
     const [totalActions, setTotalActions] = useState(0);
 
-
     // Dashboard data
     const [stats, setStats] = useState({
         total: 0,
         pending: 0,
         completed: 0,
     });
-    const [chartData, setChartData] = useState<Array<{ month: string; desktop: number; mobile: number }>>([]);
+
+    // Use our custom chart data type
+    const [chartData, setChartData] = useState<ProposalChartData[]>([]);
+
     // Recent actions (history)
     const [actions, setActions] = useState<any[]>([]);
     const [actionsPage, setActionsPage] = useState(0);
@@ -100,7 +109,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                     .from('announcements')
                     .select('*')
                     .order('created_at', { ascending: false })
-                    .limit(200); // safe limit
+                    .limit(200);
 
                 if (error) throw error;
 
@@ -160,7 +169,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
 
         const loadStatsAndChart = async () => {
             try {
-                // Stats counts (simple, direct queries)
+                // Stats counts
                 const totalQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true });
                 const pendingQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'pending');
                 const completedQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'completed');
@@ -174,12 +183,12 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                     completed: completedR.count ?? 0,
                 });
 
-                // Chart: fetch proposals.updated_on for a reasonable range (last 12 months)
+                // Chart data - fetch proposals
                 const { data: proposalsData, error: proposalsErr } = await supabase
                     .from('proposals')
-                    .select('updated_on')
+                    .select('updated_on, category')
                     .order('updated_on', { ascending: false })
-                    .limit(5000); // cap to avoid huge payloads
+                    .limit(5000);
 
                 if (proposalsErr) throw proposalsErr;
 
@@ -188,21 +197,40 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                 const months: { key: string; label: string; start: Date; end: Date }[] = [];
                 for (let i = 11; i >= 0; i--) {
                     const d = new Date(now.getFullYear(), now.getMonth() - i, 1, 0, 0, 0, 0);
-                    const label = d.toLocaleString(undefined, { month: 'short', year: 'numeric' }); // e.g. "Oct 2025"
+                    const label = d.toLocaleString(undefined, { month: 'short', year: 'numeric' });
                     const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
                     const end = new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
                     months.push({ key: `${d.getFullYear()}-${d.getMonth() + 1}`, label, start, end });
                 }
 
-                const countsByMonth = months.map(m => {
-                    const count = (proposalsData || []).filter((p: any) => {
+                // Create chart data with the exact structure needed
+                const chartDataByMonth: ProposalChartData[] = months.map(m => {
+                    const monthProposals = (proposalsData || []).filter((p: any) => {
                         const u = p.updated_on ? new Date(p.updated_on) : null;
                         return u && u >= m.start && u < m.end;
-                    }).length;
-                    return { month: m.label, desktop: count, mobile: 0 };
+                    });
+
+                    const Undergraduate = monthProposals.filter((p: any) =>
+                        p.category?.toLowerCase() === 'undergraduate'
+                    ).length;
+
+                    const Graduate = monthProposals.filter((p: any) =>
+                        p.category?.toLowerCase() === 'graduate'
+                    ).length;
+
+                    const External = monthProposals.filter((p: any) =>
+                        p.category?.toLowerCase() === 'external'
+                    ).length;
+
+                    return {
+                        month: m.label,
+                        Undergraduate,
+                        Graduate,
+                        External
+                    };
                 });
 
-                setChartData(countsByMonth);
+                setChartData(chartDataByMonth);
             } catch (err) {
                 console.error('Error loading dashboard stats/chart:', err);
             }
@@ -233,7 +261,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                 const countQuery = supabase
                     .from('history')
                     .select('history_id', { count: 'exact', head: true })
-                    .eq('actor', user?.id); // Only their own history
+                    .eq('actor', user?.id);
 
                 const dataQuery = supabase
                     .from('history')
@@ -259,7 +287,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
             }
         };
 
-
         fetchActions();
 
         return () => {
@@ -277,12 +304,12 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
     // ---------------------------------
     const formatDate = (s?: string) => (s ? new Date(s).toLocaleString() : '');
 
-    // Chart wrapper props (ChartLineMultiple expects {title, desc, data})
+    // Chart wrapper props - no transformation needed since data is already in correct format
     const chartWrapper = useMemo(() => {
         return {
             title: 'Proposals over time',
             desc: 'Submissions grouped by month (last 12 months)',
-            data: chartData,
+            data: chartData, // Already in the correct format
         };
     }, [chartData]);
 
@@ -383,10 +410,9 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
             {(role === 'chairperson' || role === 'admin assistant' || role === 'admin') && (
                 <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6 flex-grow">
                     {/* Left: stats cards + chart */}
-                    {/* Left: stats cards + chart */}
                     <div className="space-y-4">
                         <div className="w-full">
-                            <div className="grid grid-cols-1 sm:grid-cols-2  gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Total Proposals */}
                                 <div className="flex flex-col justify-between rounded-2xl bg-white p-5 border shadow-sm hover:shadow-md transition-all duration-200">
                                     <div>
@@ -431,7 +457,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                             </div>
                         </div>
 
-
                         <div className="bg-white rounded-2xl p-5 h-[425px] shadow-sm border">
                             <ChartLineMultiple
                                 title={chartWrapper.title}
@@ -440,7 +465,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                             />
                         </div>
                     </div>
-
 
                     {/* Right: Recent actions (paginated) */}
                     <aside className="bg-white rounded-2xl p-4 shadow-sm border flex flex-col h-full">
@@ -494,11 +518,9 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                             </button>
                         </div>
                     </aside>
-
                 </section>
             )}
 
-            {/* Create form */}
             {/* Create Announcement Popup */}
             <Dialog open={creating} onOpenChange={setCreating}>
                 <DialogContent className="sm:max-w-[600px]">
@@ -573,7 +595,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                 </DialogContent>
             </Dialog>
 
-
             {/* Announcements feed */}
             <section className="bg-white rounded-2xl p-6 shadow-sm border max-h-[700px] overflow-y-auto">
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -637,7 +658,6 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                     </div>
                 )}
             </section>
-
         </div>
     );
 }

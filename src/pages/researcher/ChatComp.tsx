@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/DB"
-import { Send, MessageCircle, X, ArrowLeft } from "lucide-react"
+import { Send, MessageCircle, X, ArrowLeft, ChevronUp, ChevronDown } from "lucide-react"
 import { motion } from "framer-motion"
 import type { RealtimeChannel } from "@supabase/supabase-js"
 
@@ -78,11 +78,13 @@ export function ChatPopup({ userId }: ChatPopupProps) {
   const [page, setPage] = useState(0)
   const [search, setSearch] = useState("")
   const [unreadCount, setUnreadCount] = useState(0)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<RealtimeChannel | null>(null)
+  const lastScrollTopRef = useRef<number>(0)
 
   const messageGroups = groupMessagesByDay(messages)
 
@@ -167,13 +169,38 @@ export function ChatPopup({ userId }: ChatPopupProps) {
   // Load more messages on scroll
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget
-    const scrollThreshold = 50
+    const scrollTop = element.scrollTop
+    const scrollHeight = element.scrollHeight
+    const clientHeight = element.clientHeight
     
-    if (element.scrollTop <= scrollThreshold && !loadingMore && hasMore && !loading && recipient) {
+    // Track scroll direction
+    const isScrollingUp = scrollTop < lastScrollTopRef.current
+    lastScrollTopRef.current = scrollTop
+    
+    // Load more when near top and scrolling up
+    if (scrollTop <= 100 && isScrollingUp && !loadingMore && hasMore && !loading && recipient) {
       const nextPage = page + 1
       setPage(nextPage)
       fetchMessagesForRecipient(recipient, nextPage, true)
     }
+
+    // Show scroll to bottom button when scrolled up more than 300px from bottom
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+    setShowScrollToBottom(distanceFromBottom > 300)
+  }
+
+  // Load more messages manually
+  const loadMoreMessages = () => {
+    if (!loadingMore && hasMore && recipient) {
+      const nextPage = page + 1
+      setPage(nextPage)
+      fetchMessagesForRecipient(recipient, nextPage, true)
+    }
+  }
+
+  // Scroll to bottom
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
   // Real-time subscription
@@ -192,7 +219,10 @@ export function ChatPopup({ userId }: ChatPopupProps) {
           if (recipient && ((msg.sender_id === userId && msg.recipient_id === recipient.id) ||
               (msg.sender_id === recipient.id && msg.recipient_id === userId))) {
             setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]))
-            setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 60)
+            setTimeout(() => {
+              bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+              setShowScrollToBottom(false)
+            }, 60)
           } 
           // Increment unread count for incoming messages
           else if (msg.recipient_id === userId) {
@@ -244,7 +274,10 @@ export function ChatPopup({ userId }: ChatPopupProps) {
   // Auto-scroll for new messages
   useEffect(() => {
     if (page === 0) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+        setShowScrollToBottom(false)
+      }, 100)
     }
   }, [messages, page])
 
@@ -286,6 +319,9 @@ export function ChatPopup({ userId }: ChatPopupProps) {
     setRecipient(u)
     setUnreadCount(0)
   }
+
+  // Check if we should show the load more button (always show if we have messages and recipient)
+  const shouldShowLoadMore = recipient && messages.length > 0
 
   return (
     <>
@@ -360,7 +396,7 @@ export function ChatPopup({ userId }: ChatPopupProps) {
               </div>
 
               {/* Chat Area */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col relative">
                 <div className="p-3 border-b flex items-center justify-between sticky top-0 bg-background z-10">
                   <div className="flex items-center gap-2">
                     {recipient ? (
@@ -385,18 +421,49 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                   onScroll={handleScroll}
                   ref={scrollAreaRef}
                 >
-                  <div className="flex flex-col space-y-4">
+                  <div className="flex flex-col">
+                    {/* Load More Button - Always show if we have messages */}
+                    {shouldShowLoadMore && (
+                      <div className="flex justify-center mb-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={loadMoreMessages}
+                          disabled={loadingMore || !hasMore}
+                          className="flex items-center gap-2"
+                        >
+                          {loadingMore ? (
+                            <>
+                              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              Loading...
+                            </>
+                          ) : hasMore ? (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              Load older messages
+                            </>
+                          ) : (
+                            <>
+                              <ChevronUp className="h-4 w-4" />
+                              No older messages
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    
                     {loadingMore && (
-                      <div className="text-center text-sm text-muted-foreground py-2">
+                      <div className="text-center text-sm text-muted-foreground py-4">
                         Loading older messages...
                       </div>
                     )}
                     {loading ? (
-                      <div className="text-center text-sm text-muted-foreground">Loading...</div>
+                      <div className="text-center text-sm text-muted-foreground py-8">Loading...</div>
                     ) : (
                       messageGroups.map((group, groupIndex) => (
                         <div key={group.date + groupIndex}>
-                          <div className="flex items-center justify-center my-4">
+                          {/* Day separator */}
+                          <div className="flex items-center justify-center my-6">
                             <div className="flex items-center">
                               <div className="h-px bg-border flex-1" />
                               <span className="px-3 text-xs text-muted-foreground font-medium">
@@ -405,19 +472,20 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                               <div className="h-px bg-border flex-1" />
                             </div>
                           </div>
+                          {/* Messages for this day */}
                           {group.messages.map((m) => (
                             <motion.div
                               key={m.id}
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
+                              className={`flex mb-1 ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
                             >
-                              <div className={`px-3 py-2 rounded-lg max-w-[70%] text-sm ${
-                                m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"
+                              <div className={`px-4 py-3 rounded-lg max-w-[70%] text-sm ${
+                                m.sender_id === userId ? "bg-primary text-white" : "bg-muted"
                               }`}>
                                 <div className="break-words">{m.content}</div>
-                                <div className={`text-xs mt-1 ${
-                                  m.sender_id === userId ? "text-white/70" : "text-gray-600"
+                                <div className={`text-xs mt-2 ${
+                                  m.sender_id === userId ? "text-white/70" : "text-muted-foreground"
                                 }`}>
                                   {formatTime(m.created_at)}
                                 </div>
@@ -430,6 +498,24 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                     <div ref={bottomRef} />
                   </div>
                 </ScrollArea>
+
+                {/* Back to bottom button */}
+                {showScrollToBottom && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="absolute bottom-20 right-4"
+                  >
+                    <Button
+                      size="icon"
+                      className="rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                      onClick={scrollToBottom}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </motion.div>
+                )}
 
                 <div className="p-3 border-t flex gap-2 bg-background">
                   <textarea
@@ -454,7 +540,7 @@ export function ChatPopup({ userId }: ChatPopupProps) {
             </>
           ) : (
             // Mobile Layout
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col relative">
               <div className="p-2 border-b flex items-center gap-2">
                 <Input 
                   placeholder="Search users..." 
@@ -514,15 +600,45 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                     onScroll={handleScroll}
                     ref={scrollAreaRef}
                   >
-                    <div className="flex flex-col space-y-4">
+                    <div className="flex flex-col">
+                      {/* Load More Button - Always show if we have messages */}
+                      {shouldShowLoadMore && (
+                        <div className="flex justify-center mb-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={loadMoreMessages}
+                            disabled={loadingMore || !hasMore}
+                            className="flex items-center gap-2"
+                          >
+                            {loadingMore ? (
+                              <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                Loading...
+                              </>
+                            ) : hasMore ? (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                Load older messages
+                              </>
+                            ) : (
+                              <>
+                                <ChevronUp className="h-4 w-4" />
+                                No older messages
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                      
                       {loadingMore && (
-                        <div className="text-center text-sm text-muted-foreground py-2">
+                        <div className="text-center text-sm text-muted-foreground py-4">
                           Loading older messages...
                         </div>
                       )}
                       {messageGroups.map((group, groupIndex) => (
                         <div key={group.date + groupIndex}>
-                          <div className="flex items-center justify-center my-4">
+                          <div className="flex items-center justify-center my-6">
                             <div className="flex items-center">
                               <div className="h-px bg-border flex-1" />
                               <span className="px-3 text-xs text-muted-foreground font-medium">
@@ -536,14 +652,14 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                               key={m.id}
                               initial={{ opacity: 0, y: 8 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className={`flex ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
+                              className={`flex mb-3 ${m.sender_id === userId ? "justify-end" : "justify-start"}`}
                             >
-                              <div className={`px-3 py-2 rounded-lg max-w-[80%] text-sm ${
-                                m.sender_id === userId ? "bg-primary text-white" : "bg-gray-200 text-black"
+                              <div className={`px-4 py-3 rounded-lg max-w-[80%] text-sm ${
+                                m.sender_id === userId ? "bg-primary text-white" : "bg-muted"
                               }`}>
                                 <div className="break-words">{m.content}</div>
-                                <div className={`text-xs mt-1 ${
-                                  m.sender_id === userId ? "text-white/70" : "text-gray-600"
+                                <div className={`text-xs mt-2 ${
+                                  m.sender_id === userId ? "text-white/70" : "text-muted-foreground"
                                 }`}>
                                   {formatTime(m.created_at)}
                                 </div>
@@ -555,6 +671,24 @@ export function ChatPopup({ userId }: ChatPopupProps) {
                       <div ref={bottomRef} />
                     </div>
                   </ScrollArea>
+
+                  {/* Back to bottom button for mobile */}
+                  {showScrollToBottom && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className="absolute bottom-20 right-4"
+                    >
+                      <Button
+                        size="icon"
+                        className="rounded-full shadow-lg bg-primary hover:bg-primary/90"
+                        onClick={scrollToBottom}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </motion.div>
+                  )}
 
                   <div className="p-3 border-t flex gap-2 bg-background">
                     <textarea

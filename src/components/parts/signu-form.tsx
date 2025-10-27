@@ -106,7 +106,7 @@ export function SignupForm({
             if (insertError) throw insertError
 
             toast.success("Signed up successfully!", { id: loading })
-            navigate("/sdash")
+            navigate("/login")
         } catch (err: any) {
             console.error(err)
             toast.error(err.message || "Signup failed.", { id: loading })

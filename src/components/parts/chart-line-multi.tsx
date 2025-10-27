@@ -18,6 +18,8 @@ import {
 
 import { type Submissions } from "@/Data"
 
+
+
 const chartConfig = {
     desktop: {
         label: "Desktop",
@@ -60,16 +62,23 @@ export const ChartLineMultiple: React.FC<{
                         />
                         <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
                         <Line
-                            dataKey="desktop"
+                            dataKey="External"
                             type="monotone"
                             stroke="var(--color-desktop)"
                             strokeWidth={2}
                             dot={false}
                         />
                         <Line
-                            dataKey="mobile"
+                            dataKey="Graduate"
                             type="monotone"
                             stroke="var(--color-mobile)"
+                            strokeWidth={2}
+                            dot={false}
+                        />
+                        <Line
+                            dataKey="Undergraduate"
+                            type="monotone"
+                            stroke="var(--chart-4)"
                             strokeWidth={2}
                             dot={false}
                         />
