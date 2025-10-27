@@ -225,7 +225,7 @@ export default function PhaseContent({
                     return `${baseName}.pdf`;
                 };
 
-                let filePath: string | null = null;
+                let filePath: string = "";
                 const uploadStatus = phaseUploadStatus(getActivePhaseIndex(submission.status));
 
                 if (uploadedFiles[doc.name]) {
@@ -260,7 +260,7 @@ export default function PhaseContent({
                         .limit(1);
 
                     const originalRecord = existingRecords?.[0];
-//adasd
+                    //adasd
                     // ✅ Insert or update new record with bumped revision #
                     const newRevision = originalRecord?.revision_number
                         ? originalRecord.revision_number + 1
@@ -1100,7 +1100,7 @@ export default function PhaseContent({
 
             // Redirect to proposals list or refresh the page
             window.location.reload();
-            
+
         } catch (err: any) {
             console.error("Delete error:", err);
             toast.error("Failed to delete proposal: " + (err.message || err), { id: loadingId });
