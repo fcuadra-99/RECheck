@@ -1590,7 +1590,7 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
         return [
             makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
             makeDoc("REC_FO_0027_EthicsApplicationProcedure.pdf"),
-            makeDoc("REC_FO_0028_EthicsStudy ProtocolInformationForm.pdf"),
+            makeDoc("REC_FO_0028_EthicsStudyProtocolInformationForm.pdf"),
             makeDoc("REC_FO_0029_EthicsInformedConsentCHECKLIST.pdf"),
             makeDoc("REC_FO_0030_EthicsInformedConsentFormwhenQuestionnaireareUsed.pdf"),
             makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
