@@ -127,8 +127,8 @@ function SidebarLayout({
       </div>
 
       <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
-          <AppBreadcrumb />
-        <div className="pl-7 pr-7 py-16 min-w-full z-50">
+        <AppBreadcrumb />
+        <div className="pl-7 pr-7 py-16 min-w-full z-50 bg-red-50">
           <Outlet />
         </div>
       </div>
