@@ -261,16 +261,6 @@ export default function PhaseContent({
 
                     const originalRecord = existingRecords?.[0];
 
-                    // ✅ Delete existing file first
-                    if (originalRecord?.file_path) {
-                        const { error: deleteError } = await supabase.storage
-                            .from("documents")
-                            .remove([originalRecord.file_path]);
-                        if (deleteError) {
-                            console.warn("Failed to delete old file:", deleteError);
-                        }
-                    }
-
                     // ✅ Insert or update new record with bumped revision #
                     const newRevision = originalRecord?.revision_number
                         ? originalRecord.revision_number + 1
