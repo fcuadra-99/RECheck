@@ -171,8 +171,8 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
             try {
                 // Stats counts
                 const totalQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true });
-                const pendingQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'pending');
-                const completedQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'completed');
+                const pendingQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).neq('status', 'Archive Files');
+                const completedQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'Archive Files');
 
                 const [totalR, pendingR, completedR] = await Promise.all([totalQ, pendingQ, completedQ])
                 if (!mounted) return;

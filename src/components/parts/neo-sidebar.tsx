@@ -314,7 +314,7 @@ export function RadixSidebarDemo({
       {/* Portal overlay only on mobile when sidebar is open */}
       {mounted && isMobile && open && createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black/20 backdrop-blur-[0.5px]"
+          className="fixed right-0 top-0 w-[60.5%] h-full z-[100] bg-black/10 backdrop-blur-[0.5px]"
           onClick={handleOverlayClick}
           style={{ pointerEvents: 'auto' }}
         />,

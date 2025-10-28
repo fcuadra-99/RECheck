@@ -1,4 +1,4 @@
-import { GalleryVerticalEnd } from "lucide-react"
+import { Eye, EyeClosed, GalleryVerticalEnd } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
@@ -65,6 +65,7 @@ export function LoginForm({
         });
     };
 
+    const [showPassword, setShowPassword] = useState(false)
 
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -94,9 +95,22 @@ export function LoginForm({
                                 required
                             />
                             <Label htmlFor="password">Password</Label>
+
+                            <RippleButton
+                                type="button"
+                                onClick={() => setShowPassword(prev => !prev)}
+                                className="fixed mt-[7em] ml-[20em] bg-red-300/0 hover:bg-accent/0"
+                            >
+                                {showPassword ? (
+                                    <EyeClosed color="#000000" />
+                                ) : (
+                                    <Eye color="#000000" />
+                                )}
+                            </RippleButton>
+
                             <Input
                                 id="password"
-                                type="password"
+                                type="Password"
                                 value={formData.password}
                                 onChange={handleChange}
                                 required
