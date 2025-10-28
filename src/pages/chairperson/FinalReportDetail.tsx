@@ -90,15 +90,16 @@ const FinalReportDetail: React.FC = () => {
   async function handleSave() {
     if (!report) return;
     
-    // Prevent editing if report is already approved or rejected
+    // Prevent editing if report is already approved, rejected, or requires revision
     if (report.status === 'Approved' || report.status === 'Rejected') {
       alert('This report has already been finalized and cannot be edited.');
       return;
     }
     
-    // When in "Requires Revision" status, only allow changing back to "Pending Review" or "Approved"
-    if (report.status === 'Requires Revision' && editStatus !== 'Pending Review' && editStatus !== 'Approved') {
-      alert('When reviewing revised submissions, you can only change the status to "Pending Review" or "Approved".');
+    // Prevent editing if the current status is "Requires Revision" and it's not a resubmission
+    // The chairperson can only edit again when researcher resubmits (status changes back to "Pending Review")
+    if (report.status === 'Requires Revision') {
+      alert('This report is awaiting revision from the researcher. You can only edit it after they resubmit.');
       return;
     }
 
@@ -122,6 +123,8 @@ const FinalReportDetail: React.FC = () => {
       // If status is being changed to Approved, show success message with certificate info
       if (newStatus === 'Approved') {
         alert('Final report approved! A certificate is now available for the researcher.');
+      } else if (newStatus === 'Requires Revision') {
+        alert('Final report sent back for revision. The researcher will be able to resubmit.');
       } else {
         alert('Final report updated successfully!');
       }
@@ -508,9 +511,8 @@ const FinalReportDetail: React.FC = () => {
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Update</h2>
               
-              {/* Show review form only for pending or requires revision status */}
-              {(report.status === 'Pending Review' || 
-                report.status === 'Requires Revision') ? (
+              {/* Show review form only for pending status */}
+              {report.status === 'Pending Review' ? (
                 <div className="space-y-4">
                   {/* Status Selection */}
                   <div>
@@ -569,25 +571,30 @@ const FinalReportDetail: React.FC = () => {
                 </div>
               ) : (
                 <div>
-                  {/* Display for Approved/Rejected reports */}
+                  {/* Display for Approved/Rejected/Requires Revision reports */}
                   <div className={`p-4 rounded-lg ${
                     report.status === 'Approved' ? 'bg-green-50 border border-green-200' : 
-                    report.status === 'Rejected' ? 'bg-red-50 border border-red-200' : ''
+                    report.status === 'Rejected' ? 'bg-red-50 border border-red-200' :
+                    report.status === 'Requires Revision' ? 'bg-orange-50 border border-orange-200' : ''
                   }`}>
                     <div className="flex items-center gap-3 mb-2">
                       {report.status === 'Approved' && <CheckCircle className="w-5 h-5 text-green-600" />}
                       {report.status === 'Rejected' && <AlertCircle className="w-5 h-5 text-red-600" />}
+                      {report.status === 'Requires Revision' && <AlertCircle className="w-5 h-5 text-orange-600" />}
                       <p className={`font-medium ${
                         report.status === 'Approved' ? 'text-green-800' : 
-                        report.status === 'Rejected' ? 'text-red-800' : ''
+                        report.status === 'Rejected' ? 'text-red-800' :
+                        report.status === 'Requires Revision' ? 'text-orange-800' : ''
                       }`}>
-                        Final Decision: {report.status}
+                        Status: {report.status}
                       </p>
                     </div>
                     <p className="text-sm text-gray-600 mb-4">
                       {report.status === 'Approved' 
                         ? "This report has been approved and cannot be edited further. A certificate has been generated for the researcher."
-                        : "This report has been rejected and cannot be edited further."}
+                        : report.status === 'Rejected'
+                        ? "This report has been rejected and cannot be edited further."
+                        : "This report is awaiting revision from the researcher. You can review it again once they resubmit."}
                     </p>
                     {/* Current Outcome Display */}
                     {report.outcome && (
@@ -605,7 +612,7 @@ const FinalReportDetail: React.FC = () => {
               )}
 
               {/* Always show the current outcome for reference if it exists */}
-              {report.outcome && report.status !== 'Approved' && report.status !== 'Rejected' && (
+              {report.outcome && report.status === 'Pending Review' && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Current Outcome

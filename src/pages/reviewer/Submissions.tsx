@@ -120,8 +120,13 @@ export default function ReviewerPage() {
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
-    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | null>(null);
+    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | null>(null);
     const [templateUrl, setTemplateUrl] = useState<string>('');
+
+    // Assessment form tracking
+    const [hasSubmittedProtocolAssessment, setHasSubmittedProtocolAssessment] = useState(false);
+    const [hasSubmittedInformedConsent, setHasSubmittedInformedConsent] = useState(false);
+    const [submittedAssessmentForms, setSubmittedAssessmentForms] = useState<DocumentItem[]>([]);
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
@@ -182,7 +187,24 @@ export default function ReviewerPage() {
                     .order("date", { ascending: false });
 
                 if (error) throw error;
-                const projs = (proposals || []) as Submission[];
+                let projs = (proposals || []) as Submission[];
+
+                // Filter out proposals where the current user has already submitted a recommendation
+                // (unless they are a chairperson - chairpersons should see all)
+                if (!userProfileData || (userProfileData.role !== 'Chairperson' && userProfileData.role !== 'Admin')) {
+                    // Get all recommendations submitted by this reviewer
+                    const { data: userRecommendations } = await supabase
+                        .from("history")
+                        .select("paper_id")
+                        .eq("actor", uid)
+                        .eq("history_type", "review_recommendation");
+
+                    if (userRecommendations && userRecommendations.length > 0) {
+                        const reviewedProposalIds = userRecommendations.map(rec => rec.paper_id);
+                        // Filter out proposals that have been reviewed by this user
+                        projs = projs.filter(p => !reviewedProposalIds.includes(p.proposal_id));
+                    }
+                }
 
                 if (mounted) setSubmissions(projs);
 
@@ -217,142 +239,220 @@ export default function ReviewerPage() {
 
     /* When active submission changes, load its documents and recommendations */
     useEffect(() => {
-        const loadSubmissionData = async () => {
-            if (!activeSubmission) {
-                setSubmissionDocuments([]);
+        loadSubmissionData();
+    }, [activeSubmission, userId, userProfile]);
+
+    /* Load submission documents and recommendations */
+    const loadSubmissionData = async () => {
+        if (!activeSubmission) {
+            setSubmissionDocuments([]);
+            setExistingRecommendations([]);
+            return;
+        }
+
+        try {
+            const documents: DocumentItem[] = [];
+
+            // Load Phase 1 documents (Manuscript phase)
+            const phase1Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase1');
+            documents.push(...phase1Files.map(file => ({
+                ...file,
+                phase: 'phase1' as const
+            })));
+
+            // Load Phase 3 documents (Forms phase)
+            const phase3Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase3');
+            documents.push(...phase3Files.map(file => ({
+                ...file,
+                phase: 'phase3' as const
+            })));
+
+            setSubmissionDocuments(documents);
+
+            // Load recommendations from history table - EXCLUDE current user's recommendations
+            const { data: recommendations, error } = await supabase
+                .from("history")
+                .select("*")
+                .eq("paper_id", activeSubmission.proposal_id)
+                .eq("history_type", "review_recommendation")
+                .order("history_date", { ascending: false });
+
+            if (error) throw error;
+
+            // Filter out current user's recommendations to get only OTHER reviewers
+            const otherReviewersRecommendations = recommendations?.filter(rec => rec.actor !== userId) || [];
+
+            if (otherReviewersRecommendations.length === 0) {
                 setExistingRecommendations([]);
-                return;
+            } else {
+                // Get unique reviewer IDs from OTHER reviewers
+                const reviewerIds = [...new Set(otherReviewersRecommendations.map(rec => rec.actor).filter(Boolean))];
+
+                // Fetch all reviewer profiles in one query
+                let reviewerProfiles: Profile[] = [];
+                if (reviewerIds.length > 0) {
+                    const { data: profilesData, error: profilesError } = await supabase
+                        .from("profiles")
+                        .select("id, fname, lname")
+                        .in("id", reviewerIds);
+
+                    if (!profilesError && profilesData) {
+                        reviewerProfiles = profilesData;
+                    }
+                }
+
+                // Transform history data to ReviewRecommendation format with proper names
+                const transformedRecommendations: ReviewRecommendation[] = otherReviewersRecommendations.map(rec => {
+                    const reviewerProfile = reviewerProfiles.find(p => p.id === rec.actor);
+                    const reviewerName = reviewerProfile
+                        ? `${reviewerProfile.fname} ${reviewerProfile.lname}`.trim()
+                        : 'Unknown Reviewer';
+
+                    return {
+                        recommendation: rec.action?.includes('APPROVE') ? 'approve' : 'revisions',
+                        comments: rec.comment || '',
+                        reviewer_id: rec.actor || '',
+                        reviewer_name: reviewerName,
+                        submitted_at: rec.history_date,
+                        history_id: rec.history_id
+                    };
+                });
+
+                setExistingRecommendations(transformedRecommendations);
             }
 
-            try {
-                const documents: DocumentItem[] = [];
-
-                // Load Phase 1 documents (Manuscript phase)
-                const phase1Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase1');
-                documents.push(...phase1Files.map(file => ({
-                    ...file,
-                    phase: 'phase1' as const
-                })));
-
-                // Load Phase 3 documents (Forms phase)
-                const phase3Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase3');
-                documents.push(...phase3Files.map(file => ({
-                    ...file,
-                    phase: 'phase3' as const
-                })));
-
-                setSubmissionDocuments(documents);
-
-                // Load recommendations from history table - EXCLUDE current user's recommendations
-                const { data: recommendations, error } = await supabase
+            // Set current user's recommendation separately
+            if (userId) {
+                // Check if current user has already submitted a recommendation
+                const { data: userRecommendation, error: userRecError } = await supabase
                     .from("history")
                     .select("*")
                     .eq("paper_id", activeSubmission.proposal_id)
                     .eq("history_type", "review_recommendation")
-                    .order("history_date", { ascending: false });
+                    .eq("actor", userId)
+                    .order("history_date", { ascending: false })
+                    .single();
 
-                if (error) throw error;
+                if (userRecError && userRecError.code !== 'PGRST116') {
+                    console.error("Error fetching user recommendation:", userRecError);
+                }
 
-                // Filter out current user's recommendations to get only OTHER reviewers
-                const otherReviewersRecommendations = recommendations?.filter(rec => rec.actor !== userId) || [];
+                const currentUserName = userProfile
+                    ? `${userProfile.fname} ${userProfile.lname}`.trim()
+                    : 'Unknown Reviewer';
 
-                if (otherReviewersRecommendations.length === 0) {
-                    setExistingRecommendations([]);
-                } else {
-                    // Get unique reviewer IDs from OTHER reviewers
-                    const reviewerIds = [...new Set(otherReviewersRecommendations.map(rec => rec.actor).filter(Boolean))];
-
-                    // Fetch all reviewer profiles in one query
-                    let reviewerProfiles: Profile[] = [];
-                    if (reviewerIds.length > 0) {
-                        const { data: profilesData, error: profilesError } = await supabase
-                            .from("profiles")
-                            .select("id, fname, lname")
-                            .in("id", reviewerIds);
-
-                        if (!profilesError && profilesData) {
-                            reviewerProfiles = profilesData;
-                        }
-                    }
-
-                    // Transform history data to ReviewRecommendation format with proper names
-                    const transformedRecommendations: ReviewRecommendation[] = otherReviewersRecommendations.map(rec => {
-                        const reviewerProfile = reviewerProfiles.find(p => p.id === rec.actor);
-                        const reviewerName = reviewerProfile
-                            ? `${reviewerProfile.fname} ${reviewerProfile.lname}`.trim()
-                            : 'Unknown Reviewer';
-
-                        return {
-                            recommendation: rec.action?.includes('APPROVE') ? 'approve' : 'revisions',
-                            comments: rec.comment || '',
-                            reviewer_id: rec.actor || '',
-                            reviewer_name: reviewerName,
-                            submitted_at: rec.history_date,
-                            history_id: rec.history_id
-                        };
+                if (userRecommendation) {
+                    setRecommendation({
+                        recommendation: userRecommendation.action?.includes('APPROVE') ? 'approve' : 'revisions',
+                        comments: userRecommendation.comment || '',
+                        reviewer_id: userId,
+                        reviewer_name: currentUserName,
+                        submitted_at: userRecommendation.history_date
                     });
-
-                    setExistingRecommendations(transformedRecommendations);
+                } else {
+                    setRecommendation({
+                        recommendation: 'approve',
+                        comments: '',
+                        reviewer_id: userId,
+                        reviewer_name: currentUserName,
+                        submitted_at: ''
+                    });
                 }
-
-                // Set current user's recommendation separately
-                if (userId) {
-                    // Check if current user has already submitted a recommendation
-                    const { data: userRecommendation, error: userRecError } = await supabase
-                        .from("history")
-                        .select("*")
-                        .eq("paper_id", activeSubmission.proposal_id)
-                        .eq("history_type", "review_recommendation")
-                        .eq("actor", userId)
-                        .order("history_date", { ascending: false })
-                        .single();
-
-                    if (userRecError && userRecError.code !== 'PGRST116') {
-                        console.error("Error fetching user recommendation:", userRecError);
-                    }
-
-                    const currentUserName = userProfile
-                        ? `${userProfile.fname} ${userProfile.lname}`.trim()
-                        : 'Unknown Reviewer';
-
-                    if (userRecommendation) {
-                        setRecommendation({
-                            recommendation: userRecommendation.action?.includes('APPROVE') ? 'approve' : 'revisions',
-                            comments: userRecommendation.comment || '',
-                            reviewer_id: userId,
-                            reviewer_name: currentUserName,
-                            submitted_at: userRecommendation.history_date
-                        });
-                    } else {
-                        setRecommendation({
-                            recommendation: 'approve',
-                            comments: '',
-                            reviewer_id: userId,
-                            reviewer_name: currentUserName,
-                            submitted_at: ''
-                        });
-                    }
-                }
-
-            } catch (err) {
-                console.error("Failed to load submission data:", err);
-                toast.error("Failed to load submission data");
             }
 
             // Load proposal documents for revision selection
-            const documents = await fetchProposalDocuments(activeSubmission.proposal_id);
-            setProposalDocuments(documents);
+            const proposalDocs = await fetchProposalDocuments(activeSubmission.proposal_id);
+            setProposalDocuments(proposalDocs);
 
             // Initialize selected documents state
             const initialSelection: DocumentSelection = {};
-            documents.forEach(doc => {
+            proposalDocs.forEach(doc => {
                 initialSelection[doc.document_id] = false;
             });
             setSelectedDocuments(initialSelection);
-        };
 
-        loadSubmissionData();
-    }, [activeSubmission, userId, userProfile]);
+            // Load submitted assessment forms
+            await loadAssessmentForms();
+        } catch (err) {
+            console.error("Failed to load submission data:", err);
+            toast.error("Failed to load submission data");
+        }
+    };
+
+    /* Load assessment forms for the current user */
+    const loadAssessmentForms = async () => {
+        if (!activeSubmission || !userId) {
+            setHasSubmittedProtocolAssessment(false);
+            setHasSubmittedInformedConsent(false);
+            setSubmittedAssessmentForms([]);
+            return;
+        }
+
+        try {
+            const path = `${activeSubmission.proposal_id}/Assessments`;
+            const { data, error } = await supabase.storage.from("documents").list(path);
+
+            if (error) {
+                if (!error.message.includes('not found')) {
+                    console.error("Error loading assessment forms:", error);
+                }
+                setHasSubmittedProtocolAssessment(false);
+                setHasSubmittedInformedConsent(false);
+                setSubmittedAssessmentForms([]);
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                console.log("No assessment forms found in storage");
+                setHasSubmittedProtocolAssessment(false);
+                setHasSubmittedInformedConsent(false);
+                setSubmittedAssessmentForms([]);
+                return;
+            }
+
+            console.log("Found assessment forms:", data);
+
+            // Check for current user's assessment forms (for reviewers)
+            const userProtocolAssessment = data.find(f => 
+                f.name.includes(`Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}`)
+            );
+            const userInformedConsent = data.find(f => 
+                f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`)
+            );
+
+            setHasSubmittedProtocolAssessment(!!userProtocolAssessment);
+            setHasSubmittedInformedConsent(!!userInformedConsent);
+
+            // Load all assessment forms with signed URLs (for chairperson and reviewer view)
+            const assessmentForms = await Promise.all(
+                data.map(async (f: any) => {
+                    const { data: signed, error: signError } = await supabase.storage
+                        .from("documents")
+                        .createSignedUrl(`${path}/${f.name}`, 60 * 60); // 1 hour expiry
+
+                    if (signError) {
+                        console.error("Error signing URL:", signError);
+                        return null;
+                    }
+
+                    return { 
+                        name: f.name, 
+                        url: signed.signedUrl, 
+                        phase: 'phase1' as 'phase1' | 'phase3'
+                    };
+                })
+            );
+
+            const filteredForms = assessmentForms.filter((f): f is { name: string; url: string; phase: 'phase1' | 'phase3' } => f !== null);
+            console.log("Loaded assessment forms for display:", filteredForms.length);
+            setSubmittedAssessmentForms(filteredForms);
+        } catch (err) {
+            console.error("Error loading assessment forms:", err);
+            setHasSubmittedProtocolAssessment(false);
+            setHasSubmittedInformedConsent(false);
+            setSubmittedAssessmentForms([]);
+        }
+    };
 
     /* List stored files for a phase */
     const listStoredFilesForPhase = async (submissionId: number, phase: 'phase1' | 'phase3'): Promise<{ name: string; url: string }[]> => {
@@ -420,6 +520,14 @@ export default function ReviewerPage() {
         if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
             toast.error("Please provide review comments for revisions");
             return;
+        }
+
+        // Check if assessment forms are submitted (for non-chairperson reviewers)
+        if (!isChairperson) {
+            if (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent) {
+                toast.error("Please submit both assessment forms (Protocol Assessment and Informed Consent) before submitting your recommendation");
+                return;
+            }
         }
 
         const loadingId = toast.loading(isChairperson ? "Submitting final decision..." : "Submitting recommendation...");
@@ -524,9 +632,19 @@ export default function ReviewerPage() {
                     { id: loadingId }
                 );
             } else {
-                // Regular reviewer - just show success message
+                // Regular reviewer - remove the reviewed proposal from their list
+                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+                
+                // Set next submission as active or null if no more submissions
+                const remainingSubmissions = submissions.filter(s => s.proposal_id !== activeSubmission.proposal_id);
+                if (remainingSubmissions.length > 0) {
+                    setActiveSubmission(remainingSubmissions[0]);
+                } else {
+                    setActiveSubmission(null);
+                }
+                
                 toast.success(
-                    existingRec ? "Recommendation updated successfully" : "Recommendation submitted successfully",
+                    existingRec ? "Recommendation updated successfully" : "Recommendation submitted successfully. This proposal has been removed from your review queue.",
                     { id: loadingId }
                 );
             }
@@ -556,11 +674,19 @@ export default function ReviewerPage() {
     const hasUserSubmittedRecommendation = existingRecommendations.some(rec => rec.reviewer_id === userId);
 
     /* Open PDF Template Handler */
-    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter') => {
+    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
         try {
-            const templateFilename = type === 'ethical_clearance' 
-                ? 'V2 Ethical Clearance (2).pdf'
-                : '-Decision Letter.pdf';
+            let templateFilename = '';
+            
+            if (type === 'ethical_clearance') {
+                templateFilename = 'V2 Ethical Clearance (2).pdf';
+            } else if (type === 'decision_letter') {
+                templateFilename = '-Decision Letter.pdf';
+            } else if (type === 'reviewer_assessment') {
+                templateFilename = 'V2_Protocol-Reviewer-Assessment-Form-1-4.pdf';
+            } else if (type === 'informed_consent') {
+                templateFilename = 'V2_INFORMED-CONSENT-ASSESSMENT-FORM-3.pdf';
+            }
             
             // Get the template URL from public folder
             const templatePath = `/templates/${templateFilename}`;
@@ -582,14 +708,41 @@ export default function ReviewerPage() {
             const loadingId = toast.loading("Saving and sending document...");
 
             // Generate filename based on template type
-            const filename = templateType === 'ethical_clearance'
-                ? `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.pdf`
-                : `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.pdf`;
+            let filename = '';
+            let historyType = '';
+            let historyComment = '';
+            let historyAction = '';
+            
+            if (templateType === 'ethical_clearance') {
+                filename = `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.pdf`;
+                historyType = 'ethical_clearance_sent';
+                historyComment = 'Ethical Clearance sent to researcher';
+                historyAction = 'ETHICAL_CLEARANCE_SENT';
+            } else if (templateType === 'decision_letter') {
+                filename = `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.pdf`;
+                historyType = 'decision_letter_sent';
+                historyComment = 'Decision Letter sent to researcher';
+                historyAction = 'DECISION_LETTER_SENT';
+            } else if (templateType === 'reviewer_assessment') {
+                filename = `Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.pdf`;
+                historyType = 'reviewer_assessment_submitted';
+                historyComment = 'Reviewer assessment form submitted';
+                historyAction = 'REVIEWER_ASSESSMENT_SUBMITTED';
+            } else if (templateType === 'informed_consent') {
+                filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.pdf`;
+                historyType = 'informed_consent_assessment_submitted';
+                historyComment = 'Informed consent assessment form submitted';
+                historyAction = 'INFORMED_CONSENT_ASSESSMENT_SUBMITTED';
+            }
 
             // Upload to Supabase Storage
+            const uploadPath = (templateType === 'reviewer_assessment' || templateType === 'informed_consent')
+                ? `${activeSubmission.proposal_id}/Assessments/${filename}`
+                : `${activeSubmission.proposal_id}/Decisions/${filename}`;
+
             const { error: uploadError } = await supabase.storage
                 .from('documents')
-                .upload(`${activeSubmission.proposal_id}/Decisions/${filename}`, pdfBytes, {
+                .upload(uploadPath, pdfBytes, {
                     contentType: 'application/pdf',
                     upsert: false
                 });
@@ -598,65 +751,80 @@ export default function ReviewerPage() {
 
             // Add history entry for document sent
             const historyData = {
-                history_type: templateType === 'ethical_clearance' ? 'ethical_clearance_sent' : 'decision_letter_sent',
+                history_type: historyType,
                 paper_id: activeSubmission.proposal_id,
-                comment: `${templateType === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter'} sent to researcher`,
+                comment: historyComment,
                 actor: userId,
-                action: templateType === 'ethical_clearance' ? 'ETHICAL_CLEARANCE_SENT' : 'DECISION_LETTER_SENT',
+                action: historyAction,
                 history_date: new Date().toISOString(),
             };
 
             const { error: historyError } = await supabase.from("history").insert(historyData);
             if (historyError) throw historyError;
 
-            // Now process the chairperson decision (approve or request revisions)
-            const nextStatus = templateType === 'ethical_clearance'
-                ? "Data Collection"
-                : "Revise Proposal";
+            // Only process chairperson decision if this is a chairperson template
+            if (templateType === 'ethical_clearance' || templateType === 'decision_letter') {
+                const nextStatus = templateType === 'ethical_clearance'
+                    ? "Data Collection"
+                    : "Revise Proposal";
 
-            // Update proposal status
-            const { error: statusError } = await supabase
-                .from("proposals")
-                .update({
-                    status: nextStatus,
-                    updated_on: new Date().toISOString()
-                })
-                .eq("proposal_id", activeSubmission.proposal_id);
+                // Update proposal status
+                const { error: statusError } = await supabase
+                    .from("proposals")
+                    .update({
+                        status: nextStatus,
+                        updated_on: new Date().toISOString()
+                    })
+                    .eq("proposal_id", activeSubmission.proposal_id);
 
-            if (statusError) throw statusError;
+                if (statusError) throw statusError;
 
-            // Add chairperson decision to history
-            const decisionHistoryData = {
-                history_type: "review_decision",
-                paper_id: activeSubmission.proposal_id,
-                comment: `Chairperson ${templateType === 'ethical_clearance' ? 'approved' : 'requested revisions for'} proposal and sent ${templateType === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter'}`,
-                actor: userId,
-                action: `CHAIRPERSON_DECISION_${templateType === 'ethical_clearance' ? 'APPROVE' : 'REVISIONS'}`,
-                history_date: new Date().toISOString(),
-            };
+                // Add chairperson decision to history
+                const decisionHistoryData = {
+                    history_type: "review_decision",
+                    paper_id: activeSubmission.proposal_id,
+                    comment: `Chairperson ${templateType === 'ethical_clearance' ? 'approved' : 'requested revisions for'} proposal and sent ${templateType === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter'}`,
+                    actor: userId,
+                    action: `CHAIRPERSON_DECISION_${templateType === 'ethical_clearance' ? 'APPROVE' : 'REVISIONS'}`,
+                    history_date: new Date().toISOString(),
+                };
 
-            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
-            if (decisionError) throw decisionError;
+                const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
+                if (decisionError) throw decisionError;
+
+                // Update local state - remove the processed submission
+                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+
+                if (submissions.length > 1) {
+                    const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
+                    setActiveSubmission(nextSubmission || null);
+                } else {
+                    setActiveSubmission(null);
+                }
+
+                toast.success(
+                    `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,
+                    { id: loadingId }
+                );
+            } else {
+                // For reviewer assessment, update the tracking state
+                if (templateType === 'reviewer_assessment') {
+                    setHasSubmittedProtocolAssessment(true);
+                } else if (templateType === 'informed_consent') {
+                    setHasSubmittedInformedConsent(true);
+                }
+                
+                // Reload assessment forms to update the list
+                await loadAssessmentForms();
+                
+                toast.success('Assessment form submitted successfully', { id: loadingId });
+            }
 
             // Close the PDF template
             setShowPDFTemplate(false);
             setTemplateType(null);
             setTemplateUrl('');
 
-            // Update local state - remove the processed submission
-            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-            if (submissions.length > 1) {
-                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
-                setActiveSubmission(nextSubmission || null);
-            } else {
-                setActiveSubmission(null);
-            }
-
-            toast.success(
-                `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,
-                { id: loadingId }
-            );
         } catch (error: any) {
             console.error('Error saving PDF template:', error);
             toast.error(`Failed to save document: ${error.message || 'Unknown error'}`);
@@ -893,6 +1061,90 @@ export default function ReviewerPage() {
                             )}
                         </div>
 
+                        {/* Submitted Assessment Forms - For Chairperson */}
+                        {isChairperson && (
+                            <div className="space-y-4 mb-6 border-t pt-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-purple-100 text-purple-800 text-xs font-medium">
+                                        <FileSignature className="w-3.5 h-3.5" />
+                                        <span className="uppercase tracking-wide">Reviewer Assessment Forms ({submittedAssessmentForms.length})</span>
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={loadAssessmentForms}
+                                        className="text-xs"
+                                    >
+                                        
+                                       
+                                    </Button>
+                                </div>
+                                {submittedAssessmentForms.length === 0 ? (
+                                    <div className="text-sm text-gray-500 py-4 text-center border rounded-lg bg-gray-50">
+                                        No assessment forms submitted yet by reviewers.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {submittedAssessmentForms.map((form, index) => {
+                                            // Extract reviewer info from filename
+                                            // Format: Reviewer_Assessment_{proposal_id}_{user_id}_{timestamp}.pdf
+                                            let reviewerInfo = '';
+                                            
+                                            // Try to extract user ID from filename
+                                            if (form.name.includes('Reviewer_Assessment')) {
+                                                const parts = form.name.match(/Reviewer_Assessment_\d+_([a-f0-9-]+)_/);
+                                                if (parts && parts[1]) {
+                                                    reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
+                                                }
+                                            } else if (form.name.includes('Informed_Consent_Assessment')) {
+                                                const parts = form.name.match(/Informed_Consent_Assessment_\d+_([a-f0-9-]+)_/);
+                                                if (parts && parts[1]) {
+                                                    reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
+                                                }
+                                            }
+                                            
+                                            return (
+                                                <div key={index} className="border rounded-lg p-4 bg-white shadow-sm">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                            <FileSignature className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                                                            <div className="min-w-0 flex-1">
+                                                                <h3 className="font-medium text-gray-900 break-words">
+                                                                    {form.name.includes('Reviewer_Assessment') 
+                                                                        ? 'Protocol Reviewer Assessment' 
+                                                                        : 'Informed Consent Assessment'}
+                                                                </h3>
+                                                                {reviewerInfo && (
+                                                                    <p className="text-xs text-purple-600 mt-1">{reviewerInfo}</p>
+                                                                )}
+                                                                <p className="text-xs text-gray-500 mt-1 break-all">{form.name}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2 flex-shrink-0">
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => openPreview(form.url, form.name)}
+                                                            >
+                                                                <Eye className="h-4 w-4 mr-2" />
+                                                                View
+                                                            </Button>
+                                                            <a href={form.url} download target="_blank" rel="noopener noreferrer">
+                                                                <RippleButton variant="outline" size="sm">
+                                                                    <Download className="h-4 w-4 mr-2" />
+                                                                    Download
+                                                                </RippleButton>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Review Recommendations Summary */}
                         {existingRecommendations.length > 0 && (
                             <div className="space-y-4 mb-6 border-t pt-6">
@@ -1077,6 +1329,72 @@ export default function ReviewerPage() {
                                     )}
                                 </div>
 
+                                {/* Reviewer Assessment Form Button - For ALL Reviewers */}
+                                {!isChairperson && (
+                                    <div className="space-y-3 border-t pt-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="text-sm font-medium text-gray-700">
+                                                Assessment Forms (Required)
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {hasSubmittedProtocolAssessment && hasSubmittedInformedConsent ? (
+                                                    <span className="text-green-600 font-medium">✓ Both forms submitted</span>
+                                                ) : (
+                                                    <span className="text-orange-600 font-medium">
+                                                        {hasSubmittedProtocolAssessment ? '1/2' : hasSubmittedInformedConsent ? '1/2' : '0/2'} completed
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {/* Protocol Reviewer Assessment Form */}
+                                            <div className="relative">
+                                                <Button
+                                                    onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-center gap-2",
+                                                        hasSubmittedProtocolAssessment 
+                                                            ? "bg-green-600 hover:bg-green-700"
+                                                            : "bg-blue-600 hover:bg-blue-700"
+                                                    )}
+                                                >
+                                                    {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
+                                                    <FileSignature className="w-4 h-4" />
+                                                    Protocol Assessment
+                                                </Button>
+                                                {hasSubmittedProtocolAssessment && (
+                                                    <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Informed Consent Assessment Form */}
+                                            <div className="relative">
+                                                <Button
+                                                    onClick={() => handleOpenPDFTemplate('informed_consent')}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-center gap-2",
+                                                        hasSubmittedInformedConsent 
+                                                            ? "bg-green-600 hover:bg-green-700"
+                                                            : "bg-indigo-600 hover:bg-indigo-700"
+                                                    )}
+                                                >
+                                                    {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
+                                                    <FileSignature className="w-4 h-4" />
+                                                    Informed Consent
+                                                </Button>
+                                                {hasSubmittedInformedConsent && (
+                                                    <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        
+                                        <p className="text-xs text-gray-500 text-center">
+                                            Complete both assessment forms before submitting your recommendation.
+                                        </p>
+                                    </div>
+                                )}
+
                                 {/* Template Buttons - Only for Chairperson */}
                                 {isChairperson && (
                                     <div className="space-y-3 border-t pt-4">
@@ -1142,7 +1460,10 @@ export default function ReviewerPage() {
                                         )}
                                         <RippleButton
                                             onClick={submitRecommendation}
-                                            disabled={recommendation.recommendation === 'revisions' && !recommendation.comments.trim()}
+                                            disabled={
+                                                (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
+                                                (!isChairperson && (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent))
+                                            }
                                             className="flex items-center gap-2"
                                         >
                                             <Send className="w-4 h-4" />
@@ -1155,6 +1476,15 @@ export default function ReviewerPage() {
                                         </RippleButton>
                                     </div>
                                 </div>
+                                
+                                {/* Warning message for incomplete forms */}
+                                {!isChairperson && (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent) && (
+                                    <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                                        <p className="text-sm text-orange-800">
+                                            ⚠️ Please complete and submit both assessment forms before submitting your recommendation.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </>
@@ -1213,9 +1543,15 @@ export default function ReviewerPage() {
                 <div className="fixed inset-0 z-50 bg-white">
                     <PDFFormFiller
                         templateUrl={templateUrl}
-                        templateName={templateType === 'ethical_clearance' 
-                            ? 'Ethical_Clearance' 
-                            : 'Decision_Letter'}
+                        templateName={
+                            templateType === 'ethical_clearance' 
+                                ? 'Ethical_Clearance' 
+                                : templateType === 'decision_letter'
+                                    ? 'Decision_Letter'
+                                    : templateType === 'reviewer_assessment'
+                                        ? 'Reviewer_Assessment'
+                                        : 'Informed_Consent_Assessment'
+                        }
                         onSave={handleSavePDFTemplate}
                         onCancel={() => {
                             setShowPDFTemplate(false);

@@ -43,8 +43,8 @@ const ResolutionReviews = () => {
     const statusOptions = ['All', 'In Progress', 'Resolved'];
     
     const filtered = resolutions.filter(res => {
-        const matchesSearch = res.protocol_title.toLowerCase().includes(search.toLowerCase()) ||
-                            res.reported_by.toLowerCase().includes(search.toLowerCase());
+        const matchesSearch = (res.protocol_title?.toLowerCase() || '').includes(search.toLowerCase()) ||
+                            (res.reported_by?.toLowerCase() || '').includes(search.toLowerCase());
         const matchesStatus = statusFilter === 'All' || 
                             (statusFilter === 'In Progress' && res.resolution_status === 'in_progress') ||
                             (statusFilter === 'Resolved' && res.resolution_status === 'resolved');
