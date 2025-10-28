@@ -1,5 +1,4 @@
 import { Eye, EyeClosed, GalleryVerticalEnd } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -7,9 +6,8 @@ import { Link, useNavigate } from "react-router"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import { Dialogue } from "./dialogue"
 import { toast } from "sonner"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { supabase } from "@/DB"
-
 
 export function LoginForm({
     className,
@@ -20,6 +18,19 @@ export function LoginForm({
         email: '',
         password: '',
     });
+    const [showPassword, setShowPassword] = useState(true);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+    const [cooldown, setCooldown] = useState(0);
+    const [isSending, setIsSending] = useState(false);
+
+    // Cooldown timer effect
+    useEffect(() => {
+        if (cooldown > 0) {
+            const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cooldown]);
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -57,6 +68,44 @@ export function LoginForm({
         }
     };
 
+    const handleForgotPassword = async () => {
+        if (!forgotPasswordEmail) {
+            toast.error("Please enter your email address");
+            return;
+        }
+
+        if (cooldown > 0) {
+            toast.error(`Please wait ${cooldown} seconds before sending another request`);
+            return;
+        }
+
+        setIsSending(true);
+        const loading = toast.loading("Sending reset password email...");
+
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+                redirectTo: `${window.location.origin}/reset`,
+            });
+
+            if (error) {
+                toast.error(error.message);
+                return;
+            }
+
+            toast.success("Password reset email sent! Check your inbox.");
+            setShowForgotPassword(false);
+            setForgotPasswordEmail('');
+            // Set cooldown to 60 seconds (1 minute)
+            setCooldown(60);
+            
+        } catch (err) {
+            console.error(err);
+            toast.error("Something went wrong. Try again.");
+        } finally {
+            setIsSending(false);
+            toast.dismiss(loading);
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({
@@ -64,8 +113,6 @@ export function LoginForm({
             [e.target.id]: e.target.value
         });
     };
-
-    const [showPassword, setShowPassword] = useState(false)
 
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -94,12 +141,21 @@ export function LoginForm({
                                 onChange={handleChange}
                                 required
                             />
-                            <Label htmlFor="password">Password</Label>
 
+                            <div className="flex justify-between items-center">
+                                <Label htmlFor="password">Password</Label>
+                            </div>
+                            <Input
+                                id="password"
+                                type={showPassword ? "password" : "text"}
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                            />
                             <RippleButton
                                 type="button"
                                 onClick={() => setShowPassword(prev => !prev)}
-                                className="fixed mt-[7em] ml-[20em] bg-red-300/0 hover:bg-accent/0"
+                                className="absolute mt-[7em] ml-[20em] bg-red-300/0 hover:bg-accent/0"
                             >
                                 {showPassword ? (
                                     <EyeClosed color="#000000" />
@@ -107,14 +163,13 @@ export function LoginForm({
                                     <Eye color="#000000" />
                                 )}
                             </RippleButton>
-
-                            <Input
-                                id="password"
-                                type="Password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                required
-                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowForgotPassword(true)}
+                                className="text-sm text-blue-600 hover:text-blue-800 hover:underline ml-50 p-0"
+                            >
+                                Forgot password?
+                            </button>
                         </div>
                         <div className="text-center text-sm">
                             Don&apos;t have an account?{" "}
@@ -126,9 +181,75 @@ export function LoginForm({
                             Log-In
                         </RippleButton>
                     </div>
-
                 </div>
             </form>
+
+            {/* Forgot Password Dialog */}
+            {showForgotPassword && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                        <div className="flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-xl font-bold">Reset Password</h2>
+                                <button
+                                    onClick={() => {
+                                        setShowForgotPassword(false);
+                                        setForgotPasswordEmail('');
+                                    }}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ×
+                                </button>
+                            </div>
+
+                            <p className="text-sm text-gray-600">
+                                Enter your email address and we'll send you a link to reset your password.
+                            </p>
+
+                            <div className="grid gap-3">
+                                <Label htmlFor="forgot-email">Email</Label>
+                                <Input
+                                    id="forgot-email"
+                                    type="email"
+                                    placeholder="m@example.com"
+                                    value={forgotPasswordEmail}
+                                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                                    required
+                                    disabled={cooldown > 0}
+                                />
+                                {cooldown > 0 && (
+                                    <p className="text-sm text-orange-600">
+                                        Please wait {cooldown} seconds before requesting another reset link.
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3 justify-end mt-4">
+                                <RippleButton
+                                    type="button"
+                                    onClick={() => {
+                                        setShowForgotPassword(false);
+                                        setForgotPasswordEmail('');
+                                    }}
+                                    className="bg-gray-300 hover:bg-gray-400"
+                                    disabled={isSending}
+                                >
+                                    Cancel
+                                </RippleButton>
+                                <RippleButton
+                                    type="button"
+                                    onClick={handleForgotPassword}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    disabled={isSending || cooldown > 0}
+                                >
+                                    {isSending ? "Sending..." : cooldown > 0 ? `Wait ${cooldown}s` : "Send Reset Link"}
+                                </RippleButton>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
                 By clicking continue, you agree to our
                 <div className="flex text-center justify-center">

@@ -94,7 +94,7 @@ export default function ProfilePage() {
   const fullName = `${fname} ${lname}`.trim() || "Unnamed User"
 
   return (
-    <div className="container mx-auto py-10 space-y-8">
+    <div className="container mx-auto py-10 space-y-8" id="account">
       <h1 className="text-3xl font-bold">Profile & Settings</h1>
       <div className="grid gap-8">
         {/* Profile Header */}
@@ -154,18 +154,19 @@ export default function ProfilePage() {
           <div className="hidden md:block space-y-2">
             <div className="font-medium text-lg">Settings</div>
             <nav className="grid gap-1">
-              <a href="#account" className="px-3 py-2 text-sm rounded-md bg-muted">Account</a>
+              <a href="#account" className="px-3 py-2 text-sm rounded-md hover:bg-muted">Account</a>
               <a href="#notifications" className="px-3 py-2 text-sm rounded-md hover:bg-muted">Notifications</a>
               <a href="#security" className="px-3 py-2 text-sm rounded-md hover:bg-muted">Security</a>
-              <a href="#appearance" className="px-3 py-2 text-sm rounded-md hover:bg-muted">Appearance</a>
             </nav>
           </div>
+
+          <div className="absolute top-0" id="account"></div>
 
           {/* Content */}
           <div className="space-y-10">
 
             {/* Account Settings */}
-            <section id="account">
+            <section id="notifications">
               <Card>
                 <CardHeader>
                   <CardTitle>Account Settings</CardTitle>
@@ -224,7 +225,7 @@ export default function ProfilePage() {
             </section>
 
             {/* Notifications */}
-            <section id="notifications">
+            <section >
               <Card>
                 <CardHeader>
                   <CardTitle>Notification Settings</CardTitle>

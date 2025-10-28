@@ -1,4 +1,4 @@
-import { GalleryVerticalEnd } from "lucide-react"
+import { Eye, EyeClosed, GalleryVerticalEnd } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -86,7 +86,16 @@ export function SignupForm({
                 },
             })
 
-            if (error) throw error
+            if (error) {
+                // Check for duplicate account error
+                if (error.message?.includes("already registered") ||
+                    error.message?.includes("already exists") ||
+                    error.code === "user_already_exists") {
+                    throw new Error("Email is already in use. Please use a different email or try logging in.")
+                }
+                throw error
+            }
+
             const user = data.user
             if (!user) throw new Error("No user returned from signup")
 
@@ -103,7 +112,13 @@ export function SignupForm({
                 avatar: avatarPath,
             })
 
-            if (insertError) throw insertError
+            if (insertError) {
+                // Check for duplicate profile error
+                if (insertError.code === "23505" || insertError.message?.includes("duplicate")) {
+                    throw new Error("Email is already in use. Please use a different email or try logging in.")
+                }
+                throw insertError
+            }
 
             toast.success("Signed up successfully!", { id: loading })
             navigate("/login")
@@ -121,6 +136,8 @@ export function SignupForm({
             [e.target.id]: e.target.value,
         })
     }
+
+    const [showPassword, setShowPassword] = useState(true)
 
     return (
         <div className={cn("flex flex-col gap-6", className)} {...props}>
@@ -144,6 +161,7 @@ export function SignupForm({
                             <Label htmlFor="fname">First Name</Label>
                             <Input
                                 id="fname"
+                                placeholder="John"
                                 type="text"
                                 value={formData.fname}
                                 onChange={handleChange}
@@ -151,6 +169,7 @@ export function SignupForm({
                             />
                             <Label htmlFor="lname">Last Name</Label>
                             <Input
+                                placeholder="Doe"
                                 id="lname"
                                 type="text"
                                 value={formData.lname}
@@ -172,11 +191,10 @@ export function SignupForm({
                                 type="text"
                                 value={formData.org}
                                 onChange={handleChange}
+                                placeholder="School/Org Name"
                                 required
                             />
-                            <Label htmlFor="category" hidden={
-                                formData.email === "" ||
-                                formData.org === ""}>Category</Label>
+                            <Label htmlFor="category">Category</Label>
                             <select
                                 id="category"
                                 value={formData.category}
@@ -185,9 +203,6 @@ export function SignupForm({
                                 }
                                 required
                                 className="border rounded px-2 py-1"
-                                hidden={
-                                    formData.email === "" ||
-                                    formData.org === ""}
                                 disabled={
                                     !(
                                         formData.email.endsWith("@uic.edu.ph") &&
@@ -207,41 +222,69 @@ export function SignupForm({
                                 )}
                             </select>
 
-                            <Label htmlFor="password">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                required
-                            />
-                            {formData.password && (
-                                <ul className="text-xs list-disc pl-4">
-                                    {missingRequirements.length === 0 ? (
-                                        <li className="text-green-600">Strong password</li>
+                            <>
+                                <Label htmlFor="password">Password</Label>
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "password" : "text"}
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                    className="z-10 bg-background"
+                                />
+                                <RippleButton
+                                    type="button"
+                                    onClick={() => setShowPassword(prev => !prev)}
+                                    className={`absolute mt-[28em] ml-[20em] bg-red-300/0 hover:bg-accent/0 z-[11]
+                                    `}
+                                >
+                                    {showPassword ? (
+                                        <EyeClosed color="#000000" />
                                     ) : (
-                                        missingRequirements.map((r, idx) => (
-                                            <li key={idx} className="text-red-500">
-                                                {r.label}
-                                            </li>
-                                        ))
+                                        <Eye color="#000000" />
                                     )}
-                                </ul>
-                            )}
-                            <Label htmlFor="rpassword">Confirm Password</Label>
-                            <Input
-                                id="rpassword"
-                                type="password"
-                                value={formData.rpassword}
-                                onChange={handleChange}
-                                required
-                            />
-                            {formData.rpassword &&
-                                formData.rpassword !== formData.password && (
-                                    <p className="text-xs text-red-500">
-                                        Passwords do not match.
-                                    </p>
+                                </RippleButton>
+                                {formData.password && missingRequirements.length != 0 && (
+                                    <ul className="rounded-b-xl border-2 border-gray shadow-xs z-[8] absolute text-xs list-disc mt-88 pl-8 py-2 w-[26.6em] bg-background">
+                                        {missingRequirements.length != 0 && (
+                                            missingRequirements.map((r, idx) => (
+                                                <li key={idx} className="text-red-500">
+                                                    {r.label}
+                                                </li>
+                                            ))
+                                        )}
+                                    </ul>
                                 )}
+
+                                <Label htmlFor="rpassword">Confirm Password</Label>
+                                <Input
+                                    id="rpassword"
+                                    type={showPassword ? "password" : "text"}
+                                    value={formData.rpassword}
+                                    onChange={handleChange}
+                                    required
+                                    className="z-[5] bg-background"
+                                />
+                                <RippleButton
+                                    type="button"
+                                    onClick={() => setShowPassword(prev => !prev)}
+                                    className={`absolute mt-[33.3em] ml-[20em] bg-red-300/0 hover:bg-accent/0 z-[11]
+                                    `}
+                                >
+                                    {showPassword ? (
+                                        <EyeClosed color="#000000" />
+                                    ) : (
+                                        <Eye color="#000000" />
+                                    )}
+                                </RippleButton>
+                                {formData.rpassword &&
+                                    formData.rpassword != formData.password && (
+                                        <p className="rounded-b-xl border-2 border-gray shadow-xs z-[4] absolute text-xs list-disc mt-107 pl-8 py-2 w-[26.6em] bg-background">
+                                            Passwords do not match.
+                                        </p>
+                                    )
+                                }
+                            </>
                         </div>
 
                         <div className="text-center text-sm">

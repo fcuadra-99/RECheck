@@ -37,7 +37,6 @@ import {
   ChevronsUpDown,
   CircleUserRound,
   LogOut,
-  Settings,
 } from 'lucide-react';
 import {
   Avatar,
@@ -276,12 +275,6 @@ export function RadixSidebarDemo({
                         <DropdownMenuItem>
                           <CircleUserRound />
                           Profile
-                        </DropdownMenuItem>
-                      </Link>
-                      <Link to="/settings">
-                        <DropdownMenuItem>
-                          <Settings />
-                          Settings
                         </DropdownMenuItem>
                       </Link>
                     </DropdownMenuGroup>

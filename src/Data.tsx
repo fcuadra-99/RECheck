@@ -1,6 +1,8 @@
 import {
   BookCopy,
+  BookDashed,
   ClipboardCheck,
+  ClipboardEditIcon,
   FileCheck,
   GalleryVerticalEnd,
   LayoutDashboard,
@@ -74,10 +76,10 @@ const navConfig = {
     url: "/sdash",
     icon: LayoutDashboard,
     items: [
-      { title: "My Dashboard", url: "/sdash", role: "Admin Assistant" },
-      { title: "My Dashboard", url: "/sdash/sub2", role: "Researcher" },
-      { title: "My Dashboard", url: "/sdash/sub2", role: "Reviewer" },
-      { title: "My Dashboard", url: "/sdash", role: "Chairperson" },
+      { title: "My Dashboard", url: "/Dashboard", role: "Admin Assistant" },
+      { title: "My Dashboard", url: "/My_Dashboard", role: "Researcher" },
+      { title: "My Dashboard", url: "/My_Dashboard", role: "Reviewer" },
+      { title: "My Dashboard", url: "/Dashboard", role: "Chairperson" },
     ],
   },
   submissions: {
@@ -95,7 +97,7 @@ const navConfig = {
   deviations: {
     title: "Deviations",
     url: "/sdevi",
-    icon: BookCopy,
+    icon: BookDashed,
     items: [
       { title: "Manage Deviations", url: "/sdevi", role: "Admin Assistant" },
       { title: "Report Deviation", url: "/sdevi/report", role: "Researcher" },
@@ -107,7 +109,7 @@ const navConfig = {
   postApproval: {
     title: "Post Approval",
     url: "/researcher/post-approval-forms",
-    icon: ClipboardCheck,
+    icon: ClipboardEditIcon,
     items: [
       { title: "New Form", url: "/researcher/post-approval-forms", role: "Researcher" },
       { title: "Forms Submitted", url: "/researcher/template-submissions", role: "Researcher" },

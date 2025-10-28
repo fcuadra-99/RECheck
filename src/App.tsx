@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, Link, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect, useState, type JSX } from "react";
 import { toast } from "sonner";
 import { supabase } from "./DB";
@@ -40,6 +40,7 @@ import Testa from "./pages/Testa";
 import Testb from "./pages/Testb";
 
 import "./App.css";
+import { ResetForm } from "./components/parts/reset";
 
 // ----------------------------
 // Session Profile Interface
@@ -54,7 +55,7 @@ interface SessionProfile {
 }
 
 // ----------------------------
-// Redirect wrapper for login/signup
+// Enhanced AuthRedirect that allows reset flow
 // ----------------------------
 function AuthRedirect({
   user,
@@ -63,14 +64,32 @@ function AuthRedirect({
   user: User | null;
   children: JSX.Element;
 }) {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Check if this is a password reset flow
+  const isResetFlow = location.pathname === '/reset' &&
+    (searchParams.has('access_token') ||
+      (searchParams.has('type') && searchParams.get('type') === 'recovery'));
+
+  // Allow access to reset page even if user has session (this is the key fix)
+  if (location.pathname === '/reset' && isResetFlow) {
+    return children;
+  }
+
   const isVerified = user?.email_confirmed_at || user?.user_metadata?.email_confirmed;
 
-  if (user && !isVerified) {
+  if (user && !isVerified && location.pathname !== '/reset') {
     toast.error("Please verify your email first!");
     return <Navigate to="/login" replace />;
   }
 
-  if (user && isVerified) {
+  // Don't redirect if user is verified and trying to access reset page
+  if (user && isVerified && location.pathname === '/reset') {
+    return children;
+  }
+
+  if (user && isVerified && location.pathname !== '/reset') {
     return <Navigate to="/" replace />;
   }
 
@@ -83,7 +102,7 @@ function AuthRedirect({
 function DefaultRedirect({ profile }: { profile: SessionProfile }) {
   return (
     <Navigate
-      to={profile.role === "researcher" ? "/sdash/sub2" : "/sdash/sub1"}
+      to={profile.role === "researcher" ? "/My_Dashboard" : "/Dashboard"}
       replace
     />
   );
@@ -94,9 +113,9 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
 // ----------------------------
 function PageNotFound() {
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex flex-col items-center justify-center h-screen">
       <h1 className="text-2xl font-bold text-red-600">404 - Page Not Found</h1>
-      <Link to="/" className="ml-3 text-blue-500 underline">
+      <Link to="/" className="mt-4 text-blue-500 underline">
         Go Home
       </Link>
     </div>
@@ -128,7 +147,7 @@ function SidebarLayout({
 
       <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
         <AppBreadcrumb />
-        <div className="pl-7 pr-7 py-16 min-w-full z-50 bg-red-50">
+        <div className="pl-7 pr-7 py-16 min-w-full">
           <Outlet />
         </div>
       </div>
@@ -139,43 +158,95 @@ function SidebarLayout({
 }
 
 // ----------------------------
-// App Component
+// Public Layout (for login, signup, reset)
 // ----------------------------
-export default function App() {
+function PublicLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      {children}
+    </div>
+  );
+}
+
+// ----------------------------
+// Main App Component
+// ----------------------------
+function AppContent() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<SessionProfile | null>(null);
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Check if this is a password reset flow
+  const isResetFlow = location.pathname === '/reset' &&
+    (searchParams.has('access_token') ||
+      (searchParams.has('type') && searchParams.get('type') === 'recovery'));
 
   // Get Supabase session and listen for changes
   useEffect(() => {
     let mounted = true;
 
     const getUserSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setUser(data.session?.user ?? null);
-      setLoading(false);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (error) {
+          console.error('Session error:', error);
+        }
+
+        // Special handling: if we're in reset flow, we might have a recovery session
+        if (isResetFlow && session) {
+          setUser(session.user);
+        } else {
+          setUser(session?.user ?? null);
+        }
+      } catch (error) {
+        console.error('Auth error:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
     };
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setUser(session?.user ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      console.log('Auth state changed:', event);
+
+      // Handle password recovery flow
+      if (event === 'PASSWORD_RECOVERY') {
+        setUser(session?.user ?? null);
+      } else if (event === 'SIGNED_IN') {
+        setUser(session?.user ?? null);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setProfile(null);
+      } else {
+        setUser(session?.user ?? null);
+      }
     });
 
     getUserSession();
 
     return () => {
       mounted = false;
-      listener.subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [isResetFlow]);
 
-  // Fetch user profile if logged in
+  // Fetch user profile if logged in (but not for reset flow)
   useEffect(() => {
     let mounted = true;
 
     const fetchProfile = async () => {
-      if (!user) {
-        setProfile(null);
+      if (!user || isResetFlow) {
+        if (!isResetFlow) {
+          setProfile(null);
+        }
         return;
       }
 
@@ -199,7 +270,7 @@ export default function App() {
           });
         }
       } catch {
-        if (mounted) {
+        if (mounted && !isResetFlow) {
           setProfile({
             fname: user.user_metadata?.fname ?? "",
             lname: user.user_metadata?.lname ?? "",
@@ -216,10 +287,10 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [user, isResetFlow]);
 
   // Loading state
-  if (loading || (user && !profile)) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -228,93 +299,111 @@ export default function App() {
   }
 
   return (
+    <Routes>
+      {/* Public routes - accessible without authentication */}
+      <Route
+        path="/login"
+        element={
+          <AuthRedirect user={user}>
+            <LoginPage />
+          </AuthRedirect>
+        }
+      />
+      <Route
+        path="/signu"
+        element={
+          <AuthRedirect user={user}>
+            <SignupPage />
+          </AuthRedirect>
+        }
+      />
+      <Route
+        path="/reset"
+        element={
+          <PublicLayout>
+            <AuthRedirect user={user}>
+              <ResetForm />
+            </AuthRedirect>
+          </PublicLayout>
+        }
+      />
+
+      {/* Authenticated routes */}
+      <Route
+        element={
+          user && (user.email_confirmed_at || user.user_metadata?.email_confirmed) ? (
+            <SidebarLayout profile={profile} user={user} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      >
+        {/* Default redirect based on role */}
+        {profile && (
+          <Route path="/" element={<DefaultRedirect profile={profile} />} />
+        )}
+
+        {/* Dashboard */}
+        <Route path="/Dashboard" element={<SDashboard user={user} profile={profile} />} />
+        <Route path="/My_Dashboard" element={<SDashboard user={user} profile={profile} />} />
+        <Route path="/sdash/sub2" element={<RDashboard user={user} profile={profile} />} />
+
+        {/* Profile */}
+        <Route path="/profile" element={<Profile />} />
+
+        {/* Deviations */}
+        <Route path="/researcher/deviations/feedback/:id" element={<FeedbackDetail />} />
+        <Route path="/researcher/post-approval-forms" element={<PostApprovalForms />} />
+        <Route path="/researcher/template-submissions" element={<TemplateSubmissions />} />
+        <Route path="/researcher/template-submissions/:id" element={<TemplateSubmissionDetail />} />
+        <Route path="/researcher/final-report" element={<FinalReportSubmission />} />
+        <Route path="/chairperson/corrective-action-request" element={<CorrectiveActionRequest />} />
+        <Route path="/chairperson/deviations/:id" element={<DeviationDetail />} />
+        <Route path="/chairperson/deviations" element={<ChairpersonDeviations />} />
+        <Route path="/chairperson/resolution-reviews" element={<ResolutionReviews />} />
+        <Route path="/chairperson/resolution-detail/:id" element={<ResolutionDetail />} />
+        <Route path="/chairperson/template-submissions" element={<ChairpersonTemplateSubmissions />} />
+        <Route path="/chairperson/template-submissions/:id" element={<ChairpersonTemplateSubmissionDetail />} />
+        <Route path="/chairperson/final-reports" element={<ManageFinalReports />} />
+        <Route path="/chairperson/final-reports/:id" element={<FinalReportDetail />} />
+        <Route path="/sdevi" element={<SDeviations />} />
+        <Route path="/sdevi/sub1" element={<Testa />} />
+        <Route path="/sdevi/sub2" element={<Testb />} />
+        <Route path="/sdevi/report" element={<DeviationReportForm />} />
+        <Route path="/sdevi/submitted" element={<RDeviationSubmissions />} />
+
+        {/* Submissions */}
+        <Route path="/ssubm" element={<SSubmissions />} />
+        <Route path="/ssubm/sub1" element={<SSubmissions />} />
+        <Route path="/ssubm/sub1/sreview" element={<SReview />} />
+        <Route path="/ssubm/sub2" element={<RSubmissions />} />
+        <Route path="/ssubm/sub3" element={<ReviewerPage />} />
+
+        {/* Admin */}
+        <Route path="/admin/userroles" element={<AdminUsersPage />} />
+      </Route>
+
+      {/* Fallback routes */}
+      <Route path="/" element={
+        user ? (
+          <Navigate to="/Dashboard" replace />
+        ) : (
+          <Navigate to="/login" replace />
+        )
+      } />
+
+      <Route path="*" element={<PageNotFound />} />
+    </Routes>
+  );
+}
+
+// ----------------------------
+// Root App Component with Router
+// ----------------------------
+export default function App() {
+  return (
     <Router>
-      <Routes>
-        {/* Public pages */}
-        <Route
-          path="/login"
-          element={
-            <AuthRedirect user={user}>
-              <LoginPage />
-            </AuthRedirect>
-          }
-        />
-        <Route
-          path="/signu"
-          element={
-            <AuthRedirect user={user}>
-              <SignupPage />
-            </AuthRedirect>
-          }
-        />
-
-        {/* If not logged in → always redirect to /login */}
-        {!user && (
-          <>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<PageNotFound />} />
-          </>
-        )}
-
-        {/* Authenticated layout */}
-        {user && (
-          <Route
-            element={
-              !(user.email_confirmed_at || user.user_metadata?.email_confirmed) ? (
-                <Navigate to="/login" replace />
-              ) : (
-                <SidebarLayout profile={profile} user={user} />
-              )
-            }
-          >
-            {profile && (
-              <Route path="/" element={<DefaultRedirect profile={profile} />} />
-            )}
-
-            {/* Dashboard */}
-            <Route path="/sdash" element={<SDashboard user={user} profile={profile} />} />
-            <Route path="/sdash/sub1" element={<SDashboard user={user} profile={profile} />} />
-            <Route path="/sdash/sub2" element={<RDashboard user={user} profile={profile} />} />
-
-            {/* Profile */}
-            <Route path="/profile" element={<Profile />} />
-
-            {/* Deviations */}
-            <Route path="/researcher/deviations/feedback/:id" element={<FeedbackDetail />} />
-            <Route path="/researcher/post-approval-forms" element={<PostApprovalForms />} />
-            <Route path="/researcher/template-submissions" element={<TemplateSubmissions />} />
-            <Route path="/researcher/template-submissions/:id" element={<TemplateSubmissionDetail />} />
-            <Route path="/researcher/final-report" element={<FinalReportSubmission />} />
-            <Route path="/chairperson/corrective-action-request" element={<CorrectiveActionRequest />} />
-            <Route path="/chairperson/deviations/:id" element={<DeviationDetail />} />
-            <Route path="/chairperson/deviations" element={<ChairpersonDeviations />} />
-            <Route path="/chairperson/resolution-reviews" element={<ResolutionReviews />} />
-            <Route path="/chairperson/resolution-detail/:id" element={<ResolutionDetail />} />
-            <Route path="/chairperson/template-submissions" element={<ChairpersonTemplateSubmissions />} />
-            <Route path="/chairperson/template-submissions/:id" element={<ChairpersonTemplateSubmissionDetail />} />
-            <Route path="/chairperson/final-reports" element={<ManageFinalReports />} />
-            <Route path="/chairperson/final-reports/:id" element={<FinalReportDetail />} />
-            <Route path="/sdevi" element={<SDeviations />} />
-            <Route path="/sdevi/sub1" element={<Testa />} />
-            <Route path="/sdevi/sub2" element={<Testb />} />
-            <Route path="/sdevi/report" element={<DeviationReportForm />} />
-            <Route path="/sdevi/submitted" element={<RDeviationSubmissions />} />
-
-            {/* Submissions */}
-            <Route path="/ssubm" element={<SSubmissions />} />
-            <Route path="/ssubm/sub1" element={<SSubmissions />} />
-            <Route path="/ssubm/sub1/sreview" element={<SReview />} />
-            <Route path="/ssubm/sub2" element={<RSubmissions />} />
-            <Route path="/ssubm/sub3" element={<ReviewerPage />} />
-
-            {/* Admin */}
-            <Route path="/admin/userroles" element={<AdminUsersPage />} />
-
-            {/* Fallback */}
-            <Route path="*" element={<PageNotFound />} />
-          </Route>
-        )}
-      </Routes>
+      <AppContent />
     </Router>
   );
 }

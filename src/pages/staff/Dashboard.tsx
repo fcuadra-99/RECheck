@@ -171,16 +171,19 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
             try {
                 // Stats counts
                 const totalQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true });
-                const pendingQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).neq('status', 'Archive Files');
-                const completedQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }).eq('status', 'Archive Files');
+                const completedQ = supabase.from('final_reports').select('id', { count: 'exact', head: true }).eq('status', 'Approved');
 
-                const [totalR, pendingR, completedR] = await Promise.all([totalQ, pendingQ, completedQ])
+                const [totalR, completedR] = await Promise.all([totalQ, completedQ])
                 if (!mounted) return;
 
+                const total = totalR.count ?? 0;
+                const completed = completedR.count ?? 0;
+                const pending = total - completed;
+
                 setStats({
-                    total: totalR.count ?? 0,
-                    pending: pendingR.count ?? 0,
-                    completed: completedR.count ?? 0,
+                    total,
+                    pending,
+                    completed,
                 });
 
                 // Chart data - fetch proposals
@@ -361,10 +364,10 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                                     : 'Committee'}
                         </span>
                     </div>
-                    <p className="text-sm text-gray-500 mb-2">
+                    <p className="text-sm text-gray-500 mb-2 wrap-anywhere">
                         {viewing.created_by_email} • {formatDate(viewing.created_at)}
                     </p>
-                    <p className="text-gray-800 whitespace-pre-line leading-relaxed">
+                    <p className="relative text-gray-800 whitespace-pre-line leading-relaxed wrap-anywhere text-ellipsis">
                         {viewing.description}
                     </p>
                     {viewing.attachments && viewing.attachments.length > 0 && (
@@ -452,7 +455,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                                             {stats.completed}
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-2 sm:mt-3">Reviewed and finalized</p>
+                                    <p className="text-xs text-gray-400 mt-2 sm:mt-3">Approved final reports</p>
                                 </div>
                             </div>
                         </div>
@@ -508,7 +511,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                             >
                                 <ChevronLeft className="w-4 h-4" />
                             </button>
-                            <div className="text-sm text-gray-600">Page {actionsPage + 1}</div>
+                            <div className="text-xs text-gray-600">Page {actionsPage + 1} of {Math.ceil(totalActions / ACTIONS_PER_PAGE)}</div>
                             <button
                                 onClick={() => setActionsPage(p => p + 1)}
                                 disabled={(actionsPage + 1) * ACTIONS_PER_PAGE >= totalActions}
@@ -644,7 +647,7 @@ export default function AnnouncementsPage({ user, profile }: AnnouncementsPagePr
                                             <div className="text-xs text-gray-500 mt-1">
                                                 {a.created_by_email} • {formatDate(a.created_at)}
                                             </div>
-                                            <p className="mt-2 text-gray-700 whitespace-pre-line">
+                                            <p className="mt-2 text-gray-700 whitespace-pre-line wrap-anywhere">
                                                 {truncatedDescription}
                                                 {isLongDescription && (
                                                     <span className="text-primary font-medium ml-1">Read more</span>
