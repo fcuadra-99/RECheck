@@ -178,7 +178,7 @@ export default function TemplateSubmissions() {
   const templateTypes = [
     'Protocol Final Report',
     'Progress Report',
-    'Report of New Event',
+    'Report of New Event (RNE)',
     'Protocol Amendment',
     'Continuing Review Application',
     'Early Study Termination'

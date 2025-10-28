@@ -142,10 +142,10 @@ const ManageFinalReports: React.FC = () => {
                 >
                   <option value="All">All Status</option>
                   <option value="Pending Review">Pending Review</option>
-                  <option value="Under Review">Under Review</option>
+                 
                   <option value="Requires Revision">Requires Revision</option>
                   <option value="Approved">Approved</option>
-                  <option value="Rejected">Rejected</option>
+              
                 </select>
               </div>
             </div>
@@ -159,30 +159,6 @@ const ManageFinalReports: React.FC = () => {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <div className="text-sm text-gray-600 mb-1">Total Reports</div>
-            <div className="text-2xl font-bold text-gray-900">{items.length}</div>
-          </div>
-          <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-200 p-4">
-            <div className="text-sm text-blue-700 mb-1">Pending Review</div>
-            <div className="text-2xl font-bold text-blue-900">{items.filter(i => i.status === 'Pending Review').length}</div>
-          </div>
-          <div className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 p-4">
-            <div className="text-sm text-yellow-700 mb-1">Under Review</div>
-            <div className="text-2xl font-bold text-yellow-900">{items.filter(i => i.status === 'Under Review').length}</div>
-          </div>
-          <div className="bg-green-50 rounded-lg shadow-sm border border-green-200 p-4">
-            <div className="text-sm text-green-700 mb-1">Approved</div>
-            <div className="text-2xl font-bold text-green-900">{items.filter(i => i.status === 'Approved').length}</div>
-          </div>
-          <div className="bg-orange-50 rounded-lg shadow-sm border border-orange-200 p-4">
-            <div className="text-sm text-orange-700 mb-1">Needs Revision</div>
-            <div className="text-2xl font-bold text-orange-900">{items.filter(i => i.status === 'Requires Revision').length}</div>
           </div>
         </div>
 

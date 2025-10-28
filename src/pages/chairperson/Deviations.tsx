@@ -84,7 +84,7 @@ const SDeviations = () => {
   }, []);
 
 
-  const severityOptions = ['All', '-', 'Minor', 'Major', 'Not Assigned'];
+  const severityOptions = ['All', '-', 'Minor', 'Major',];
   const statusOptions = ['All', 'Pending / View', 'Reviewed'];
 
   // Filter para sa deviations
