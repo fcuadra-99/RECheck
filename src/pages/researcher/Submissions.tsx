@@ -161,14 +161,14 @@ export default function SubmissionsPage() {
 
             {/* submissions table */}
             <div className="rounded-md border overflow-x-auto">
-                <Table>
+                <Table className="table-fixed w-full">
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="border min-w-[200px]">Title</TableHead>
-                            <TableHead className="border min-w-[120px]">Status</TableHead>
-                            <TableHead className="border min-w-[100px]">Review Type</TableHead>
-                            <TableHead className="border min-w-[100px]">Date</TableHead>
-                            <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
+                            <TableHead className="border w-96">Title</TableHead>
+                            <TableHead className="border w-48">Status</TableHead>
+                            <TableHead className="border w-40">Review Type</TableHead>
+                            <TableHead className="border w-40">Date</TableHead>
+                            <TableHead className="border w-44 whitespace-nowrap text-center">
                                 Action
                             </TableHead>
                         </TableRow>
@@ -196,9 +196,9 @@ export default function SubmissionsPage() {
                                         )}
                                         onClick={() => setActiveSubmission(submission)}
                                     >
-                                        <TableCell className="border">
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4 text-gray-500" />
+                                        <TableCell className="border overflow-hidden">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                                 <span className="font-medium truncate">{submission.proposal_title}</span>
                                             </div>
                                         </TableCell>
@@ -273,11 +273,11 @@ export default function SubmissionsPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    <TableRow key={`empty-${index}`} className="hover:bg-gray-50/50">
+                                        <TableRow key={`empty-${index}`} className="hover:bg-gray-50/50">
                                         <TableCell className="border text-gray-400 italic">
-                                            <div className="flex items-center gap-2">
-                                                <FileText className="w-4 h-4 text-gray-300" />
-                                                <span>Available Slot</span>
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <FileText className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                                                <span className="truncate">Available Slot</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="border">

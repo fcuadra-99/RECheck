@@ -1295,10 +1295,7 @@ export default function PhaseContent({
                         <>
                             <div className="flex justify-between items-center mb-6">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-gray-900">{submission.proposal_title}</h1>
-                                    <p className="text-gray-600">{submission.description}</p>
                                 </div>
-
                                 {/* Delete Button - Only show for the proposal owner */}
                                 {submission.researcher === userId && (
                                     <Button
