@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Settings,
   UserCheck,
+  History,
   type LucideIcon,
 } from "lucide-react"
 
@@ -130,6 +131,14 @@ const navConfig = {
     icon: ClipboardCheck,
     items: [
       { title: "Submissions", url: "/chairperson/template-submissions", role: "Chairperson" },
+    ],
+  },
+  researcherHistory: {
+    title: "Researcher History",
+    url: "/chairperson/researcher-history",
+    icon: History,
+    items: [
+      { title: "View History", url: "/chairperson/researcher-history", role: "Chairperson" },
     ],
   },
   admin: {
