@@ -162,6 +162,7 @@ const DeviationReportForm: React.FC = () => {
         type: investigator.type,
         investigatorCorrectiveAction: investigator.investigatorCorrectiveAction,
         severityAssessment: investigator.severityAssessment,
+        
       });
       
       if (error) {
