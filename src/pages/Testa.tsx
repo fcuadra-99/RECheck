@@ -469,10 +469,10 @@ export default function MultiPDFAnnotator(): JSX.Element {
         <div className="flex h-[90vh] bg-gray-50 mt-5">
             {/* Sidebar */}
             <div
-                className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg border-r border-gray-200 p-4 space-y-4 transform transition-transform duration-300 z-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col transform transition-transform duration-300 z-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
                     } md:translate-x-0`}
             >
-                <div className="flex justify-between items-center">
+                <div className="p-4 flex justify-between items-center flex-shrink-0">
                     <h2 className="text-xl font-semibold text-primary">PDF Manager</h2>
                     <button onClick={() => setSidebarOpen((s) => !s)} className="md:hidden text-gray-600">
                         <Menu size={20} />
@@ -480,78 +480,80 @@ export default function MultiPDFAnnotator(): JSX.Element {
                 </div>
 
                 {/* Upload */}
-                <label className="flex items-center gap-2 px-3 py-2 rounded bg-primary text-white hover:bg-primary/90 cursor-pointer">
+                <label className="flex-shrink-0 mx-4 flex items-center gap-2 px-3 py-2 rounded bg-primary text-white hover:bg-primary/90 cursor-pointer">
                     <FilePlus size={16} /> Add PDF
                     <input type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} />
                 </label>
 
                 {/* File list */}
-                <div className="space-y-2 border-t pt-2 overflow-y-auto" style={{ maxHeight: "55vh" }}>
+                <div className="flex-1 border-t mt-4 overflow-y-auto flex flex-col min-h-0">
                     {loading ? (
                         <>
                             {[...Array(4)].map((_, i) => (
-                                <div key={i} className="animate-pulse p-2 border rounded bg-gray-100 flex justify-between">
+                                <div key={i} className="animate-pulse p-2 border rounded bg-gray-100 flex justify-between mx-2 flex-shrink-0">
                                     <div className="h-4 w-24 bg-gray-300 rounded"></div>
                                     <div className="h-4 w-4 bg-gray-300 rounded"></div>
                                 </div>
                             ))}
                         </>
                     ) : (
-                        pdfFiles.map((p) => (
-                            <div
-                                key={p.id}
-                                onClick={() => {
-                                    setActivePdfId(p.id);
-                                    setCurrentPage(1);
-                                }}
-                                className={`p-2 rounded border flex items-center gap-2 cursor-pointer ${p.id === activePdfId ? "bg-primary/10 border-primary" : "hover:bg-gray-100"
-                                    }`}
-                            >
-                                {editingId === p.id ? (
-                                    <input
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        onBlur={() => confirmRenameFile(p.id, editName)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                                        }}
-                                        className="border rounded px-2 py-1 text-sm w-full"
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <div className="flex-1 min-w-0">
-                                        <div
-                                            className="truncate text-sm"
-                                            onDoubleClick={(ev) => {
-                                                ev.stopPropagation();
-                                                setEditingId(p.id);
-                                                setEditName(p.name);
-                                            }}
-                                        >
-                                            {p.name}
-                                        </div>
-                                        <div className="text-xs text-gray-400">{"Placeholders: " + (p.boxes?.length ?? 0)}</div>
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        deletePdf(p.id, p.name);
+                        <div className="space-y-2 px-2">
+                            {pdfFiles.map((p) => (
+                                <div
+                                    key={p.id}
+                                    onClick={() => {
+                                        setActivePdfId(p.id);
+                                        setCurrentPage(1);
                                     }}
-                                    className="text-red-500 hover:text-red-700 ml-2"
-                                    title="Delete"
+                                    className={`p-2 rounded border flex items-center gap-2 cursor-pointer flex-shrink-0 ${p.id === activePdfId ? "bg-primary/10 border-primary" : "hover:bg-gray-100"
+                                        }`}
                                 >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        ))
+                                    {editingId === p.id ? (
+                                        <input
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            onBlur={() => confirmRenameFile(p.id, editName)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                            }}
+                                            className="border rounded px-2 py-1 text-sm w-full"
+                                            autoFocus
+                                        />
+                                    ) : (
+                                        <div className="flex-1 min-w-0">
+                                            <div
+                                                className="truncate text-sm"
+                                                onDoubleClick={(ev) => {
+                                                    ev.stopPropagation();
+                                                    setEditingId(p.id);
+                                                    setEditName(p.name);
+                                                }}
+                                            >
+                                                {p.name}
+                                            </div>
+                                            <div className="text-xs text-gray-400">{"Placeholders: " + (p.boxes?.length ?? 0)}</div>
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            deletePdf(p.id, p.name);
+                                        }}
+                                        className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
 
                 {/* tools for active PDF */}
                 {activePdf && (
-                    <div className="pt-4 border-t space-y-3">
+                    <div className="flex-shrink-0 p-4 border-t space-y-3 overflow-y-auto max-h-[50vh]">
                         {/* --- Tools --- */}
                         <div className="space-y-2">
                             <button
@@ -575,8 +577,8 @@ export default function MultiPDFAnnotator(): JSX.Element {
                         </div>
 
                         {/* --- Box list --- */}
-                        <div className="mt-4 border-t pt-3 space-y-1 max-h-[30vh] overflow-y-auto">
-                            <div className="text-xs uppercase text-gray-500 mb-1">Placeholders</div>
+                        <div className="border-t pt-3 space-y-1">
+                            <div className="text-xs uppercase text-gray-500 mb-2 sticky top-0 bg-white">Placeholders</div>
 
                             {activePdf.boxes.length === 0 && (
                                 <div className="text-xs text-gray-400 italic">No placeholders yet.</div>
@@ -585,7 +587,7 @@ export default function MultiPDFAnnotator(): JSX.Element {
                             {activePdf.boxes.map((b) => (
                                 <div
                                     key={b.id}
-                                    className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer hover:bg-gray-100 ${b.type === "text" ? "border-l-2 border-primary" : "border-l-2 border-purple-500"
+                                    className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer hover:bg-gray-100 flex-shrink-0 ${b.type === "text" ? "border-l-2 border-primary" : "border-l-2 border-purple-500"
                                         }`}
                                 >
                                     {editingId === `${activePdf.id}-${b.id}` ? (

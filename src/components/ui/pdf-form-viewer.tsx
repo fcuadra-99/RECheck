@@ -66,6 +66,7 @@ export function PdfFormViewer({
     const [displayScale, setDisplayScale] = useState<number>(1.5);
     const [cssScale, setCssScale] = useState<number>(1);
     const [debugMode, setDebugMode] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     console.log(setDebugMode);
 
@@ -130,9 +131,11 @@ export function PdfFormViewer({
 
                 if (!signedUrl) throw new Error("PDF not found in storage");
                 setPdfUrl(signedUrl);
+                setIsLoading(false);
             } catch (err: any) {
                 console.error("Failed to load pdf form:", err);
                 toast.error("Failed to load PDF form");
+                setIsLoading(false);
             }
         };
 
@@ -295,10 +298,9 @@ export function PdfFormViewer({
                 const y = height - (ph.y - ph.height) - 40;
 
                 if (ph.type === "text") {
-                    // For checkboxes, draw a checkmark
                     if (shouldBeCheckbox(ph) && value === "/") {
                         page.drawText("/", {
-                            x: x + ph.width / 2 - 3, // Center the checkmark
+                            x: x + ph.width / 2 - 3,
                             y: y + ph.height / 2 - 6,
                             size: 12,
                             font,
@@ -496,6 +498,16 @@ export function PdfFormViewer({
 
                 {/* PDF canvas */}
                 <div ref={scrollRef} className="flex-1 relative bg-gray-100 p-4 overflow-auto">
+                    {isLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100/50 backdrop-blur-sm z-50">
+                            <div className="w-64 space-y-4">
+                                <div className="w-full bg-gray-300 rounded-full h-2 overflow-hidden">
+                                    <div className="bg-blue-500 h-full w-3/4 rounded-full animate-pulse" />
+                                </div>
+                                <p className="text-center text-gray-600 text-sm">Loading PDF...</p>
+                            </div>
+                        </div>
+                    )}
                     <div ref={contentRef} className="relative mx-auto">
                         <canvas ref={canvasRef} className="block border shadow" />
 
@@ -511,7 +523,7 @@ export function PdfFormViewer({
                                 return (
                                     <div
                                         key={ph.id}
-                                        className={`absolute select-none text-[15px] p-[11.5px] font-bold text-gray-900 font-sans ${debugMode ? "border border-blue-400 bg-blue-50/30" : ""
+                                        className={`absolute select-none text-[15px] p-[11.5px] font-bold text-gray-900 font-sans overflow-visible ${debugMode ? "border border-blue-400 bg-blue-50/30" : ""
                                             }`}
                                         style={{
                                             left:
@@ -519,9 +531,10 @@ export function PdfFormViewer({
                                             top:
                                                 ph.y * displayScale * cssScale + PLACEHOLDER_OFFSET.y + "px",
                                             width: ph.width * displayScale * cssScale + "px",
-                                            height: ph.height * displayScale * cssScale + "px",
-                                            whiteSpace: "nowrap",
-                                            textOverflow: "ellipsis",
+                                            minHeight: ph.height * displayScale * cssScale + "px",
+                                            whiteSpace: "normal",
+                                            wordWrap: "break-word",
+                                            overflowWrap: "break-word",
                                         }}
                                     >
                                         {displayValue}

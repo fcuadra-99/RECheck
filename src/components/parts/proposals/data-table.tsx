@@ -347,7 +347,7 @@ export function DataTable<TData, TValue>({
                           minWidth: cell.column.columnDef.size,
                           maxWidth: cell.column.columnDef.size,
                         }}
-                        className="px-4 py-3  border-2"
+                        className="px-4 py-3  border-2 truncate"
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
