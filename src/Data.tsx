@@ -77,10 +77,10 @@ const navConfig = {
     url: "/sdash",
     icon: LayoutDashboard,
     items: [
-      { title: "My Dashboard", url: "/Dashboard", role: "Admin Assistant" },
-      { title: "My Dashboard", url: "/My_Dashboard", role: "Researcher" },
-      { title: "My Dashboard", url: "/My_Dashboard", role: "Reviewer" },
-      { title: "My Dashboard", url: "/Dashboard", role: "Chairperson" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Admin Assistant" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Researcher" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Reviewer" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Chairperson" },
     ],
   },
   submissions: {

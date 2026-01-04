@@ -37,7 +37,7 @@ interface DbPlaceholder {
     page: number;
     type: "text" | "image";
 }
-
+//adwawd
 interface PdfFileRow {
     id: string;
     name: string;
