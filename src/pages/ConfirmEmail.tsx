@@ -44,45 +44,49 @@ export default function ConfirmEmailPage() {
             {/* Content */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <h1 className="text-3xl font-bold text-foreground">Confirm Your Email</h1>
+                <h1 className="text-3xl font-bold text-foreground">Email Verified!</h1>
                 <p className="text-muted-foreground">
-                  We've sent a confirmation link to your email address. Please check your inbox and click the link to verify your account.
+                  Your email has been successfully verified. You can now access your account.
                 </p>
               </div>
 
               <div className="pt-4 space-y-3">
                 <div className="flex items-start gap-3 p-3 bg-accent/20 rounded-lg">
                   <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-foreground text-left">Check your email inbox for the verification link</p>
+                  <p className="text-sm text-foreground text-left">Email address confirmed</p>
                 </div>
                 <div className="flex items-start gap-3 p-3 bg-accent/20 rounded-lg">
                   <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-foreground text-left">If not found, check your spam or junk folder</p>
+                  <p className="text-sm text-foreground text-left">Account is now active</p>
                 </div>
                 <div className="flex items-start gap-3 p-3 bg-accent/20 rounded-lg">
                   <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-foreground text-left">Click the link in the email to complete verification</p>
+                  <p className="text-sm text-foreground text-left">You can now log in to your account</p>
                 </div>
               </div>
             </div>
 
             {/* Actions */}
             <div className="space-y-3 pt-4">
-              <Button className="w-full" size="lg">
-                Open Email Client
+              <Button 
+                className="w-full" 
+                size="lg"
+                onClick={() => navigate("/login")}
+              >
+                Go to Login
               </Button>
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => navigate("/login")}
+                onClick={() => navigate("/")}
               >
-                Back to Login
+                Back to Home
               </Button>
             </div>
 
             {/* Support text */}
             <p className="text-xs text-muted-foreground">
-              Didn't receive the email? <a href="#" className="text-primary hover:underline">Resend verification link</a>
+              Need help? <a href="#" className="text-primary hover:underline">Contact support</a>
             </p>
           </div>
         </div>
