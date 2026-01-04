@@ -38,6 +38,8 @@ import AdminUsersPage from "./pages/AdminUsersPage";
 import Profile from "./pages/Profile";
 import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
+import ConfirmEmailPage from "./pages/ConfirmEmail";
+import NotFoundPage from "./pages/NotFound";
 import Testa from "./pages/Testa";
 import Testb from "./pages/Testb";
 
@@ -55,6 +57,7 @@ interface SessionProfile {
   role: string;
 }
 
+//awdawd
 // ----------------------------
 // Redirect wrapper for login/signup
 // ----------------------------
@@ -249,12 +252,17 @@ export default function App() {
             </AuthRedirect>
           }
         />
+        <Route
+          path="/confirm-email"
+          element={<ConfirmEmailPage />}
+        />
 
         {/* If not logged in → always redirect to /login */}
         {!user && (
           <>
             <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="*" element={<PageNotFound />} />
+            <Route path="/not-found" element={<NotFoundPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </>
         )}
 
@@ -315,7 +323,8 @@ export default function App() {
             <Route path="/admin/userroles" element={<AdminUsersPage />} />
 
             {/* Fallback */}
-            <Route path="*" element={<PageNotFound />} />
+            <Route path="/not-found" element={<NotFoundPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         )}
       </Routes>
