@@ -95,20 +95,6 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
 }
 
 // ----------------------------
-// Simple 404 Page
-// ----------------------------
-function PageNotFound() {
-  return (
-    <div className="flex items-center justify-center h-screen">
-      <h1 className="text-2xl font-bold text-red-600">404 - Page Not Found</h1>
-      <Link to="/" className="ml-3 text-blue-500 underline">
-        Go Home
-      </Link>
-    </div>
-  );
-}
-
-// ----------------------------
 // Sidebar Layout
 // ----------------------------
 function SidebarLayout({
