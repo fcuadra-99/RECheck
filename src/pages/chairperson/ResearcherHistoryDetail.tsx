@@ -139,75 +139,40 @@ export default function ResearcherHistoryDetail() {
       
       console.log('Using bucket:', bucketName);
       
-      // Download the file
+      // Create a signed URL (valid for 60 seconds) for downloading
       const { data, error } = await supabase.storage
         .from(bucketName)
-        .download(cleanPath);
+        .createSignedUrl(cleanPath, 60);
       
       if (error) {
         console.error('Supabase storage error:', error);
         // If it failed with one bucket, try the other
-        if (bucketName === 'documents') {
-          console.log('Retrying with storage bucket...');
-          const retry = await supabase.storage.from('storage').download(cleanPath);
-          if (retry.error) {
-            console.error('Retry also failed:', retry.error);
-            alert(`Failed to download file. The file may have been moved or deleted.\n\nPath: ${cleanPath}\nError: ${JSON.stringify(retry.error)}`);
-            return;
-          }
-          if (!retry.data) {
-            throw new Error('No file data received');
-          }
-          // Success with storage bucket
-          const url = window.URL.createObjectURL(retry.data);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          return;
-        } else {
-          // Try documents bucket as fallback
-          console.log('Retrying with documents bucket...');
-          const retry = await supabase.storage.from('documents').download(cleanPath);
-          if (retry.error) {
-            console.error('Retry also failed:', retry.error);
-            alert(`Failed to download file. The file may have been moved or deleted.\n\nPath: ${cleanPath}\nError: ${JSON.stringify(retry.error)}`);
-            return;
-          }
-          if (!retry.data) {
-            throw new Error('No file data received');
-          }
-          // Success with documents bucket
-          const url = window.URL.createObjectURL(retry.data);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+        const alternateBucket = bucketName === 'documents' ? 'storage' : 'documents';
+        console.log(`Retrying with ${alternateBucket} bucket...`);
+        
+        const retry = await supabase.storage.from(alternateBucket).createSignedUrl(cleanPath, 60);
+        if (retry.error) {
+          console.error('Retry also failed:', retry.error);
+          alert(`Failed to download file. The file may have been moved or deleted.\n\nPath: ${cleanPath}\nError: ${error.message}`);
           return;
         }
+        if (!retry.data || !retry.data.signedUrl) {
+          throw new Error('No signed URL received');
+        }
+        
+        // Success with alternate bucket - download the file
+        window.open(retry.data.signedUrl, '_blank');
+        return;
       }
       
-      if (!data) {
-        throw new Error('No file data received');
+      if (!data || !data.signedUrl) {
+        throw new Error('No signed URL received');
       }
       
-      console.log('File downloaded successfully, size:', data.size);
+      console.log('Signed URL created successfully');
       
-      // Create a download link
-      const url = window.URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Open the signed URL in a new tab to download the file
+      window.open(data.signedUrl, '_blank');
     } catch (error) {
       console.error('Error downloading file:', error);
       alert(`Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -348,7 +313,7 @@ export default function ResearcherHistoryDetail() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -356,24 +321,6 @@ export default function ResearcherHistoryDetail() {
                 <p className="text-2xl font-bold text-gray-900">{history.all_files.length}</p>
               </div>
               <FileText className="w-8 h-8 text-blue-500" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Comments</p>
-                <p className="text-2xl font-bold text-gray-900">{history.all_comments.length}</p>
-              </div>
-              <MessageSquare className="w-8 h-8 text-purple-500" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Deviations</p>
-                <p className="text-2xl font-bold text-gray-900">{history.deviations.length}</p>
-              </div>
-              <Flag className="w-8 h-8 text-red-500" />
             </div>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -401,14 +348,6 @@ export default function ResearcherHistoryDetail() {
             <TabsTrigger value="files" className="flex items-center gap-2">
               <FileText className="w-4 h-4" />
               Files ({history.all_files.length})
-            </TabsTrigger>
-            <TabsTrigger value="comments" className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" />
-              Comments ({history.all_comments.length})
-            </TabsTrigger>
-            <TabsTrigger value="deviations" className="flex items-center gap-2">
-              <Flag className="w-4 h-4" />
-              Deviations ({history.deviations.length})
             </TabsTrigger>
           </TabsList>
 
@@ -604,136 +543,6 @@ export default function ResearcherHistoryDetail() {
             </div>
           </TabsContent>
 
-          {/* Comments Tab */}
-          <TabsContent value="comments">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">All Comments & Feedback</h2>
-              
-              {history.all_comments.length === 0 ? (
-                <div className="text-center py-12">
-                  <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No comments yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {history.all_comments.map((comment, idx) => (
-                    <div key={idx} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-4 h-4 text-purple-600" />
-                          <span className="font-medium text-gray-900">{comment.commenter_name}</span>
-                        </div>
-                        <span className="text-xs text-gray-500">{formatDate(comment.comment_date)}</span>
-                      </div>
-                      <p className="text-gray-700 mb-2">{comment.comment_text}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded">
-                          {comment.phase}
-                        </span>
-                        {comment.action_type && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
-                            {comment.action_type}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* Deviations Tab */}
-          <TabsContent value="deviations">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Deviations & Reports</h2>
-              
-              {history.deviations.length === 0 ? (
-                <div className="text-center py-12">
-                  <Flag className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No deviations reported</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {history.deviations.map((deviation) => (
-                    <div key={deviation.deviation_id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Flag className="w-5 h-5 text-red-600" />
-                          <span className="font-medium text-gray-900">{deviation.deviation_type}</span>
-                        </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          deviation.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                          deviation.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {deviation.status}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 mb-3">{deviation.deviation_description}</p>
-                      {deviation.chairperson_comments && (
-                        <div className="bg-gray-50 p-3 rounded-lg mb-2">
-                          <p className="text-xs text-gray-500 mb-1">Chairperson Comments:</p>
-                          <p className="text-sm text-gray-900">{deviation.chairperson_comments}</p>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <span>Submitted: {formatDateShort(deviation.submitted_at)}</span>
-                        {deviation.reviewed_at && (
-                          <span>Reviewed: {formatDateShort(deviation.reviewed_at)}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Final Reports Section */}
-              {history.final_reports.length > 0 && (
-                <div className="mt-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Final Reports</h3>
-                  <div className="space-y-4">
-                    {history.final_reports.map((report) => (
-                      <div key={report.report_id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <Archive className="w-5 h-5 text-gray-600" />
-                            <span className="font-medium text-gray-900">{report.report_type}</span>
-                          </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            report.status === 'Approved' ? 'bg-green-100 text-green-800' :
-                            report.status === 'Rejected' ? 'bg-red-100 text-red-800' :
-                            report.status === 'Requires Revision' ? 'bg-orange-100 text-orange-800' :
-                            'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {report.status}
-                          </span>
-                        </div>
-                        {report.outcome && (
-                          <div className="bg-gray-50 p-3 rounded-lg mb-2">
-                            <p className="text-xs text-gray-500 mb-1">Outcome:</p>
-                            <p className="text-sm text-gray-900">{report.outcome}</p>
-                          </div>
-                        )}
-                        {report.comments && (
-                          <div className="bg-gray-50 p-3 rounded-lg mb-2">
-                            <p className="text-xs text-gray-500 mb-1">Comments:</p>
-                            <p className="text-sm text-gray-900">{report.comments}</p>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-4 text-xs text-gray-500">
-                          <span>Submitted: {formatDateShort(report.submitted_at)}</span>
-                          {report.reviewed_at && (
-                            <span>Reviewed: {formatDateShort(report.reviewed_at)}</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
     </div>
