@@ -39,6 +39,7 @@ import Profile from "./pages/Profile";
 import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
 import ConfirmEmailPage from "./pages/ConfirmEmail";
+import ResetPasswordPage from "./pages/ResetPassword";
 import NotFoundPage from "./pages/NotFound";
 import Testa from "./pages/Testa";
 import Testb from "./pages/Testb";
@@ -266,6 +267,11 @@ export default function App() {
             {profile && (
               <Route path="/" element={<DefaultRedirect profile={profile} />} />
             )}
+
+            <Route
+              path="/reset"
+              element={<ResetPasswordPage />}
+            />
 
             {/* Dashboard */}
             <Route path="/sdash" element={<SDashboard user={user} profile={profile} />} />
