@@ -129,8 +129,12 @@ export class TemplateDownloadService {
 
   // Get templates that can be filled online (excludes Protocol Final Report)
   static getUploadableTemplates(): FormTemplate[] {
-    // Exclude Protocol Final Report from post approval forms
-    return formTemplates.filter(template => template.id !== 'protocol-final-report');
+    // Exclude Protocol Final Report and assessment forms from post approval forms
+    // Assessment forms are only for reviewers, not researchers
+    return formTemplates.filter(template => 
+      template.id !== 'protocol-final-report' && 
+      template.category !== 'assessment'
+    );
   }
 
   // Get templates that can be uploaded as completed files (excludes Protocol Final Report)
