@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Trash2, Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Trash2, Settings, AlertCircle, CheckCircle, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import useAuth from '@/hooks/useAuth';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService, type FormTemplate } from '../../services/templateDownloadService';
 import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
@@ -8,42 +9,52 @@ import type { FormFieldData } from '../../services/pdfFormService';
 
 export default function TemplateFieldEditor() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<FormTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [editMode, setEditMode] = useState<boolean>(false);
   const [savedFields, setSavedFields] = useState<FormFieldData[]>([]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [configuredTemplates, setConfiguredTemplates] = useState<Set<string>>(new Set());
+  const [migrateStatus, setMigrateStatus] = useState<'idle' | 'migrating' | 'done'>('idle');
 
   useEffect(() => {
+    loadTemplatesAndConfigs();
+  }, []);
+
+  const loadTemplatesAndConfigs = async () => {
     // Load all templates available for configuration (includes final report)
     const allTemplates = TemplateDownloadService.getConfigurableTemplates();
     setTemplates(allTemplates);
 
-    // Check which templates have configurations
+    // Check which templates have configurations (from database)
     const configured = new Set<string>();
-    allTemplates.forEach(template => {
-      if (TemplateFieldConfigService.hasConfiguration(template.id)) {
+    for (const template of allTemplates) {
+      const hasConfig = await TemplateFieldConfigService.hasConfiguration(template.id);
+      if (hasConfig) {
         configured.add(template.id);
       }
-    });
+    }
     setConfiguredTemplates(configured);
-  }, []);
+  };
 
   useEffect(() => {
     if (selectedTemplate) {
-      // Load existing configuration if available
-      const template = templates.find(t => t.id === selectedTemplate);
-      if (template) {
-        const config = TemplateFieldConfigService.getConfiguration(template.id);
-        if (config) {
-          setSavedFields(config.fields);
-        } else {
-          setSavedFields([]);
-        }
-      }
+      loadTemplateConfig();
     }
   }, [selectedTemplate, templates]);
+
+  const loadTemplateConfig = async () => {
+    const template = templates.find(t => t.id === selectedTemplate);
+    if (template) {
+      const config = await TemplateFieldConfigService.getConfiguration(template.id);
+      if (config) {
+        setSavedFields(config.fields);
+      } else {
+        setSavedFields([]);
+      }
+    }
+  };
 
   const handleStartEditing = () => {
     setEditMode(true);
@@ -56,7 +67,7 @@ export default function TemplateFieldEditor() {
   };
 
   // We use handleSaveFields to save the field configuration
-  const handleSaveFields = (fields: FormFieldData[]) => {
+  const handleSaveFields = async (fields: FormFieldData[]) => {
     const template = templates.find(t => t.id === selectedTemplate);
     if (!template) return;
 
@@ -70,7 +81,7 @@ export default function TemplateFieldEditor() {
         lastModified: new Date().toISOString()
       };
 
-      TemplateFieldConfigService.saveConfiguration(config);
+      await TemplateFieldConfigService.saveConfiguration(config, user?.id);
       setSavedFields(fields);
       
       setSaveStatus('saved');
@@ -79,7 +90,7 @@ export default function TemplateFieldEditor() {
       // Update configured templates
       setConfiguredTemplates(prev => new Set(prev).add(template.id));
       
-      alert(`Configuration saved for ${template.name}!\n${fields.length} field(s) configured.`);
+      alert(`Configuration saved to database for ${template.name}!\n${fields.length} field(s) configured.\nNow accessible from any browser.`);
       
     } catch (error) {
       console.error('Error saving configuration:', error);
@@ -89,14 +100,14 @@ export default function TemplateFieldEditor() {
     }
   };
 
-  const handleDeleteConfiguration = () => {
+  const handleDeleteConfiguration = async () => {
     const template = templates.find(t => t.id === selectedTemplate);
     if (!template) return;
 
     if (!confirm(`Delete field configuration for ${template.name}?`)) return;
 
     try {
-      TemplateFieldConfigService.deleteConfiguration(template.id);
+      await TemplateFieldConfigService.deleteConfiguration(template.id);
       setSavedFields([]);
       
       // Update configured templates
@@ -106,10 +117,26 @@ export default function TemplateFieldEditor() {
         return newSet;
       });
       
-      alert('Configuration deleted successfully');
+      alert('Configuration deleted from database successfully');
     } catch (error) {
       console.error('Error deleting configuration:', error);
       alert('Failed to delete configuration');
+    }
+  };
+
+  const handleMigrateLocalStorage = async () => {
+    if (!confirm('Migrate all localStorage configurations to database?\n\nThis will upload any saved configurations from your browser to the database so they can be accessed from any browser.')) return;
+
+    try {
+      setMigrateStatus('migrating');
+      const result = await TemplateFieldConfigService.migrateLocalStorageToDatabase(user?.id);
+      setMigrateStatus('done');
+      alert(`Migration complete!\n${result.migrated} configuration(s) migrated\n${result.errors} error(s)`);
+      loadTemplatesAndConfigs(); // Reload to show migrated configs
+    } catch (error) {
+      console.error('Migration error:', error);
+      setMigrateStatus('idle');
+      alert('Migration failed');
     }
   };
 
@@ -198,7 +225,25 @@ export default function TemplateFieldEditor() {
           <p className="text-gray-600">
             Pre-configure text fields for post-approval form templates. 
             Fields you add here will automatically appear for researchers when they fill out forms.
+            <strong className="text-green-600 ml-2">✓ Now synced across all browsers via database</strong>
           </p>
+          
+          {/* Migration Button */}
+          <div className="mt-4">
+            <button
+              onClick={handleMigrateLocalStorage}
+              disabled={migrateStatus === 'migrating'}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              <Upload className="w-4 h-4" />
+              <span>
+                {migrateStatus === 'migrating' ? 'Migrating...' : migrateStatus === 'done' ? 'Migrated!' : 'Migrate localStorage to Database'}
+              </span>
+            </button>
+            <p className="text-sm text-gray-500 mt-1">
+              If you previously configured templates in this browser, click to upload them to the database
+            </p>
+          </div>
         </div>
 
         {/* Template Selection */}
@@ -212,7 +257,6 @@ export default function TemplateFieldEditor() {
               <div className="grid gap-4">
                 {templates.map(template => {
                   const isConfigured = configuredTemplates.has(template.id);
-                  const config = isConfigured ? TemplateFieldConfigService.getConfiguration(template.id) : null;
                   
                   return (
                     <div
@@ -222,14 +266,11 @@ export default function TemplateFieldEditor() {
                       <div className="flex-1">
                         <h3 className="font-medium text-gray-900 mb-1">{template.name}</h3>
                         <p className="text-sm text-gray-600">{template.description}</p>
-                        {isConfigured && config && (
+                        {isConfigured && (
                           <div className="flex items-center space-x-2 mt-2">
                             <CheckCircle className="w-4 h-4 text-green-600" />
                             <span className="text-sm text-green-700 font-medium">
-                              {config.fields.length} field(s) configured
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              • Updated {new Date(config.lastModified).toLocaleDateString()}
+                              Configured
                             </span>
                           </div>
                         )}

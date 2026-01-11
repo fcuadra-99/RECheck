@@ -6,7 +6,7 @@ import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
-import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -48,8 +48,15 @@ const FinalReportDetail: React.FC = () => {
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+  
+  // Load predefined fields based on selected PDF
+  const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
+  const { fields: predefinedFields, loading: fieldsLoading } = useTemplateFields(template?.id || null);
   const [certificateUrl, setCertificateUrl] = useState<string | null>(null);
   console.log (certificateUrl, showCertificatePreview);
+  
+  // Debug logging
+  console.log('🔍 Chairperson FinalReportDetail - selectedPdfName:', selectedPdfName, 'template:', template?.id, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
   useEffect(() => {
     if (id) {
       loadReport();
@@ -311,14 +318,16 @@ const FinalReportDetail: React.FC = () => {
 
   // If PDF filler is open, show it fullscreen
   if (showPdfFiller && selectedPdfUrl) {
-    // Load predefined fields if configured by admin
-    const template = TemplateDownloadService.getTemplateByName(selectedPdfName);
-    const predefinedFields = template 
-      ? TemplateFieldConfigService.getPredefinedFields(template.id)
-      : [];
-    
-    if (predefinedFields.length > 0) {
-      console.log(`Chairperson loading ${predefinedFields.length} pre-configured fields for ${selectedPdfName}`);
+    // Show loading state while fields are loading for protocol-final-report template
+    if (fieldsLoading && selectedPdfName === 'Protocol Final Report') {
+      return (
+        <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Loading template fields...</p>
+          </div>
+        </div>
+      );
     }
     
     return (

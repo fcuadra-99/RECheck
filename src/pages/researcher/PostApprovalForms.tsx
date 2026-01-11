@@ -3,12 +3,18 @@ import { BookOpen } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
-import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 
 
 export default function FormsTemplates() {
   const [selectedAction, setSelectedAction] = useState<'fill-online' | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  
+  // Get template details and load predefined fields
+  const templateDetails = selectedTemplate 
+    ? TemplateDownloadService.getUploadableTemplates().find(t => t.name === selectedTemplate)
+    : null;
+  const { fields: predefinedFields } = useTemplateFields(templateDetails?.id || null);
 
   // haandleTemplateUploadComplete removed as upload functionality is no longer needed
 
@@ -68,24 +74,8 @@ export default function FormsTemplates() {
   };
 
   // Fill Form Online View
-  if (selectedAction === 'fill-online' && selectedTemplate) {
-    const templateDetails = TemplateDownloadService.getUploadableTemplates().find(t => t.name === selectedTemplate);
-    
-    if (!templateDetails) {
-      console.error('Template not found:', selectedTemplate);
-      alert('Template configuration not found. Please try again.');
-      setSelectedAction(null);
-      setSelectedTemplate('');
-      return null;
-    }
-
+  if (selectedAction === 'fill-online' && selectedTemplate && templateDetails) {
     console.log('Loading template:', templateDetails);
-    
-    // Load predefined fields if configured by admin
-    const predefinedFields = TemplateFieldConfigService.getPredefinedFields(templateDetails.id);
-    if (predefinedFields.length > 0) {
-      console.log(`Loading ${predefinedFields.length} pre-configured fields for ${templateDetails.name}`);
-    }
     
     return (
       <PDFFormFiller

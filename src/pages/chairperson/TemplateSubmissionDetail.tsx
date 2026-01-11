@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
-import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 import { 
   ArrowLeft, 
   FileText, 
@@ -43,6 +43,10 @@ export default function TemplateSubmissionDetail() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected' | 'needs_revision'>('approved');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
+  
+  // Get template ID for loading predefined fields
+  const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
+  const { fields: predefinedFields } = useTemplateFields(template?.id || null);
 
   useEffect(() => {
     fetchSubmission();
@@ -277,16 +281,6 @@ export default function TemplateSubmissionDetail() {
 
   // Show PDF Form Filler if requested
   if (showPdfFiller && submission) {
-    // Load predefined fields if configured by admin
-    const template = TemplateDownloadService.getTemplateByName(submission.template_type);
-    const predefinedFields = template 
-      ? TemplateFieldConfigService.getPredefinedFields(template.id)
-      : [];
-    
-    if (predefinedFields.length > 0) {
-      console.log(`Chairperson loading ${predefinedFields.length} pre-configured fields for ${submission.template_type}`);
-    }
-    
     return (
       <PDFFormFiller
         templateUrl={submission.file_url}
