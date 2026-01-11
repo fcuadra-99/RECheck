@@ -5,6 +5,8 @@ import { getFinalReport, updateFinalReport } from '../../services/finalReportSer
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
+import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -166,8 +168,15 @@ const FinalReportDetail: React.FC = () => {
       
       if (data.publicUrl) {
         setSelectedPdfUrl(data.publicUrl);
-        setSelectedPdfName(filePath.split('/').pop() || 'document.pdf');
+        // For final reports, use the template name to load predefined fields
+        // Check if this is a final report by looking at the report title
+        const templateName = report?.title.includes('Final Report') 
+          ? 'Protocol Final Report' 
+          : (filePath.split('/').pop() || 'document.pdf');
+        setSelectedPdfName(templateName);
         setShowPdfFiller(true);
+        
+        console.log('Opening PDF with template name:', templateName);
       }
     } catch (error) {
       console.error('Error opening PDF:', error);
@@ -302,12 +311,23 @@ const FinalReportDetail: React.FC = () => {
 
   // If PDF filler is open, show it fullscreen
   if (showPdfFiller && selectedPdfUrl) {
+    // Load predefined fields if configured by admin
+    const template = TemplateDownloadService.getTemplateByName(selectedPdfName);
+    const predefinedFields = template 
+      ? TemplateFieldConfigService.getPredefinedFields(template.id)
+      : [];
+    
+    if (predefinedFields.length > 0) {
+      console.log(`Chairperson loading ${predefinedFields.length} pre-configured fields for ${selectedPdfName}`);
+    }
+    
     return (
       <PDFFormFiller
         templateUrl={selectedPdfUrl}
         templateName={selectedPdfName}
         onSave={handlePdfSave}
         onCancel={() => setShowPdfFiller(false)}
+        predefinedFields={predefinedFields}
       />
     );
   }

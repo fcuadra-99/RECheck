@@ -22,6 +22,7 @@ import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
 import PDFFormFiller from "@/components/PDFFormFiller";
+import { TemplateFieldConfigService } from "@/services/templateFieldConfigService";
 
 /* ----------------- types ----------------- */
 interface RevisionRequirement {
@@ -690,6 +691,15 @@ export default function ReviewerPage() {
             
             // Get the template URL from public folder
             const templatePath = `/templates/${templateFilename}`;
+            
+            // Debug: Check if predefined fields exist
+            if (type === 'reviewer_assessment') {
+                const fields = TemplateFieldConfigService.getPredefinedFields('protocol-reviewer-assessment');
+                console.log('🔍 Loading Protocol Reviewer Assessment with predefined fields:', fields.length);
+            } else if (type === 'informed_consent') {
+                const fields = TemplateFieldConfigService.getPredefinedFields('informed-consent-assessment');
+                console.log('🔍 Loading Informed Consent Assessment with predefined fields:', fields.length);
+            }
             
             setTemplateUrl(templatePath);
             setTemplateType(type);
@@ -1549,8 +1559,8 @@ export default function ReviewerPage() {
                                 : templateType === 'decision_letter'
                                     ? 'Decision_Letter'
                                     : templateType === 'reviewer_assessment'
-                                        ? 'Reviewer_Assessment'
-                                        : 'Informed_Consent_Assessment'
+                                        ? 'Protocol Reviewer Assessment'
+                                        : 'Informed Consent Assessment'
                         }
                         onSave={handleSavePDFTemplate}
                         onCancel={() => {
@@ -1558,6 +1568,13 @@ export default function ReviewerPage() {
                             setTemplateType(null);
                             setTemplateUrl('');
                         }}
+                        predefinedFields={
+                            templateType === 'reviewer_assessment'
+                                ? TemplateFieldConfigService.getPredefinedFields('protocol-reviewer-assessment')
+                                : templateType === 'informed_consent'
+                                    ? TemplateFieldConfigService.getPredefinedFields('informed-consent-assessment')
+                                    : []
+                        }
                     />
                 </div>
             )}

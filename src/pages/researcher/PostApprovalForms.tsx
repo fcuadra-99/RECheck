@@ -3,6 +3,7 @@ import { BookOpen } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
+import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
 
 
 export default function FormsTemplates() {
@@ -80,12 +81,19 @@ export default function FormsTemplates() {
 
     console.log('Loading template:', templateDetails);
     
+    // Load predefined fields if configured by admin
+    const predefinedFields = TemplateFieldConfigService.getPredefinedFields(templateDetails.id);
+    if (predefinedFields.length > 0) {
+      console.log(`Loading ${predefinedFields.length} pre-configured fields for ${templateDetails.name}`);
+    }
+    
     return (
       <PDFFormFiller
         templateUrl={templateDetails.templateUrl}
         templateName={templateDetails.name}
         onSave={handleFormSave}
         onCancel={handleCancel}
+        predefinedFields={predefinedFields}
       />
     );
   }

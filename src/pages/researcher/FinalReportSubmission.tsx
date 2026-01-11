@@ -17,6 +17,7 @@ import {
   Award
 } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
 
 interface Proposal {
   date: string;
@@ -252,6 +253,13 @@ const FinalReportSubmission: React.FC = () => {
 
   // Show PDF Form Filler if using template (check this FIRST before submission form)
   if (showPdfFiller) {
+    // Load predefined fields if configured by admin for final report template
+    const predefinedFields = TemplateFieldConfigService.getPredefinedFields('protocol-final-report');
+    
+    if (predefinedFields.length > 0) {
+      console.log(`Loading ${predefinedFields.length} pre-configured fields for Final Report Template`);
+    }
+    
     return (
       <PDFFormFiller
         templateUrl={FINAL_REPORT_TEMPLATE_URL}
@@ -261,6 +269,7 @@ const FinalReportSubmission: React.FC = () => {
           setShowPdfFiller(false);
           setCurrentFillingDocId(null);
         }}
+        predefinedFields={predefinedFields}
       />
     );
   }

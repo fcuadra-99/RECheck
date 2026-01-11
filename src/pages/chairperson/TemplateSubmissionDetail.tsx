@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
+import { TemplateFieldConfigService } from '../../services/templateFieldConfigService';
 import { 
   ArrowLeft, 
   FileText, 
@@ -275,12 +277,23 @@ export default function TemplateSubmissionDetail() {
 
   // Show PDF Form Filler if requested
   if (showPdfFiller && submission) {
+    // Load predefined fields if configured by admin
+    const template = TemplateDownloadService.getTemplateByName(submission.template_type);
+    const predefinedFields = template 
+      ? TemplateFieldConfigService.getPredefinedFields(template.id)
+      : [];
+    
+    if (predefinedFields.length > 0) {
+      console.log(`Chairperson loading ${predefinedFields.length} pre-configured fields for ${submission.template_type}`);
+    }
+    
     return (
       <PDFFormFiller
         templateUrl={submission.file_url}
         templateName={submission.template_type}
         onSave={handleSavePdf}
         onCancel={handleCancelPdfFiller}
+        predefinedFields={predefinedFields}
       />
     );
   }
