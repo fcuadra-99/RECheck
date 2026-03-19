@@ -5,7 +5,7 @@ import * as DBModule from '../../src/DB';
 // @ts-ignore
 global.navigator = { userAgent: 'vitest-agent' } as any;
 
-vi.mock('../../src/DB.tsx', () => {
+vi.mock('../../src/DB', () => {
   const auth = {
     getUser: vi.fn(),
     onAuthStateChange: vi.fn(),
@@ -23,9 +23,8 @@ vi.mock('../../src/DB.tsx', () => {
   return { supabase };
 });
 
-// Some code paths import '../DB' (resolved to src/DB.tsx). Cover both.
-vi.mock('../../src/services/../DB', async () => {
-  const mocked = await vi.importMock<any>('../../src/DB.tsx');
+vi.mock('../../src/DB.tsx', async () => {
+  const mocked = await vi.importMock<any>('../../src/DB');
   return mocked;
 });
 

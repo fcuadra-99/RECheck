@@ -1,0 +1,7 @@
+export { LoginForm, type LoginFormProps } from './login-form';
+export { SignupForm, type SignupFormProps } from './signu-form';
+export { ResetForm as Reset, type ResetFormProps } from './reset';
+export { default as Detail, type DetailProps } from './Detail';
+export { default as EditAccountForm, type EditAccountFormProps } from './EditAccountForm';
+export { default as AvatarUpload, type AvatarUploadProps } from './AvatarUpload';
+export { default as ChangePasswordForm, type ChangePasswordFormProps } from './ChangePasswordForm';

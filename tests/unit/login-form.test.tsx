@@ -43,7 +43,7 @@
 //   return { cn: (...c: string[]) => c.filter(Boolean).join(' ') };
 // });
 
-// import { LoginForm } from '../../src/components/parts/login-form';
+// import { LoginForm } from '../../src/components/parts/forms/login-form';
 
 // const getAuth = () => (DBModule as any).supabase.auth as {
 //   signInWithPassword: ReturnType<typeof vi.fn>;

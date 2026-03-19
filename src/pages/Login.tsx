@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 
-import { LoginForm } from "@/components/parts/login-form"
+import { LoginForm } from "@/components/parts/forms"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 
 export default function LoginPage() {

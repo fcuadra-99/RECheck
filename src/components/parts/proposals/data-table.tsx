@@ -34,14 +34,14 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
-import { DataTablePagination } from "@/components/parts/pagination"
+import { Pagination } from "@/components/parts/table"
 import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, ListCheck } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useEffect } from "react"
 import { supabase } from "@/DB"
 
-interface DataTableProps<TData, TValue> {
+export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   isLoading?: boolean
@@ -374,7 +374,7 @@ export function DataTable<TData, TValue>({
 
       {/* Pagination */}
       <div className="my-5">
-        <DataTablePagination table={table} />
+        <Pagination table={table} />
       </div>
     </div>
   )

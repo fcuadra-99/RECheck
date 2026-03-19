@@ -4,14 +4,12 @@ import { toast } from "sonner";
 import { supabase } from "./DB";
 import { type User } from "@supabase/supabase-js";
 
-import { AppBreadcrumb } from "./components/parts/app-breadcrumb";
+import { AppBreadcrumb, NeoSidebar as AppSidebar } from "./components/parts/navigation";
 import { SidebarProvider } from "./components/ui/sidebar";
-import { RadixSidebarDemo as AppSidebar } from "./components/parts/neo-sidebar";
 import { ChatPopup } from "./pages/researcher/ChatComp";
 
 import SDashboard from "./pages/staff/Dashboard";
 import SSubmissions from "./pages/staff/Submissions";
-import SDeviations from "./pages/staff/Deviations";
 import ChairpersonDeviations from "./pages/chairperson/Deviations";
 import DeviationDetail from "./pages/chairperson/DeviationDetail";
 import CorrectiveActionRequest from "./pages/chairperson/CorrectiveActionRequest";
@@ -41,8 +39,6 @@ import SignupPage from "./pages/Signup";
 import ConfirmEmailPage from "./pages/ConfirmEmail";
 import ResetPasswordPage from "./pages/ResetPassword";
 import NotFoundPage from "./pages/NotFound";
-import Testa from "./pages/Testa";
-import Testb from "./pages/Testb";
 
 import "./App.css";
 
@@ -298,9 +294,6 @@ export default function App() {
             <Route path="/chairperson/final-reports/:id" element={<FinalReportDetail />} />
             <Route path="/chairperson/researcher-history" element={<ResearcherHistory />} />
             <Route path="/chairperson/researcher-history/:id" element={<ResearcherHistoryDetail />} />
-            <Route path="/sdevi" element={<SDeviations />} />
-            <Route path="/sdevi/sub1" element={<Testa />} />
-            <Route path="/sdevi/sub2" element={<Testb />} />
             <Route path="/sdevi/report" element={<DeviationReportForm />} />
             <Route path="/sdevi/submitted" element={<RDeviationSubmissions />} />
 

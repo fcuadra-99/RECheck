@@ -1,6 +1,6 @@
 import { motion } from "framer-motion"
 
-import { SignupForm } from "@/components/parts/signu-form"
+import { SignupForm } from "@/components/parts/forms"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 
 export default function SignUpPage() {

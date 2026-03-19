@@ -1,6 +1,6 @@
 // import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 // import { MemoryRouter } from 'react-router'
-// import { LoginForm } from '@/components/parts/login-form'
+// import { LoginForm } from '@/components/parts/forms'
 // import { supabase } from '@/DB'
 
 // vi.mock('sonner', () => ({ toast: { loading: vi.fn(() => 'id'), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }))

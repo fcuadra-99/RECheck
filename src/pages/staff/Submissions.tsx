@@ -1,4 +1,4 @@
-import ProposalsTable from "@/components/parts/proposals/comp";
+import { ProposalsComp } from "@/components/parts/proposals";
 import {FileStack} from "lucide-react";
 
 const SSubmissions = () => {
@@ -13,7 +13,7 @@ const SSubmissions = () => {
             </div>
         </div>
 
-        <ProposalsTable />
+        <ProposalsComp />
     </div>;
 };
 

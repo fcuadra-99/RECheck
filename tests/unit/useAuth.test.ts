@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
-vi.mock('../../src/DB.tsx', () => {
+vi.mock('../../src/DB', () => {
   const auth = {
     getUser: vi.fn(),
     onAuthStateChange: vi.fn(),
@@ -9,9 +9,8 @@ vi.mock('../../src/DB.tsx', () => {
   return { supabase: { auth } } as any;
 });
 
-// Also mock '../DB' path resolution used in hooks
-vi.mock('../../src/hooks/../DB', async () => {
-  const mocked = await vi.importMock<any>('../../src/DB.tsx');
+vi.mock('../../src/DB.tsx', async () => {
+  const mocked = await vi.importMock<any>('../../src/DB');
   return mocked;
 });
 
