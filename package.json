@@ -33,6 +33,7 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.52.1",
+    "@syncfusion/ej2-react-documenteditor": "^33.1.44",
     "@tailwindcss/vite": "^4.1.11",
     "@tanstack/react-query": "^5.84.2",
     "@tanstack/react-table": "^8.21.3",

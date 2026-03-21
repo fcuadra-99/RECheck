@@ -97,7 +97,7 @@ const navConfig = {
   },
   deviations: {
     title: "Deviations",
-    url: "/sdevi/report",
+    url: "/sdevi",
     icon: BookDashed,
     items: [
       { title: "Report Deviation", url: "/sdevi/report", role: "Researcher" },
@@ -146,7 +146,9 @@ const navConfig = {
     icon: UserCheck,
     items: [
       { title: "User Management", url: "/admin/userroles", role: "Admin" },
-
+      { title: "Document Management", url: "/admin/documents", role: "Admin" },
+      { title: "Document Prototype", url: "/admin/documents-prototype", role: "Admin" },
+      { title: "Phase Management", url: "/admin/phases", role: "Admin" },
     ],
   },
 };

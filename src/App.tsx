@@ -33,6 +33,9 @@ import TemplateSubmissionDetail from "./pages/researcher/TemplateSubmissionDetai
 import FinalReportSubmission from "./pages/researcher/FinalReportSubmission";
 import ReviewerPage from "./pages/reviewer/Submissions";
 import AdminUsersPage from "./pages/AdminUsersPage";
+import DocumentManagement from "./pages/admin/DocumentManagement";
+import OfficeJsPrototype from "./pages/admin/skibidi";
+import PhaseManagement from "./pages/admin/PhaseManagement";
 import Profile from "./pages/Profile";
 import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
@@ -306,6 +309,9 @@ export default function App() {
 
             {/* Admin */}
             <Route path="/admin/userroles" element={<AdminUsersPage />} />
+            <Route path="/admin/documents" element={<DocumentManagement />} />
+            <Route path="/admin/documents-prototype" element={<OfficeJsPrototype />} />
+            <Route path="/admin/phases" element={<PhaseManagement />} />
 
             {/* Fallback */}
             <Route path="/not-found" element={<NotFoundPage />} />

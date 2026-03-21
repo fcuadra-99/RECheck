@@ -266,6 +266,30 @@ export const columns: ColumnDef<SubmTable>[] = [
     ),
   },
   {
+    accessorKey: "protocol_id",
+    header: () => (
+      <div className="flex items-center gap-2">
+        <FileText className="h-4 w-4 text-gray-500" />
+        <span>Protocol Code</span>
+      </div>
+    ),
+    cell: ({ row }) => {
+      const protocolId = row.getValue("protocol_id") as string | null;
+      return (
+        <div className="flex items-center gap-2">
+          {protocolId ? (
+            <Badge variant="secondary" className="font-mono text-xs">
+              {protocolId}
+            </Badge>
+          ) : (
+            <span className="text-gray-400 text-xs">Not assigned</span>
+          )}
+        </div>
+      );
+    },
+    size: 250,
+  },
+  {
     accessorKey: "proposal_title",
     header: () => (
       <div className="flex items-center gap-2">

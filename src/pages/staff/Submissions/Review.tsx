@@ -4,9 +4,12 @@ import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
+import { updateProtocolCode } from "@/utils/protocolCode";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   FileText,
   User,
@@ -478,6 +481,15 @@ export const SReview = () => {
           return;
         }
 
+        // Generate protocol code when review type is assigned
+        let protocolCode = "";
+        try {
+          protocolCode = await updateProtocolCode(id, type, tog);
+        } catch (error: any) {
+          console.error("Failed to generate protocol code:", error);
+          // Don't fail the entire operation if protocol code generation fails
+        }
+
         const { error } = await supabase
           .from("proposals")
           .update({
@@ -492,12 +504,12 @@ export const SReview = () => {
         await supabase.from("history").insert({
           history_type: "assess",
           paper_id: id,
-          comment: `Risk assessment set as "${tog}"`,
+          comment: `Risk assessment set as "${tog}"${protocolCode ? `. Protocol Code: ${protocolCode}` : ''}`,
           affected_files: JSON.stringify([]),
           actor: actorId,
         });
 
-        toast.success(`Risk assessment saved as "${tog}"`);
+        toast.success(`Risk assessment saved as "${tog}"${protocolCode ? `. Protocol Code: ${protocolCode}` : ''}`);
       } else if (type === "Assign") {
         if (!reviewType) {
           toast.error("Review type not found. Please complete risk assessment first.");
@@ -506,6 +518,15 @@ export const SReview = () => {
 
         if (selectedReviewers.length !== requiredReviewerCount) {
           toast.error(`Please select exactly ${requiredReviewerCount} reviewer(s) for ${reviewType} review`);
+          return;
+        }
+
+        // Generate protocol code
+        let protocolCode = "";
+        try {
+          protocolCode = await updateProtocolCode(id, type, reviewType);
+        } catch (error: any) {
+          toast.error("Failed to generate protocol code: " + error.message);
           return;
         }
 
@@ -536,13 +557,13 @@ export const SReview = () => {
         await supabase.from("history").insert({
           history_type: "assignment",
           paper_id: id,
-          comment: `Assigned to ${selectedReviewers.length} reviewer(s) for ${reviewType} review: ${reviewerNames}`,
+          comment: `Assigned to ${selectedReviewers.length} reviewer(s) for ${reviewType} review: ${reviewerNames}. Protocol Code: ${protocolCode}`,
           actor: actorId,
           action: "Assign Reviewers",
           history_date: new Date().toISOString(),
         });
 
-        toast.success(`Assigned ${selectedReviewers.length} reviewer(s) for ${reviewType} review`);
+        toast.success(`Assigned ${selectedReviewers.length} reviewer(s) for ${reviewType} review. Protocol Code: ${protocolCode}`);
       } else if (tog === "deny") {
         // For reviewers, don't update the status, just add a comment
         if (currentUserRole === "Reviewer") {
@@ -1199,14 +1220,14 @@ export const SReview = () => {
               </div>
 
               {tog === "deny" && (
-                <div className="ml-8 space-y-2">
+                <div className="ml-8 space-y-3">
                   {currentUserRole !== "Reviewer" && requirementDocs.map((doc) => (
-                    <label key={doc.file} className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
+                    <div key={doc.file} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`doc-${doc.file}`}
                         checked={selectedFiles.includes(doc.name)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
+                        onCheckedChange={(checked) => {
+                          if (checked) {
                             setSelectedFiles((prev) => [...prev, doc.name]);
                           } else {
                             setSelectedFiles((prev) =>
@@ -1215,8 +1236,13 @@ export const SReview = () => {
                           }
                         }}
                       />
-                      <span>{doc.name}</span>
-                    </label>
+                      <Label 
+                        htmlFor={`doc-${doc.file}`} 
+                        className="cursor-pointer font-normal text-sm"
+                      >
+                        {doc.name}
+                      </Label>
+                    </div>
                   ))}
                 </div>
               )}

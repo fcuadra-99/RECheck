@@ -26,6 +26,7 @@ type NavItem = {
 };
 type SubmTable = {
     proposal_id: string;
+    protocol_id?: string | null;
     proposal_title: string;
     status: string;
 };

@@ -15,6 +15,7 @@ import PhaseContent from "./pcontent";
 
 interface Submission {
     proposal_id: number;
+    protocol_id?: string | null;
     proposal_title: string;
     description: string;
     category: string;
@@ -240,6 +241,13 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                             <> • <span className="text-muted-foreground">{activeSubmission.review_type} Review</span></>
                         )}
                     </div>
+                    {activeSubmission.protocol_id && (
+                        <div className="mt-2">
+                            <Badge variant="secondary" className="font-mono text-xs">
+                                {activeSubmission.protocol_id}
+                            </Badge>
+                        </div>
+                    )}
                 </div>
 
                 <div className="w-full lg:w-64 flex-shrink-0">

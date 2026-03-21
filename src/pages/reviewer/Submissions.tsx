@@ -47,6 +47,7 @@ interface DocumentSelection {
 
 interface Submission {
     proposal_id: number;
+    protocol_id?: string | null;
     proposal_title: string;
     description: string;
     category: string;

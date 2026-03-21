@@ -2,6 +2,7 @@ import { Eye, EyeClosed, GalleryVerticalEnd } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Link, useNavigate } from "react-router"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import { Dialogue } from "../dialogs/dialogue"
@@ -197,14 +198,11 @@ export function SignupForm({
                                 required
                             />
                             <Label htmlFor="category">Category</Label>
-                            <select
-                                id="category"
+                            <Select
                                 value={formData.category}
-                                onChange={(e) =>
-                                    setFormData({ ...formData, category: e.target.value })
+                                onValueChange={(value) =>
+                                    setFormData({ ...formData, category: value })
                                 }
-                                required
-                                className="border rounded px-2 py-1"
                                 disabled={
                                     !(
                                         formData.email.endsWith("@uic.edu.ph") &&
@@ -212,17 +210,21 @@ export function SignupForm({
                                     )
                                 }
                             >
-                                <option value="">Select category</option>
-                                {formData.email.endsWith("@uic.edu.ph") &&
-                                    formData.org === "University of the Immaculate Conception" ? (
-                                    <>
-                                        <option value="Undergraduate">Undergraduate</option>
-                                        <option value="Graduate">Graduate</option>
-                                    </>
-                                ) : (
-                                    <option value="External">External</option>
-                                )}
-                            </select>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {formData.email.endsWith("@uic.edu.ph") &&
+                                        formData.org === "University of the Immaculate Conception" ? (
+                                        <>
+                                            <SelectItem value="Undergraduate">Undergraduate</SelectItem>
+                                            <SelectItem value="Graduate">Graduate</SelectItem>
+                                        </>
+                                    ) : (
+                                        <SelectItem value="External">External</SelectItem>
+                                    )}
+                                </SelectContent>
+                            </Select>
 
                             <>
                                 <Label htmlFor="password">Password</Label>

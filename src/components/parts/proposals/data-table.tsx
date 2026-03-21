@@ -80,6 +80,7 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
+    protocol_id: true,
     researcher_full_name: false,
     researcher_email: false,
     status: false,
