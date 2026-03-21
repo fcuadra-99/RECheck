@@ -1,30 +1,16 @@
 import { useEffect, useState } from "react";
-import { Menu, Eye, Text, CheckSquare, Calendar, List, Trash2 } from "lucide-react";
+import { Menu, Eye, Text, CheckSquare, Calendar, List } from "lucide-react";
 import { toast } from "sonner";
 
 declare const Office: any;
-declare const Word: any;
-
-interface ContentControl {
-  id: string;
-  title: string;
-  tag: string;
-  type: 'text' | 'checkbox' | 'date' | 'dropdown';
-}
 
 export default function OfficeJsPrototype() {
-  const [isOfficeReady, setIsOfficeReady] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [controls, setControls] = useState<ContentControl[]>([]);
-  const [formData, setFormData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (typeof Office !== 'undefined') {
-      Office.onReady((info: any) => {
-        if (info.host === Office.HostType.Word) {
-          setIsOfficeReady(true);
-        }
+      Office.onReady(() => {
         setLoading(false);
       });
     } else {

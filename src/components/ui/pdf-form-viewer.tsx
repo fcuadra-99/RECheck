@@ -90,20 +90,46 @@ export function PdfFormViewer({
     useEffect(() => {
         if (placeholders.length === 0) return;
         
-        const today = new Date().toLocaleDateString('en-US', { 
+        const today = new Date();
+        const fullDate = today.toLocaleDateString('en-US', { 
             year: 'numeric', 
             month: 'long', 
             day: 'numeric' 
         });
+        const month = today.toLocaleDateString('en-US', { month: 'long' });
+        const day = today.getDate().toString();
+        const year = today.getFullYear().toString();
         
         setAnswers(prev => {
             const newAnswers = { ...prev };
             let hasChanges = false;
             
             placeholders.forEach(ph => {
-                // Check if field name contains "date" (case insensitive) and is not a checkbox
-                if (ph.name.toLowerCase().includes('date') && !shouldBeCheckbox(ph) && !prev[String(ph.id)]) {
-                    newAnswers[String(ph.id)] = today;
+                // Skip if it's a checkbox or already has a value
+                if (shouldBeCheckbox(ph) || prev[String(ph.id)]) {
+                    return;
+                }
+                
+                const fieldName = ph.name.toLowerCase();
+                
+                // Check for date field (full date)
+                if (fieldName.includes('date')) {
+                    newAnswers[String(ph.id)] = fullDate;
+                    hasChanges = true;
+                }
+                // Check for month field
+                else if (fieldName.includes('month')) {
+                    newAnswers[String(ph.id)] = month;
+                    hasChanges = true;
+                }
+                // Check for day field
+                else if (fieldName.includes('day')) {
+                    newAnswers[String(ph.id)] = day;
+                    hasChanges = true;
+                }
+                // Check for year field
+                else if (fieldName.includes('year')) {
+                    newAnswers[String(ph.id)] = year;
                     hasChanges = true;
                 }
             });
@@ -517,7 +543,7 @@ export function PdfFormViewer({
                                                 <li className="text-xs text-gray-700 pl-2 border-l-2 border-orange-400">
                                                     <div className="flex items-center gap-1">
                                                         <span className="text-orange-600">☑</span>
-                                                        <span>{pageData.checkboxGroupCount} checkbox group{pageData.checkboxGroupCount !== 1 ? 's' : ''} unchecked</span>
+                                                        <span>{pageData.checkboxGroupCount} checkbox group{pageData.checkboxGroupCount !== 1 ? 's' : ''}</span>
                                                     </div>
                                                 </li>
                                             )}
@@ -640,9 +666,17 @@ export function PdfFormViewer({
                                                 }))
                                             }
                                             placeholder={ph.name}
-                                            readOnly={ph.name.toLowerCase().includes('date')}
+                                            readOnly={
+                                                ph.name.toLowerCase().includes('date') ||
+                                                ph.name.toLowerCase().includes('month') ||
+                                                ph.name.toLowerCase().includes('day') ||
+                                                ph.name.toLowerCase().includes('year')
+                                            }
                                             className={`w-full h-full p-1 text-sm border-2 rounded bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white/50 resize-none overflow-hidden ${
-                                                ph.name.toLowerCase().includes('date') 
+                                                ph.name.toLowerCase().includes('date') ||
+                                                ph.name.toLowerCase().includes('month') ||
+                                                ph.name.toLowerCase().includes('day') ||
+                                                ph.name.toLowerCase().includes('year')
                                                     ? 'border-green-400 cursor-not-allowed' 
                                                     : 'border-blue-400'
                                             }`}

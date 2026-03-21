@@ -54,11 +54,32 @@ async function getCurrentUserRole(): Promise<string> {
   }
 }
 
-// FIXED: Make stat function async and get role from database
+// Cache for user role to avoid repeated database calls
+let cachedUserRole: string | null = null;
+let rolePromise: Promise<string> | null = null;
+
+async function getCurrentUserRoleCached(): Promise<string> {
+  if (cachedUserRole !== null) {
+    return cachedUserRole;
+  }
+  
+  if (rolePromise !== null) {
+    return rolePromise;
+  }
+  
+  rolePromise = getCurrentUserRole().then(role => {
+    cachedUserRole = role;
+    rolePromise = null;
+    return role;
+  });
+  
+  return rolePromise;
+}
+
 async function stat(params: StatusParam | null | undefined): Promise<StatusValue> {
   if (!params) return "Pending"; // default for empty status
 
-  const userRole = await getCurrentUserRole();
+  const userRole = await getCurrentUserRoleCached();
   console.log("Current user role:", userRole);
   console.log("Current status:", params);
 
@@ -178,20 +199,16 @@ export const columns: ColumnDef<SubmTable>[] = [
     cell: ({ row }) => {
       const navigate = useNavigate()
       const [actionStatus, setActionStatus] = useState<StatusValue>("Pending");
-      const [isLoading, setIsLoading] = useState(true);
 
       // FIXED: Fetch status asynchronously
       useEffect(() => {
         const fetchStatus = async () => {
-          setIsLoading(true);
           try {
             const status = await stat(row.getValue("status"));
             setActionStatus(status);
           } catch (error) {
             console.error("Error fetching action status:", error);
             setActionStatus("Pending");
-          } finally {
-            setIsLoading(false);
           }
         };
 
@@ -225,20 +242,14 @@ export const columns: ColumnDef<SubmTable>[] = [
                     )
                     navigate("/ssubm/sub1/sreview")
                   }}
-                  disabled={actionStatus === "Pending" || isLoading}
+                  disabled={actionStatus === "Pending"}
                 >
-                  {isLoading ? (
-                    <Clock className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <>
-                      {actionStatus === "Check" && <ClipboardCheck className="h-4 w-4 mr-2" />}
-                      {actionStatus === "Assess" && <Scale className="h-4 w-4 mr-2" />}
-                      {actionStatus === "View" && <Eye className="h-4 w-4 mr-2" />}
-                      {actionStatus === "Pending" && <Clock className="h-4 w-4 mr-2" />}
-                      {actionStatus === "Assign" && <UserRound className="h-4 w-4 mr-2" />}
-                    </>
-                  )}
-                  {isLoading ? "Loading..." : actionStatus}
+                  {actionStatus === "Check" && <ClipboardCheck className="h-4 w-4 mr-2" />}
+                  {actionStatus === "Assess" && <Scale className="h-4 w-4 mr-2" />}
+                  {actionStatus === "View" && <Eye className="h-4 w-4 mr-2" />}
+                  {actionStatus === "Pending" && <Clock className="h-4 w-4 mr-2" />}
+                  {actionStatus === "Assign" && <UserRound className="h-4 w-4 mr-2" />}
+                  {actionStatus}
                 </RippleButton>
               </TooltipTrigger>
               <TooltipContent>

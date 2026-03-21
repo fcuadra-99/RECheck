@@ -9,8 +9,6 @@ import {
   FilePlus,
   Menu,
   Eye,
-  Text,
-  CheckSquare,
   RefreshCw,
 } from "lucide-react";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";

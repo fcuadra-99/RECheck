@@ -133,21 +133,15 @@ export function DataTable<TData, TValue>({
   })
 
   const [phases, setPhases] = React.useState<Phase[]>([]);
-  const [loadingPhases, setLoadingPhases] = React.useState(true);
   const [hasInitialized, setHasInitialized] = React.useState(false);
-
-  loadingPhases;
 
   useEffect(() => {
     const fetchPhases = async () => {
-      setLoadingPhases(true);
       try {
         const { data } = await supabase.from("phases").select("*");
         setPhases(data || []);
       } catch (err) {
         console.error(err);
-      } finally {
-        setLoadingPhases(false);
       }
     };
     fetchPhases();
@@ -170,7 +164,7 @@ export function DataTable<TData, TValue>({
 
   // Initialize active status once when phases are loaded
   useEffect(() => {
-    if (uniqueStatuses.length > 0 && !hasInitialized) {
+    if (uniqueStatuses.length > 0 && !hasInitialized && !isLoading) {
       const storedStatus = getStoredActiveStatus();
       const initialStatus = storedStatus && uniqueStatuses.includes(storedStatus) 
         ? storedStatus 
@@ -181,7 +175,7 @@ export function DataTable<TData, TValue>({
       setStoredActiveStatus(initialStatus);
       setHasInitialized(true);
     }
-  }, [uniqueStatuses, hasInitialized, table]);
+  }, [uniqueStatuses, hasInitialized, isLoading, table]);
 
   // Status filter handler
   const handleStatusFilter = (status: string) => {

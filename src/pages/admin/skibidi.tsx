@@ -64,7 +64,7 @@ export default function skibidi() {
     }
 
     const fileName = uploadedFile?.name.replace(/\.(docx|doc)$/i, ".pdf") || "document.pdf";
-    editorRef.current.documentEditor.save(fileName, "Pdf");
+    editorRef.current.documentEditor.save(fileName, "Pdf" as any);
     toast.success("Exported to PDF!");
   };
 
@@ -80,7 +80,7 @@ export default function skibidi() {
 
     formFields.forEach((fieldName: string) => {
       const field = editorRef.current!.documentEditor.getFormFieldInfo(fieldName);
-      formData[fieldName] = field?.value || "";
+      formData[fieldName] = (field as any)?.value || "";
     });
 
     console.log("Form Data:", formData);
