@@ -20,13 +20,19 @@ interface PDFFormFillerProps {
   templateName: string;
   onSave?: (pdfBytes: Uint8Array, formData: Record<string, any>) => void | Promise<void>;
   onCancel?: () => void;
+  predefinedFields?: FormFieldData[]; // Admin-configured fields to pre-load
+  adminMode?: boolean; // Enable admin field configuration mode
+  onFieldsChange?: (fields: FormFieldData[]) => void; // Callback when fields change in admin mode
 }
 
 export default function PDFFormFiller({ 
   templateUrl, 
   templateName, 
   onSave, 
-  onCancel 
+  onCancel,
+  predefinedFields = [],
+  adminMode = false,
+  onFieldsChange
 }: PDFFormFillerProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -60,6 +66,13 @@ export default function PDFFormFiller({
     loadPDF();
   }, [templateUrl]);
 
+  // Notify parent of field changes in admin mode
+  useEffect(() => {
+    if (adminMode && onFieldsChange) {
+      onFieldsChange(fields);
+    }
+  }, [fields, adminMode, onFieldsChange]);
+
   const loadPDF = async () => {
     try {
       setLoading(true);
@@ -80,14 +93,29 @@ export default function PDFFormFiller({
       const pdfDocument = await PDFDocument.load(arrayBuffer);
       setPdfDoc(pdfDocument);
       
-      // Extract form fields
+      // Extract form fields from PDF
       const extractedFields = await pdfFormService.extractFormFields(pdfDocument);
-      console.log('Extracted fields:', extractedFields);
-      setFields(extractedFields);
+      console.log('Extracted fields from PDF:', extractedFields);
+      
+      // Merge with predefined fields (admin-configured fields)
+      const mergedFields = [...extractedFields];
+      if (predefinedFields.length > 0) {
+        console.log('Loading predefined fields:', predefinedFields);
+        // Add predefined fields that don't conflict with extracted fields
+        predefinedFields.forEach(predefinedField => {
+          const exists = extractedFields.some(f => f.name === predefinedField.name);
+          if (!exists) {
+            mergedFields.push(predefinedField);
+          }
+        });
+        console.log('Total fields after merge:', mergedFields.length);
+      }
+      
+      setFields(mergedFields);
       
       // Initialize form values
       const initialValues: Record<string, string | boolean> = {};
-      extractedFields.forEach((field: FormFieldData) => {
+      mergedFields.forEach((field: FormFieldData) => {
         initialValues[field.name] = field.value || '';
       });
       setFormValues(initialValues);
@@ -651,37 +679,65 @@ export default function PDFFormFiller({
             </div>
 
             {/* Action Buttons */}
-            <button
-              onClick={handlePreview}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Eye className="w-4 h-4" />
-              <span>Preview</span>
-            </button>
+            {adminMode ? (
+              <>
+                <button
+                  onClick={() => {
+                    if (onFieldsChange) {
+                      onFieldsChange(fields);
+                      alert(`Configuration updated: ${fields.length} field(s) ready to save`);
+                    }
+                  }}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Update Configuration</span>
+                </button>
+                
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handlePreview}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  <span>Preview</span>
+                </button>
 
-            <button
-              onClick={handleDownload}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download</span>
-            </button>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </button>
 
-            <button
-              onClick={handleSave}
-              className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Save className="w-4 h-4" />
-              <span>Save & Submit</span>
-            </button>
+                <button
+                  onClick={handleSave}
+                  className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save & Submit</span>
+                </button>
 
-            {onCancel && (
-              <button
-                onClick={onCancel}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+                {onCancel && (
+                  <button
+                    onClick={onCancel}
+                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -5,6 +5,8 @@ import { getFinalReport, updateFinalReport } from '../../services/finalReportSer
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -46,8 +48,15 @@ const FinalReportDetail: React.FC = () => {
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+  
+  // Load predefined fields based on selected PDF
+  const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
+  const { fields: predefinedFields, loading: fieldsLoading } = useTemplateFields(template?.id || null);
   const [certificateUrl, setCertificateUrl] = useState<string | null>(null);
   console.log (certificateUrl, showCertificatePreview);
+  
+  // Debug logging
+  console.log('🔍 Chairperson FinalReportDetail - selectedPdfName:', selectedPdfName, 'template:', template?.id, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
   useEffect(() => {
     if (id) {
       loadReport();
@@ -166,8 +175,15 @@ const FinalReportDetail: React.FC = () => {
       
       if (data.publicUrl) {
         setSelectedPdfUrl(data.publicUrl);
-        setSelectedPdfName(filePath.split('/').pop() || 'document.pdf');
+        // For final reports, use the template name to load predefined fields
+        // Check if this is a final report by looking at the report title
+        const templateName = report?.title.includes('Final Report') 
+          ? 'Protocol Final Report' 
+          : (filePath.split('/').pop() || 'document.pdf');
+        setSelectedPdfName(templateName);
         setShowPdfFiller(true);
+        
+        console.log('Opening PDF with template name:', templateName);
       }
     } catch (error) {
       console.error('Error opening PDF:', error);
@@ -302,12 +318,25 @@ const FinalReportDetail: React.FC = () => {
 
   // If PDF filler is open, show it fullscreen
   if (showPdfFiller && selectedPdfUrl) {
+    // Show loading state while fields are loading for protocol-final-report template
+    if (fieldsLoading && selectedPdfName === 'Protocol Final Report') {
+      return (
+        <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Loading template fields...</p>
+          </div>
+        </div>
+      );
+    }
+    
     return (
       <PDFFormFiller
         templateUrl={selectedPdfUrl}
         templateName={selectedPdfName}
         onSave={handlePdfSave}
         onCancel={() => setShowPdfFiller(false)}
+        predefinedFields={predefinedFields}
       />
     );
   }

@@ -10,6 +10,8 @@ import { ChatPopup } from "./pages/researcher/ChatComp";
 
 import SDashboard from "./pages/staff/Dashboard";
 import SSubmissions from "./pages/staff/Submissions";
+import SDeviations from "./pages/staff/Deviations";
+import TemplateFieldEditor from "./pages/staff/TemplateFieldEditor";
 import ChairpersonDeviations from "./pages/chairperson/Deviations";
 import DeviationDetail from "./pages/chairperson/DeviationDetail";
 import CorrectiveActionRequest from "./pages/chairperson/CorrectiveActionRequest";
@@ -312,6 +314,7 @@ export default function App() {
             <Route path="/admin/documents" element={<DocumentManagement />} />
             <Route path="/admin/documents-prototype" element={<OfficeJsPrototype />} />
             <Route path="/admin/phases" element={<PhaseManagement />} />
+            <Route path="/staff/template-config" element={<TemplateFieldEditor />} />
 
             {/* Fallback */}
             <Route path="/not-found" element={<NotFoundPage />} />

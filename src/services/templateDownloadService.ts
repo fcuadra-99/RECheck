@@ -3,7 +3,7 @@ export interface FormTemplate {
   name: string;
   description: string;
   templateUrl: string;
-  category: 'protocol' | 'report' | 'application';
+  category: 'protocol' | 'report' | 'application' | 'assessment';
   fileType: 'pdf' | 'docx';
   version: string;
   fileName: string;
@@ -69,6 +69,26 @@ export const formTemplates: FormTemplate[] = [
     fileType: 'pdf',
     version: '1.0',
     fileName: 'Early_Termination_Template.pdf'
+  },
+  {
+    id: 'protocol-reviewer-assessment',
+    name: 'Protocol Reviewer Assessment',
+    description: 'Template for reviewer assessment of research protocols',
+    templateUrl: '/templates/V2_Protocol-Reviewer-Assessment-Form-1-4.pdf',
+    category: 'assessment',
+    fileType: 'pdf',
+    version: '2.0',
+    fileName: 'V2_Protocol-Reviewer-Assessment-Form-1-4.pdf'
+  },
+  {
+    id: 'informed-consent-assessment',
+    name: 'Informed Consent Assessment',
+    description: 'Template for assessment of informed consent documentation',
+    templateUrl: '/templates/V2_INFORMED-CONSENT-ASSESSMENT-FORM-3.pdf',
+    category: 'assessment',
+    fileType: 'pdf',
+    version: '2.0',
+    fileName: 'V2_INFORMED-CONSENT-ASSESSMENT-FORM-3.pdf'
   }
 ];
 
@@ -109,13 +129,22 @@ export class TemplateDownloadService {
 
   // Get templates that can be filled online (excludes Protocol Final Report)
   static getUploadableTemplates(): FormTemplate[] {
-    // Exclude Protocol Final Report from post approval forms
-    return formTemplates.filter(template => template.id !== 'protocol-final-report');
+    // Exclude Protocol Final Report and assessment forms from post approval forms
+    // Assessment forms are only for reviewers, not researchers
+    return formTemplates.filter(template => 
+      template.id !== 'protocol-final-report' && 
+      template.category !== 'assessment'
+    );
   }
 
   // Get templates that can be uploaded as completed files (excludes Protocol Final Report)
   static getUploadOnlyTemplates(): FormTemplate[] {
     return formTemplates.filter(template => template.id !== 'protocol-final-report');
+  }
+
+  // Get all templates available for admin field configuration (includes everything)
+  static getConfigurableTemplates(): FormTemplate[] {
+    return formTemplates;
   }
 
   static getTemplateById(id: string): FormTemplate | undefined {
@@ -127,5 +156,9 @@ export class TemplateDownloadService {
     if (template) {
       window.open(template.templateUrl, '_blank');
     }
+  }
+
+  static getTemplateByName(name: string): FormTemplate | undefined {
+    return formTemplates.find(template => template.name === name);
   }
 }

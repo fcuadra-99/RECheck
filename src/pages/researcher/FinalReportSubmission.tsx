@@ -17,6 +17,7 @@ import {
   Award
 } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 
 interface Proposal {
   date: string;
@@ -75,8 +76,9 @@ const FinalReportSubmission: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [currentFillingDocId, setCurrentFillingDocId] = useState<string | null>(null);
- 
- 
+  
+  // Load predefined fields for Final Report template
+  const { fields: predefinedFields } = useTemplateFields('protocol-final-report');
   
   // Final report template URL
   const FINAL_REPORT_TEMPLATE_URL = '/templates/Protocol_Final_Report_Template.pdf';
@@ -261,6 +263,7 @@ const FinalReportSubmission: React.FC = () => {
           setShowPdfFiller(false);
           setCurrentFillingDocId(null);
         }}
+        predefinedFields={predefinedFields}
       />
     );
   }

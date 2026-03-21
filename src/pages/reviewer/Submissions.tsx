@@ -22,6 +22,7 @@ import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
 import PDFFormFiller from "@/components/PDFFormFiller";
+import { useTemplateFields } from "@/hooks/useTemplateFields";
 
 /* ----------------- types ----------------- */
 interface RevisionRequirement {
@@ -123,6 +124,15 @@ export default function ReviewerPage() {
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
     const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | null>(null);
     const [templateUrl, setTemplateUrl] = useState<string>('');
+    
+    // Preload template fields based on current template type
+    const templateId = templateType === 'reviewer_assessment' ? 'protocol-reviewer-assessment'
+        : templateType === 'informed_consent' ? 'informed-consent-assessment'
+        : null;
+    const { fields: predefinedFields, loading: fieldsLoading } = useTemplateFields(templateId);
+    
+    // Debug logging
+    console.log('🔍 Reviewer Submissions - templateType:', templateType, 'templateId:', templateId, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
 
     // Assessment form tracking
     const [hasSubmittedProtocolAssessment, setHasSubmittedProtocolAssessment] = useState(false);
@@ -1542,24 +1552,34 @@ export default function ReviewerPage() {
             {/* PDF Template Modal - Full Screen */}
             {showPDFTemplate && templateUrl && (
                 <div className="fixed inset-0 z-50 bg-white">
-                    <PDFFormFiller
-                        templateUrl={templateUrl}
-                        templateName={
-                            templateType === 'ethical_clearance' 
-                                ? 'Ethical_Clearance' 
-                                : templateType === 'decision_letter'
-                                    ? 'Decision_Letter'
-                                    : templateType === 'reviewer_assessment'
-                                        ? 'Reviewer_Assessment'
-                                        : 'Informed_Consent_Assessment'
-                        }
-                        onSave={handleSavePDFTemplate}
-                        onCancel={() => {
-                            setShowPDFTemplate(false);
-                            setTemplateType(null);
-                            setTemplateUrl('');
-                        }}
-                    />
+                    {fieldsLoading && (templateType === 'reviewer_assessment' || templateType === 'informed_consent') ? (
+                        <div className="flex items-center justify-center h-full">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                                <p>Loading template fields...</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <PDFFormFiller
+                            templateUrl={templateUrl}
+                            templateName={
+                                templateType === 'ethical_clearance' 
+                                    ? 'Ethical_Clearance' 
+                                    : templateType === 'decision_letter'
+                                        ? 'Decision_Letter'
+                                        : templateType === 'reviewer_assessment'
+                                            ? 'Protocol Reviewer Assessment'
+                                            : 'Informed Consent Assessment'
+                            }
+                            onSave={handleSavePDFTemplate}
+                            onCancel={() => {
+                                setShowPDFTemplate(false);
+                                setTemplateType(null);
+                                setTemplateUrl('');
+                            }}
+                            predefinedFields={predefinedFields}
+                        />
+                    )}
                 </div>
             )}
         </div>

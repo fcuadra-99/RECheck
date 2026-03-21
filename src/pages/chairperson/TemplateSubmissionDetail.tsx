@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
 import { 
   ArrowLeft, 
   FileText, 
@@ -41,6 +43,10 @@ export default function TemplateSubmissionDetail() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected' | 'needs_revision'>('approved');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
+  
+  // Get template ID for loading predefined fields
+  const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
+  const { fields: predefinedFields } = useTemplateFields(template?.id || null);
 
   useEffect(() => {
     fetchSubmission();
@@ -281,6 +287,7 @@ export default function TemplateSubmissionDetail() {
         templateName={submission.template_type}
         onSave={handleSavePdf}
         onCancel={handleCancelPdfFiller}
+        predefinedFields={predefinedFields}
       />
     );
   }

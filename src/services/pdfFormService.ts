@@ -524,6 +524,18 @@ class PDFFormService {
       }
 
       console.log(`Filled ${customFields.length} custom overlay fields`);
+      
+      // CRITICAL: Flatten the form to make all fields non-editable and permanently visible
+      // This ensures the chairperson can see the filled values
+      try {
+        const form = pdfDoc.getForm();
+        form.flatten();
+        console.log('Form flattened - fields are now permanently visible');
+      } catch (flattenError) {
+        console.warn('Could not flatten form (may not have form fields):', flattenError);
+        // Continue anyway - overlay fields should still be visible
+      }
+      
       return await pdfDoc.save();
     } catch (error) {
       console.error('Error filling PDF with overlay:', error);
