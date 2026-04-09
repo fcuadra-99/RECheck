@@ -128,7 +128,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
     const [historyFiles, setHistoryFiles] = useState<DocumentItem[] | null>(null);
     const [latestComment, setLatestComment] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<number>(0);
-    const [isPhase3Approval, setIsPhase3Approval] = useState<boolean>(false);
+    const [_isPhase3Approval, setIsPhase3Approval] = useState<boolean>(false);
 
     const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
     const [answeredDocuments, setAnsweredDocuments] = useState<{ [key: string]: boolean }>({});

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 
 function EthicsChecklistForm() {
