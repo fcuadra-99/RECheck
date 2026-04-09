@@ -5,15 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface Profile {
     id: string;
     fname: string | null;
     lname: string | null;
     category?: string | null;
+    role?: string | null;
+    email?: string | null;
 }
 
 interface NewProposalDialogProps {
@@ -28,15 +31,40 @@ export default function NewProposalDialog({
     open, 
     onOpenChange, 
     profiles, 
-    userId, 
     onProposalCreated 
 }: NewProposalDialogProps) {
     const [newProposalTitle, setNewProposalTitle] = useState("");
     const [newProposalDescription, setNewProposalDescription] = useState("");
+    const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>("");
+    const [advisors, setAdvisors] = useState<Profile[]>([]);
+
+    // Fetch advisors and admins when dialog opens
+    useEffect(() => {
+        if (open) {
+            fetchAdvisors();
+        }
+    }, [open]);
+
+    const fetchAdvisors = async () => {
+        try {
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("id, fname, lname, role, email")
+                .in("role", ["Advisor", "Admin"])
+                .order("lname", { ascending: true });
+
+            if (error) throw error;
+            setAdvisors(data || []);
+        } catch (err) {
+            console.error("Failed to fetch advisors:", err);
+            toast.error("Failed to load advisors");
+        }
+    };
 
     const handleCreateProposal = async () => {
-        userId;
         if (!newProposalTitle.trim()) return toast.error("Title is required");
+        if (!selectedAdvisorId) return toast.error("Please select an advisor");
+        
         const loading = toast.loading("Creating proposal...");
         try {
             const { data: userData } = await supabase.auth.getUser();
@@ -52,8 +80,9 @@ export default function NewProposalDialog({
                         proposal_title: newProposalTitle,
                         description: newProposalDescription,
                         category,
-                        status: "Send Manuscript",
+                        status: "Pending Advisor Approval",
                         researcher: uid,
+                        advisor_id: selectedAdvisorId,
                         date: new Date().toISOString(),
                     },
                 ])
@@ -66,12 +95,11 @@ export default function NewProposalDialog({
             onOpenChange(false);
             setNewProposalTitle("");
             setNewProposalDescription("");
-            toast.success("Proposal created successfully!", { id: loading });
+            setSelectedAdvisorId("");
+            toast.success("Proposal created and sent to advisor for approval!", { id: loading });
         } catch (err: any) {
             console.error(err);
-            toast.error("Failed to create proposal: " + (err.message || err));
-        } finally {
-            toast.dismiss();
+            toast.error("Failed to create proposal: " + (err.message || err), { id: loading });
         }
     };
 
@@ -83,6 +111,9 @@ export default function NewProposalDialog({
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="title" className="text-right col-span-4">
+                            Title
+                        </Label>
                         <Input
                             id="title"
                             placeholder="Enter proposal title"
@@ -103,6 +134,48 @@ export default function NewProposalDialog({
                             className="col-span-4 resize-none"
                             rows={4}
                         />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="advisor" className="text-right col-span-4">
+                            Select Advisor
+                        </Label>
+                        <Select value={selectedAdvisorId} onValueChange={setSelectedAdvisorId}>
+                            <SelectTrigger className="col-span-4 h-auto min-h-[4rem] py-2">
+                                <SelectValue placeholder="Choose an advisor">
+                                    {selectedAdvisorId && (() => {
+                                        const selectedAdvisor = advisors.find(a => a.id === selectedAdvisorId);
+                                        return selectedAdvisor ? (
+                                            <div className="flex flex-col items-start gap-0.5">
+                                                <span className="font-medium text-sm">
+                                                    {selectedAdvisor.lname}, {selectedAdvisor.fname} ({selectedAdvisor.role})
+                                                </span>
+                                                <span className="text-xs text-gray-500">
+                                                    {selectedAdvisor.email}
+                                                </span>
+                                            </div>
+                                        ) : null;
+                                    })()}
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {advisors.map((advisor) => (
+                                    <SelectItem 
+                                        key={advisor.id} 
+                                        value={advisor.id}
+                                        className="items-start py-3"
+                                    >
+                                        <div className="flex flex-col gap-1">
+                                            <span className="font-medium text-sm leading-tight">
+                                                {advisor.lname}, {advisor.fname} ({advisor.role})
+                                            </span>
+                                            <span className="text-xs text-muted-foreground leading-tight">
+                                                {advisor.email}
+                                            </span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
                 <DialogFooter>

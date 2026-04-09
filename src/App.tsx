@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from "react-router-dom";
-import { useEffect, useState, type JSX } from "react";
+import { useEffect, useState, memo, type JSX } from "react";
 import { toast } from "sonner";
 import { supabase } from "./DB";
 import { type User } from "@supabase/supabase-js";
@@ -33,6 +33,7 @@ import TemplateSubmissions from "./pages/researcher/TemplateSubmissions";
 import TemplateSubmissionDetail from "./pages/researcher/TemplateSubmissionDetail";
 import FinalReportSubmission from "./pages/researcher/FinalReportSubmission";
 import ReviewerPage from "./pages/reviewer/Submissions";
+import AdvisorSubmissions from "./pages/advisor/AdvisorSubmissions";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import DocumentManagement from "./pages/admin/DocumentManagement";
 import OfficeJsPrototype from "./pages/admin/skibidi";
@@ -98,7 +99,7 @@ function DefaultRedirect({ profile }: { profile: SessionProfile }) {
 // ----------------------------
 // Sidebar Layout
 // ----------------------------
-function SidebarLayout({
+const SidebarLayout = memo(function SidebarLayout({
   profile,
   user,
 }: {
@@ -119,7 +120,7 @@ function SidebarLayout({
       </div>
 
       <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
-        <AppBreadcrumb />
+        <AppBreadcrumb userId={user?.id} />
         <div className="pl-7 pr-7 py-16 min-w-full z-50 bg-red-50">
           <Outlet />
         </div>
@@ -128,7 +129,7 @@ function SidebarLayout({
       <ChatPopup userId={user?.id ?? ""} />
     </SidebarProvider>
   );
-}
+});
 
 // ----------------------------
 // App Component
@@ -307,6 +308,7 @@ export default function App() {
             <Route path="/ssubm/sub1/sreview" element={<SReview />} />
             <Route path="/ssubm/sub2" element={<RSubmissions />} />
             <Route path="/ssubm/sub3" element={<ReviewerPage />} />
+            <Route path="/ssubm/sub4" element={<AdvisorSubmissions />} />
 
             {/* Admin */}
             <Route path="/admin/userroles" element={<AdminUsersPage />} />

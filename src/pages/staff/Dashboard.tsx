@@ -1,5 +1,6 @@
 import { AnnouncementsPage, type StatsLoader } from '@/components/parts/dashboard';
 import { supabase } from '@/DB';
+import { memo } from 'react';
 
 const staffStatsLoader: StatsLoader = async () => {
   const [totalR, completedR] = await Promise.all([
@@ -11,6 +12,6 @@ const staffStatsLoader: StatsLoader = async () => {
   return { total, pending: total - completed, completed };
 };
 
-export default function SDashboard({ user, profile }: { user: any; profile: any }) {
+export default memo(function SDashboard({ user, profile }: { user: any; profile: any }) {
   return <AnnouncementsPage user={user} profile={profile} statsLoader={staffStatsLoader} />;
-}
+});

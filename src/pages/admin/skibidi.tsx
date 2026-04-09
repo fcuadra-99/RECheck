@@ -1,203 +1,201 @@
 import { useRef, useState } from "react";
-import { Menu, Upload, Eye, Save } from "lucide-react";
-import { toast } from "sonner";
-import {
-  DocumentEditorContainerComponent,
-  Toolbar,
-} from "@syncfusion/ej2-react-documenteditor";
-import "@syncfusion/ej2-base/styles/material.css";
-import "@syncfusion/ej2-buttons/styles/material.css";
-import "@syncfusion/ej2-inputs/styles/material.css";
-import "@syncfusion/ej2-popups/styles/material.css";
-import "@syncfusion/ej2-lists/styles/material.css";
-import "@syncfusion/ej2-navigations/styles/material.css";
-import "@syncfusion/ej2-splitbuttons/styles/material.css";
-import "@syncfusion/ej2-dropdowns/styles/material.css";
-import "@syncfusion/ej2-documenteditor/styles/material.css";
+import { FileText, Download, Loader2 } from "lucide-react";
+import { useReactToPrint } from "react-to-print";
+import { Badge } from "@/components/ui/badge";
 
-DocumentEditorContainerComponent.Inject(Toolbar);
+import RECEndorsementForm from "@/components/forms/REC_EndorsementForm";
+import EthicsProtocolChecklist from "@/components/forms/REC_FO_0026";
+import EthicsApplicationProcedure from "@/components/forms/REC_FO_0027";
+import EthicsStudyProtocolInformationForm from "@/components/forms/REC_FO_0028";
+import EthicsInformedConsentChecklist from "@/components/forms/REC_FO_0029";
+import EthicsInformedConsentAssessmentForm from "@/components/forms/REC_FO_0030";
+import EthicsInformedConsentFormSample from "@/components/forms/REC_FO_0031";
+import EthicsAssentFormSample from "@/components/forms/REC_FO_0034";
+import EthicsMOAFormFullBoard from "@/components/forms/REC_FO_0036_FullBoard";
+import EthicsChecklistForm from "@/components/forms/REC_FO_0032";
+import ProtocolInformationForm from "@/components/forms/REC_FO_0033";
+import EthicsMOAForm from "@/components/forms/REC_FO_0036_Exempt";
 
-export default function skibidi() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const editorRef = useRef<DocumentEditorContainerComponent>(null);
+type Category = "expedited" | "exempt" | "fullboard";
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+interface FormEntry {
+  id: string;
+  label: string;
+  code: string;
+  component: React.ComponentType;
+  tag?: string;
+}
 
-    const fileExt = file.name.split(".").pop()?.toLowerCase();
-    if (fileExt !== "docx" && fileExt !== "doc") {
-      toast.error("Only DOCX/DOC files are supported");
-      return;
-    }
+const categoryMeta: Record<Category, { label: string; color: string; description: string }> = {
+  expedited: {
+    label: "Expedited Review",
+    color: "border-blue-500 text-blue-700 bg-blue-50",
+    description: "Forms for studies with minimal risk requiring expedited review",
+  },
+  exempt: {
+    label: "Exempt Review",
+    color: "border-green-500 text-green-700 bg-green-50",
+    description: "Forms for studies exempt from full board review",
+  },
+  fullboard: {
+    label: "Full Board Review",
+    color: "border-purple-500 text-purple-700 bg-purple-50",
+    description: "Forms for studies requiring full board ethics review",
+  },
+};
 
-    setUploadedFile(file);
+const formsByCategory: Record<Category, FormEntry[]> = {
+  expedited: [
+    { id: "endorsement", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
+    { id: "fo0026", code: "REC_FO_0026", label: "Ethics Protocol Checklist", component: EthicsProtocolChecklist },
+    { id: "fo0027", code: "REC_FO_0027", label: "Ethics Application Procedure", component: EthicsApplicationProcedure },
+    { id: "fo0028", code: "REC_FO_0028", label: "Study Protocol Information Form", component: EthicsStudyProtocolInformationForm },
+    { id: "fo0029", code: "REC_FO_0029", label: "Informed Consent Checklist", component: EthicsInformedConsentChecklist },
+    { id: "fo0030", code: "REC_FO_0030", label: "Informed Consent Assessment Form", component: EthicsInformedConsentAssessmentForm },
+    { id: "fo0031", code: "REC_FO_0031", label: "Sample Informed Consent Form (ICF)", component: EthicsInformedConsentFormSample },
+    { id: "fo0034", code: "REC_FO_0034", label: "Sample Assent Form", component: EthicsAssentFormSample },
+    { id: "fo0036fb", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAFormFullBoard },
+  ],
+  exempt: [
+    { id: "endorsement3", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
+    { id: "fo0032", code: "REC_FO_0032", label: "Ethics Protocol Checklist", component: EthicsChecklistForm },
+    { id: "fo0033", code: "REC_FO_0033", label: "Protocol Information Form for Exemption (PIFE)", component: ProtocolInformationForm },
+    { id: "fo0036ex", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAForm },
+  ],
+  fullboard: [
+    { id: "endorsement2", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
+    { id: "fo0026b", code: "REC_FO_0026", label: "Ethics Protocol Checklist", component: EthicsProtocolChecklist },
+    { id: "fo0027b", code: "REC_FO_0027", label: "Ethics Application Procedure", component: EthicsApplicationProcedure },
+    { id: "fo0028b", code: "REC_FO_0028", label: "Study Protocol Information Form", component: EthicsStudyProtocolInformationForm },
+    { id: "fo0029b", code: "REC_FO_0029", label: "Informed Consent Checklist", component: EthicsInformedConsentChecklist },
+    { id: "fo0030b", code: "REC_FO_0030", label: "Informed Consent Assessment Form", component: EthicsInformedConsentAssessmentForm },
+    { id: "fo0031b", code: "REC_FO_0031", label: "Sample Informed Consent Form (ICF)", component: EthicsInformedConsentFormSample },
+    { id: "fo0034b", code: "REC_FO_0034", label: "Sample Assent Form", component: EthicsAssentFormSample },
+    { id: "fo0036fb2", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAFormFullBoard },
+  ],
+};
 
-    // Read file and open in editor
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      if (editorRef.current) {
-        editorRef.current.documentEditor.open(base64);
-        toast.success(`${file.name} loaded successfully!`);
+const categories: Category[] = ["expedited", "exempt", "fullboard"];
+
+export default function DocumentPrototype() {
+  const [activeCategory, setActiveCategory] = useState<Category>("expedited");
+  const [activeFormId, setActiveFormId] = useState<string>("endorsement");
+  const [exporting, setExporting] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  const forms = formsByCategory[activeCategory];
+  const activeForm = forms.find((f) => f.id === activeFormId) ?? forms[0];
+  const FormComponent = activeForm.component;
+
+  const handleCategoryChange = (cat: Category) => {
+    setActiveCategory(cat);
+    setActiveFormId(formsByCategory[cat][0].id);
+  };
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `${activeForm.code} – ${activeForm.label}`,
+    pageStyle: `
+      @page { size: A4; margin: 0; }
+      @media print {
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { box-shadow: none !important; }
       }
-    };
-    reader.readAsDataURL(file);
-  };
+    `,
+    onBeforePrint: () => { setExporting(true); return Promise.resolve(); },
+    onAfterPrint: () => setExporting(false),
+  });
 
-  const handleSaveDocument = () => {
-    if (!editorRef.current) {
-      toast.error("Editor not ready");
-      return;
-    }
-
-    const fileName = uploadedFile?.name || "document.docx";
-    editorRef.current.documentEditor.save(fileName, "Docx");
-    toast.success("Document saved!");
-  };
-
-  const handleExportPDF = () => {
-    if (!editorRef.current) {
-      toast.error("Editor not ready");
-      return;
-    }
-
-    const fileName = uploadedFile?.name.replace(/\.(docx|doc)$/i, ".pdf") || "document.pdf";
-    editorRef.current.documentEditor.save(fileName, "Pdf" as any);
-    toast.success("Exported to PDF!");
-  };
-
-  const handleGetFormData = () => {
-    if (!editorRef.current) {
-      toast.error("Editor not ready");
-      return;
-    }
-
-    // Get all form fields from the document
-    const formFields = editorRef.current.documentEditor.getFormFieldNames();
-    const formData: Record<string, any> = {};
-
-    formFields.forEach((fieldName: string) => {
-      const field = editorRef.current!.documentEditor.getFormFieldInfo(fieldName);
-      formData[fieldName] = (field as any)?.value || "";
-    });
-
-    console.log("Form Data:", formData);
-    toast.success(`Retrieved ${formFields.length} form field(s)`);
-    
-    // Show in alert for demo
-    if (Object.keys(formData).length > 0) {
-      alert(JSON.stringify(formData, null, 2));
-    } else {
-      toast.info("No form fields found in document");
-    }
-  };
+  const meta = categoryMeta[activeCategory];
 
   return (
-    <div className="flex h-[90vh] bg-gray-50 mt-5">
+    <div className="flex h-[calc(100vh-80px)] bg-gray-50 overflow-hidden">
       {/* Sidebar */}
-      <div
-        className={`fixed md:static top-0 left-0 h-full w-64 bg-white shadow-lg border-r p-4 space-y-4 z-40 flex flex-col ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold text-blue-600">Document Editor</h2>
-          <button onClick={() => setSidebarOpen((s) => !s)} className="md:hidden">
-            <Menu size={20} />
-          </button>
+      <aside className="w-72 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        <div className="p-4 border-b border-gray-200">
+          <h2 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            REC Forms
+          </h2>
         </div>
 
-        {/* File Upload */}
-        <label className="flex items-center justify-center gap-2 px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 cursor-pointer text-sm">
-          <Upload size={16} />
-          Upload DOCX
-          <input
-            type="file"
-            accept=".docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            className="hidden"
-            onChange={handleFileUpload}
-          />
-        </label>
-
-        {uploadedFile && (
-          <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded border">
-            📎 {uploadedFile.name}
-          </div>
-        )}
-
-        <div className="space-y-2 pt-4 border-t">
-          <h3 className="text-sm font-semibold text-gray-700">Actions</h3>
-          
-          <button
-            onClick={handleSaveDocument}
-            className="flex items-center gap-2 px-3 py-2 rounded bg-green-600 text-white hover:bg-green-700 w-full text-sm"
-          >
-            <Save size={16} />
-            Save DOCX
-          </button>
-
-          <button
-            onClick={handleExportPDF}
-            className="flex items-center gap-2 px-3 py-2 rounded bg-red-600 text-white hover:bg-red-700 w-full text-sm"
-          >
-            📄 Export PDF
-          </button>
-
-          <button
-            onClick={handleGetFormData}
-            className="flex items-center gap-2 px-3 py-2 rounded bg-purple-600 text-white hover:bg-purple-700 w-full text-sm"
-          >
-            <Eye size={16} />
-            Get Form Data
-          </button>
+        {/* Category tabs */}
+        <div className="flex flex-col border-b border-gray-200">
+          {categories.map((cat) => {
+            const m = categoryMeta[cat];
+            return (
+              <button
+                key={cat}
+                onClick={() => handleCategoryChange(cat)}
+                className={`text-left px-4 py-3 text-xs font-medium border-l-2 transition-colors ${
+                  activeCategory === cat
+                    ? "border-l-primary bg-primary/5 text-primary"
+                    : "border-l-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <div className="font-semibold">{m.label}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5 font-normal">{formsByCategory[cat].length} forms</div>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="flex-1 overflow-y-auto pt-4 border-t">
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">Features</h3>
-          <ul className="text-xs text-gray-600 space-y-1">
-            <li>✅ Full Word editing</li>
-            <li>✅ Form fields support</li>
-            <li>✅ Track changes</li>
-            <li>✅ Comments</li>
-            <li>✅ Tables & images</li>
-            <li>✅ Export to PDF</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Main Editor Area */}
-      <div className="flex-1 flex flex-col bg-white overflow-hidden">
-        {!uploadedFile ? (
-          <div className="flex items-center justify-center h-full p-8">
-            <div className="max-w-2xl text-center">
-              <h1 className="text-3xl font-bold text-gray-800 mb-4">
-                Syncfusion Document Editor
-              </h1>
-              <div className="bg-blue-50 border-l-4 border-blue-500 p-6 text-left">
-                <h3 className="font-semibold text-blue-800 mb-3">Getting Started:</h3>
-                <ol className="list-decimal list-inside space-y-2 text-sm text-blue-700">
-                  <li>Upload a DOCX file using the button in the sidebar</li>
-                  <li>Edit the document with full Word-like features</li>
-                  <li>Use the toolbar to format text, insert tables, images, etc.</li>
-                  <li>Add form fields using the toolbar</li>
-                  <li>Click "Get Form Data" to extract form field values</li>
-                  <li>Save as DOCX or export to PDF</li>
-                </ol>
+        {/* Form list */}
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+          {forms.map((form) => (
+            <button
+              key={form.id}
+              onClick={() => setActiveFormId(form.id)}
+              className={`w-full text-left px-3 py-2 rounded-md transition-colors ${
+                activeFormId === form.id
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <div className="text-[10px] text-gray-400 font-mono">{form.code}</div>
+              <div className="text-xs mt-0.5 flex items-center gap-1.5">
+                {form.label}
+                {form.tag && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium shrink-0">
+                    {form.tag}
+                  </span>
+                )}
               </div>
-            </div>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Form viewer */}
+      <main className="flex-1 overflow-auto bg-gray-100 flex flex-col">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 flex-shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <Badge variant="outline" className={`text-[10px] font-mono shrink-0 ${meta.color}`}>
+              {activeForm.code}
+            </Badge>
+            <span className="text-sm text-gray-700 font-medium truncate">{activeForm.label}</span>
+            <Badge variant="outline" className={`text-[10px] shrink-0 ${meta.color}`}>
+              {meta.label}
+            </Badge>
           </div>
-        ) : (
-          <DocumentEditorContainerComponent
-            ref={editorRef}
-            id="document-editor"
-            height="100%"
-            enableToolbar={true}
-            serviceUrl="https://ej2services.syncfusion.com/production/web-services/api/documenteditor/"
-          />
-        )}
-      </div>
+          <button
+            onClick={() => handlePrint()}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors ml-4 shrink-0"
+          >
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {exporting ? "Preparing..." : "Export PDF"}
+          </button>
+        </div>
+
+        {/* Form content */}
+        <div className="flex-1 overflow-auto p-6">
+          <div ref={printRef} className="shadow-lg rounded-sm">
+            <FormComponent />
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

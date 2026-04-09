@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, RefreshCcw, Clock, Check, BarChart3, X } from "lucide-react";
+import { FileText, RefreshCcw, Clock, Check, BarChart3, X, Shield, ClipboardList, Rocket, Users, Flag, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -128,6 +128,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
     const [historyFiles, setHistoryFiles] = useState<DocumentItem[] | null>(null);
     const [latestComment, setLatestComment] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<number>(0);
+    const [isPhase3Approval, setIsPhase3Approval] = useState<boolean>(false);
 
     const [uploadedFiles, setUploadedFiles] = useState<{ [key: string]: File | null }>({});
     const [answeredDocuments, setAnsweredDocuments] = useState<{ [key: string]: boolean }>({});
@@ -147,11 +148,30 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
         setHistoryFiles(null);
         setLatestComment(null);
         setActiveTab(0);
+        setIsPhase3Approval(false);
 
         const prepare = async () => {
             if (!activeSubmission) return;
             const idx = phases.findIndex((p) => p.statuses.includes(activeSubmission.status));
             setActiveTab(idx === -1 ? 0 : idx);
+
+            // Check if this is Phase 3 approval by looking at history
+            if (activeSubmission.status === "Pending Advisor Approval") {
+                const { data: historyData } = await supabase
+                    .from("history")
+                    .select("action, comment")
+                    .eq("paper_id", activeSubmission.proposal_id)
+                    .order("history_date", { ascending: false })
+                    .limit(10);
+
+                // Check if there's a previous approval (meaning this is Phase 3)
+                const hasInitialApproval = historyData?.some(h => 
+                    h.action === "ADVISOR_APPROVED" || 
+                    h.comment?.includes("Advisor approved")
+                );
+                
+                setIsPhase3Approval(hasInitialApproval || false);
+            }
 
             if (["Resend Manuscript", "Resend Forms", "Send Revision"].includes(activeSubmission.status)) {
                 const hist = await getLatestHistory(activeSubmission.proposal_id);
@@ -286,6 +306,52 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
 
 
             {/* Tabs Section */}
+            {activeSubmission.status === "Pending Advisor Approval" ? (
+                <div className="mt-6 p-6 border rounded-lg bg-yellow-50 border-yellow-200">
+                    <div className="flex items-start gap-3">
+                        <Clock className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <h3 className="font-semibold text-yellow-900 mb-2">Awaiting Advisor Approval</h3>
+                            <p className="text-sm text-yellow-800">
+                                Your proposal has been submitted and is currently awaiting approval from your assigned advisor.
+                                Once approved, you will be able to upload your manuscript files and proceed with Phase 1.
+                            </p>
+                            <p className="text-xs text-yellow-700 mt-2">
+                                You will receive a notification when your advisor reviews your proposal.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : activeSubmission.status === "Pending Forms Approval" ? (
+                <div className="mt-6 p-6 border rounded-lg bg-yellow-50 border-yellow-200">
+                    <div className="flex items-start gap-3">
+                        <Clock className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <h3 className="font-semibold text-yellow-900 mb-2">Awaiting Phase 3 Advisor Approval</h3>
+                            <p className="text-sm text-yellow-800">
+                                Your Phase 3 forms submission has been sent to your advisor for review and approval.
+                                Once approved, your submission will proceed to the forms check stage.
+                            </p>
+                            <p className="text-xs text-yellow-700 mt-2">
+                                You will receive a notification when your advisor reviews your forms submission.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : activeSubmission.status === "Advisor Rejected" ? (
+                <div className="mt-6 p-6 border rounded-lg bg-red-50 border-red-200">
+                    <div className="flex items-start gap-3">
+                        <X className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <h3 className="font-semibold text-red-900 mb-2">Proposal Rejected by Advisor</h3>
+                            <p className="text-sm text-red-800">
+                                Your proposal has been rejected by your advisor. Please contact your advisor for feedback
+                                and guidance on how to proceed.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : (
             <Tabs value={`${activeTab}`} onValueChange={(v) => setActiveTab(Number(v))}>
                 <TabsList className="flex w-full gap-1 sm:gap-2 py-0.5">
                     {phases.map((phase, idx) => {
@@ -347,6 +413,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                     </TabsContent>
                 ))}
             </Tabs>
+            )}
 
             {/* Dialogs */}
             {previewOpen && (
@@ -582,5 +649,3 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
         ...commonFormsDocs,
     ];
 };
-
-import { Shield, ClipboardList, Rocket, Users, Flag, Archive } from "lucide-react";

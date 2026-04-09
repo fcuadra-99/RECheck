@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, BarChart3, Check, ClipboardList, Clock, FileStack, FileText, Flag, RefreshCcw, Rocket, Shield, Users } from "lucide-react";
+import { Archive, BarChart3, Check, ClipboardList, Clock, FileStack, FileText, Flag, RefreshCcw, Rocket, Shield, Users, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
     Table,
@@ -210,7 +210,9 @@ export default function SubmissionsPage() {
                                                     "font-medium inline-flex items-center gap-1",
                                                     submission.status.includes("Check") && "bg-yellow-50 text-yellow-700 border-yellow-300",
                                                     submission.status === "Deploy Queue" && "bg-green-50 text-green-700 border-green-300",
-                                                    submission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300"
+                                                    submission.status === "Data Collection" && "bg-blue-50 text-blue-700 border-blue-300",
+                                                    submission.status === "Pending Advisor Approval" && "bg-orange-50 text-orange-700 border-orange-300",
+                                                    submission.status === "Advisor Rejected" && "bg-red-50 text-red-700 border-red-300"
                                                 )}
                                             >
                                                 {/* Add all status-specific icons */}
@@ -228,6 +230,8 @@ export default function SubmissionsPage() {
                                                 {submission.status.includes("Assign") && <Users className="w-3 h-3" />}
                                                 {submission.status.includes("Proposal") && <FileText className="w-3 h-3" />}
                                                 {submission.status.includes("Study Report") && <BarChart3 className="w-3 h-3" />}
+                                                {submission.status === "Pending Advisor Approval" && <Clock className="w-3 h-3" />}
+                                                {submission.status === "Advisor Rejected" && <X className="w-3 h-3" />}
 
                                                 <span className="truncate">{submission.status}</span>
                                             </Badge>

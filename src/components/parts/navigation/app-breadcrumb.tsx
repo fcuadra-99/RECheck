@@ -1,5 +1,7 @@
 import { ChevronRight } from "lucide-react"
 import { useLocation } from 'react-router-dom';
+import { memo } from 'react';
+import { createPortal } from "react-dom";
 
 import {
   Breadcrumb,
@@ -9,14 +11,17 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
+import { NotificationBell } from "@/components/NotificationBell";
 
-export interface AppBreadcrumbProps {}
+export interface AppBreadcrumbProps {
+  userId?: string;
+}
 
-export function AppBreadcrumb() {
+export const AppBreadcrumb = memo(function AppBreadcrumb({ userId }: AppBreadcrumbProps) {
   function Pathingy() {
     const path = useLocation().pathname
     const paths = path.split("/")
-    const pathc = []
+    const pathc: React.ReactNode[] = []
     paths.shift()
 
     let root = ""
@@ -25,23 +30,20 @@ export function AppBreadcrumb() {
       root = `${root}/${paths[p]}`
       if (root == path) {
         pathc.push(
-          <BreadcrumbItem>
+          <BreadcrumbItem key={root}>
             <BreadcrumbPage>{paths[p]}</BreadcrumbPage>
           </BreadcrumbItem>
         )
-      }
-      else {
+      } else {
         pathc.push(
-          <>
+          <span key={root} className="flex items-center">
             <BreadcrumbItem>
-              <BreadcrumbLink href={root}>
-                {paths[p]}
-              </BreadcrumbLink>
+              <BreadcrumbLink href={root}>{paths[p]}</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator>
               <ChevronRight />
             </BreadcrumbSeparator>
-          </>
+          </span>
         )
       }
     }
@@ -49,29 +51,19 @@ export function AppBreadcrumb() {
     return pathc
   }
 
-  return (
-    <Breadcrumb className="bg-accent z-100 backdrop-blur-md md:pl-64">
-      <BreadcrumbPortal>
-        {Pathingy()}
-      </BreadcrumbPortal>
-    </Breadcrumb>
-  )
-}
-
-
-"use client";
-
-import { createPortal } from "react-dom";
-
-export function BreadcrumbPortal({ children }: { children: React.ReactNode }) {
-  if (typeof document === "undefined") return null; // SSR guard
+  if (typeof document === "undefined") return null;
 
   return createPortal(
-    <Breadcrumb className="bg-white/30 backdrop-blur-xs fixed top-0 md:left-64 w-full z-[1] py-3 border-b-2 md:pl-5 sm:pl-14.5 pl-14.5">
+    <div className="bg-white/30 backdrop-blur-xs fixed top-0 md:left-64 right-0 z-[1] py-3 border-b-2 md:pl-5 sm:pl-14.5 pl-14.5 flex items-center justify-between pr-4">
       <BreadcrumbList className="ml-0 transition-all duration-150 ease-out w-auto">
-        {children}
+        {Pathingy()}
       </BreadcrumbList>
-    </Breadcrumb>,
+      {userId && (
+        <div className="flex-shrink-0">
+          <NotificationBell userId={userId} />
+        </div>
+      )}
+    </div>,
     document.body
   );
-}
+});

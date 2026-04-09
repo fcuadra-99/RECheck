@@ -342,6 +342,7 @@ export default function PhaseContent({
                 affected_files: affectedFiles,
                 action: submission.status === "Revise Proposal" ? "Submit Revisions" : "Submit Phase",
                 history_date: new Date().toISOString(),
+                status: nextStatus,
             });
             if (historyError) throw new Error(historyError.message);
 
@@ -1663,9 +1664,9 @@ const getNextStatus = (status: string) => {
         case "Check Manuscript": return "Risk Assessment";
         case "Resend Manuscript": return "Check Manuscript";
         case "Risk Assessment": return "Send Forms";
-        case "Send Forms": return "Forms Check";
+        case "Send Forms": return "Pending Forms Approval";
         case "Forms Check": return "Deploy Queue";
-        case "Resend Forms": return "Forms Check";
+        case "Resend Forms": return "Pending Forms Approval";
         case "Data Collection": return "Deviation Check";
         case "Send Deviation Report": return "Study Report Check";
         case "Send Study Report": return "Study Report Check";

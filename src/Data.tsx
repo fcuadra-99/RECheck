@@ -93,6 +93,8 @@ const navConfig = {
       { title: "My Submissions", url: "/ssubm/sub2", role: "Researcher" },
       { title: "Review Submissions", url: "/ssubm/sub3", role: "Reviewer" },
       { title: "Review Submissions", url: "/ssubm/sub3", role: "Chairperson" },
+      { title: "Advisor Submissions", url: "/ssubm/sub4", role: "Advisor" },
+      { title: "Advisor Submissions", url: "/ssubm/sub4", role: "Admin" },
     ],
   },
   deviations: {

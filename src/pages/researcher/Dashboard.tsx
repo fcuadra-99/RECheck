@@ -1,5 +1,6 @@
 import { AnnouncementsPage, type StatsLoader } from '@/components/parts/dashboard';
 import { supabase } from '@/DB';
+import { memo } from 'react';
 
 const researcherStatsLoader: StatsLoader = async () => {
     const totalQ = supabase.from('proposals').select('proposal_id', { count: 'exact', head: true });
@@ -9,6 +10,6 @@ const researcherStatsLoader: StatsLoader = async () => {
     return { total: totalR.count ?? 0, pending: pendingR.count ?? 0, completed: completedR.count ?? 0 };
 };
 
-export default function RDashboard({ user, profile }: { user: any; profile: any }) {
+export default memo(function RDashboard({ user, profile }: { user: any; profile: any }) {
     return <AnnouncementsPage user={user} profile={profile} statsLoader={researcherStatsLoader} />;
-}
+});
