@@ -70,7 +70,6 @@ export default function AdvisorSubmissions() {
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
-    const [userProfile, setUserProfile] = useState<Profile | null>(null);
 
     /* fetch initial data - only proposals assigned to current advisor */
     useEffect(() => {

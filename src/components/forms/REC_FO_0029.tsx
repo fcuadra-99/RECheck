@@ -408,29 +408,6 @@ const legendNA: React.CSSProperties = {
   fontWeight: 700,
 };
 
-const endorsedWrap: React.CSSProperties = {
-  marginTop: "12px",
-  border: "1px solid black",
-  padding: "8px",
-};
-
-const endorsedInput: React.CSSProperties = {
-  width: "100%",
-  border: "none",
-  borderBottom: "1px solid black",
-  resize: "none",
-  overflow: "hidden",
-  fontFamily: "inherit",
-  minHeight: "22px",
-  outline: "none",
-  marginTop: "6px",
-};
-
-const subText: React.CSSProperties = {
-  fontSize: "11px",
-  marginTop: "4px",
-};
-
 const dateFiledWrap: React.CSSProperties = {
   marginTop: "10px",
   border: "1px solid black",

@@ -9,8 +9,7 @@ function EthicsChecklistForm() {
   const [submissionDate, setSubmissionDate] = useState(today);
   const [verifiedBy, setVerifiedBy] = useState(today);
   const [dateFiled, setDateFiled] = useState(today);
-  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers();
-  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers();
+
 
   const questions = [
     "The study has social value (e.g. scientific value, relevance to national/community needs).",

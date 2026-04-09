@@ -4,7 +4,6 @@ import { memo } from 'react';
 import { createPortal } from "react-dom";
 
 import {
-  Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,

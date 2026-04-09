@@ -16,9 +16,6 @@ function EthicsMOAFormFullBoard() {
   const [researchers, setResearchers] = useSubmittedByMembers();
   const [witnesses, setWitnesses] = useSubmittedByMembers();
   const [monaSig, setMonaSig] = useState("");
-  const [witness1Sig, setWitness1Sig] = useState("");
-  const [witness2Name, setWitness2Name] = useState("");
-  const [witness2Sig, setWitness2Sig] = useState("");
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -280,19 +277,6 @@ const lineField: React.CSSProperties = {
   padding: 0,
 };
 
-const signatureTable: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  tableLayout: "fixed",
-  marginTop: "28px",
-};
-
-const signatureSingleCell: React.CSSProperties = {
-  width: "45%",
-  padding: "0 0 0 0",
-  verticalAlign: "top",
-};
-
 const witnessTitle: React.CSSProperties = {
   marginTop: "20px",
   marginBottom: "6px",
@@ -337,22 +321,6 @@ const monaTdSig: React.CSSProperties = {
   border: "1px solid black",
   padding: "8px",
   verticalAlign: "middle",
-};
-
-const signatureLabel: React.CSSProperties = {
-  marginTop: "4px",
-  fontSize: "12px",
-};
-
-const lineFieldInput: React.CSSProperties = {
-  width: "100%",
-  border: "none",
-  borderBottom: "1px solid black",
-  outline: "none",
-  fontFamily: "inherit",
-  fontSize: "12px",
-  marginBottom: "6px",
-  background: "transparent",
 };
 
 const footerWrap: React.CSSProperties = {

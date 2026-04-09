@@ -16,9 +16,6 @@ const EthicsMOAForm: React.FC = () => {
   const [researchers, setResearchers] = useSubmittedByMembers();
   const [witnesses, setWitnesses] = useSubmittedByMembers();
   const [monaSig, setMonaSig] = useState("");
-  const [witness1Sig, setWitness1Sig] = useState("");
-  const [witness2Name, setWitness2Name] = useState("");
-  const [witness2Sig, setWitness2Sig] = useState("");
 
   const container: React.CSSProperties = {
     width: "210mm",
@@ -142,10 +139,6 @@ const EthicsMOAForm: React.FC = () => {
     border: "none",
     borderBottom: "1px solid black",
     outline: "none",
-  };
-
-  const bold: React.CSSProperties = {
-    fontWeight: "bold",
   };
 
   return (

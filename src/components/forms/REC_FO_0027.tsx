@@ -519,12 +519,6 @@ const legendNA: React.CSSProperties = {
   fontWeight: 700,
 };
 
-const endorsedSectionWrap: React.CSSProperties = {
-  marginTop: "16px",
-  border: "1px solid black",
-  padding: "8px",
-};
-
 const dateFiledSectionWrap: React.CSSProperties = {
   marginTop: "10px",
   border: "1px solid black",

@@ -458,28 +458,6 @@ const groupNote: React.CSSProperties = {
   color: "#c50000",
 };
 
-const preparedWrap: React.CSSProperties = {
-  marginTop: "14px",
-  width: "50%",
-};
-
-const preparedByInput: React.CSSProperties = {
-  width: "100%",
-  border: "none",
-  borderBottom: "1px solid black",
-  resize: "none",
-  overflow: "hidden",
-  fontFamily: "inherit",
-  minHeight: "24px",
-  outline: "none",
-};
-
-const preparedLabel: React.CSSProperties = {
-  textAlign: "center",
-  marginTop: "6px",
-  fontSize: "11px",
-};
-
 const headerWrap: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
