@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { FormProps } from "./FormViewer";
 
-function EthicsAssentFormSample({ researcherName, savedData = {}, onSave }: FormProps) {
+function EthicsAssentFormSample({ researcherName, savedData = {} }: FormProps) {
   const s = savedData;
-  const _save = (patch: Record<string, any>) => onSave?.(patch);
 
   const [letterHtml, setLetterHtml] = useState<string>(s.letterHtml ?? `
     <p><span style="color:#b10000;font-style:italic;">Kami, _________________________________________ ay mga mananaliksik at mga empleyado ng ating institusyon ay kasalukuyang gumagawa ng isang pag-aaral na may pamagat na "________________________________________________".</span></p>

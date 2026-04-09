@@ -1,9 +1,8 @@
 import React, { useState } from "react";
 import type { FormProps } from "./FormViewer";
 
-const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, savedData = {}, onSave }) => {
+const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, savedData = {} }) => {
   const s = savedData;
-  const _save = (patch: Record<string, any>) => onSave?.(patch);
 
   const today = new Date().toISOString().split("T")[0];
   const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");
