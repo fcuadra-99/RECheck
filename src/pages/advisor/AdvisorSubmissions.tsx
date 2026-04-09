@@ -96,7 +96,7 @@ export default function AdvisorSubmissions() {
                 if (profileError) {
                     console.error("Error fetching user profile:", profileError);
                 } else if (userProfileData && mounted) {
-                    setUserProfile(userProfileData);
+                    setProfiles([userProfileData]);
                 }
 
                 // Fetch proposals where current user is the advisor
