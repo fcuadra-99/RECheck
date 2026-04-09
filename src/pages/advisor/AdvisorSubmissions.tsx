@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, User, Calendar, FileStack } from "lucide-react";
+import { FileText, Download, Eye, User, Calendar, FileStack, PenLine, Check } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
+import FormViewer from "@/components/forms/FormViewer";
 
 /* ----------------- types ----------------- */
 interface Submission {
@@ -62,11 +63,16 @@ export default function AdvisorSubmissions() {
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [submissionDocuments, setSubmissionDocuments] = useState<DocumentItem[]>([]);
+    const [formDataDocs, setFormDataDocs] = useState<string[]>([]);
+    const [formsLoading, setFormsLoading] = useState(false);
+    const [signedForms, setSignedForms] = useState<{ [key: string]: boolean }>({});
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
+    const [formViewerOpen, setFormViewerOpen] = useState(false);
+    const [activeFormDoc, setActiveFormDoc] = useState<string | null>(null);
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
@@ -159,6 +165,8 @@ export default function AdvisorSubmissions() {
     const loadSubmissionData = async () => {
         if (!activeSubmission) {
             setSubmissionDocuments([]);
+            setFormDataDocs([]);
+            setFormsLoading(false);
             return;
         }
 
@@ -180,6 +188,34 @@ export default function AdvisorSubmissions() {
             })));
 
             setSubmissionDocuments(documents);
+
+            // Load interactive form_data records
+            setFormsLoading(true);
+            const { data: formRows } = await supabase
+                .from("form_data")
+                .select("form_name, data")
+                .eq("proposal_id", activeSubmission.proposal_id);
+
+            const ADVISOR_SIGN_EXCLUDED = ["0034", "0035", "0028", "0031"];
+            const docs = (formRows || [])
+                .map((r: any) => r.form_name)
+                .filter((name: string) => !ADVISOR_SIGN_EXCLUDED.some(code => name.includes(code)));
+            setFormDataDocs(docs);
+
+            // Check which forms already have an advisor signature
+            const signed: { [key: string]: boolean } = {};
+            for (const row of (formRows || [])) {
+                // Endorsement form uses adviserSig (string), others use endorsedMembers (array)
+                const adviserSig = row.data?.adviserSig;
+                const endorsed = row.data?.endorsedMembers;
+                if (adviserSig && typeof adviserSig === "string" && adviserSig.trim() !== "") {
+                    signed[row.form_name] = true;
+                } else if (Array.isArray(endorsed)) {
+                    signed[row.form_name] = endorsed.some((m: any) => m.signature && m.signature.trim() !== "");
+                }
+            }
+            setSignedForms(signed);
+            setFormsLoading(false);
         } catch (err) {
             console.error("Failed to load submission data:", err);
             toast.error("Failed to load submission data");
@@ -570,6 +606,56 @@ export default function AdvisorSubmissions() {
                             )}
                         </div>
 
+                        {/* interactive forms for signing */}
+                        {(formsLoading || formDataDocs.length > 0) && (
+                            <div className="space-y-4 mb-6">
+                                <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-blue-50 text-blue-800 text-xs font-medium">
+                                    <PenLine className="w-3.5 h-3.5" />
+                                    <span className="uppercase tracking-wide">Forms to Sign</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {formsLoading ? (
+                                        Array.from({ length: 3 }).map((_, i) => (
+                                            <div key={i} className="border rounded-lg p-4 bg-white shadow-sm">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <Skeleton className="h-5 w-5 rounded" />
+                                                        <Skeleton className="h-4 w-48" />
+                                                    </div>
+                                                    <Skeleton className="h-8 w-16 rounded" />
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        formDataDocs.map((formName, index) => (
+                                            <div key={index} className="border rounded-lg p-4 bg-white shadow-sm">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                        <FileText className={cn("h-5 w-5 mt-0.5 flex-shrink-0", signedForms[formName] ? "text-green-500" : "text-blue-400")} />
+                                                        <span className="font-medium text-gray-900 truncate">{formName}</span>
+                                                        {signedForms[formName] && (
+                                                            <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50 text-xs flex-shrink-0">
+                                                                <Check className="w-3 h-3 mr-1" /> Signed
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        variant={signedForms[formName] ? "ghost" : "outline"}
+                                                        size="sm"
+                                                        onClick={() => { setActiveFormDoc(formName); setFormViewerOpen(true); }}
+                                                    >
+                                                        <PenLine className="h-4 w-4 mr-2" />
+                                                        {signedForms[formName] ? "View" : "Sign"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+
+                                </div>
+                            </div>
+                        )}
+
                         {/* Approval Actions - Only show for pending proposals */}
                         {(activeSubmission.status === "Pending Advisor Approval" || activeSubmission.status === "Pending Forms Approval") && (
                             <div className="border-t pt-6">
@@ -616,6 +702,53 @@ export default function AdvisorSubmissions() {
                                 src={previewUrl}
                                 className="w-full h-full"
                                 title={previewTitle}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Form Viewer Dialog for advisor signing */}
+            {formViewerOpen && activeFormDoc && activeSubmission && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-lg w-full max-w-4xl h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h3 className="font-semibold truncate">{activeFormDoc}</h3>
+                            <Button variant="ghost" size="sm" onClick={() => setFormViewerOpen(false)}>
+                                Close
+                            </Button>
+                        </div>
+                        <div className="flex-1 overflow-hidden">
+                            <FormViewer
+                                key={`${activeSubmission.proposal_id}-${activeFormDoc}`}
+                                documentName={activeFormDoc}
+                                proposalId={activeSubmission.proposal_id}
+                                protocolCode={activeSubmission.protocol_id}
+                                proposalTitle={activeSubmission.proposal_title}
+                                reviewType={activeSubmission.review_type}
+                                advisorId={userId}
+                                readOnlyAdvisor={false}
+                                onDone={async () => {
+                                    setFormViewerOpen(false);
+                                    // Re-check signature status for this form
+                                    const { data } = await supabase
+                                        .from("form_data")
+                                        .select("data")
+                                        .eq("proposal_id", activeSubmission.proposal_id)
+                                        .eq("form_name", activeFormDoc)
+                                        .single();
+                                    if (data?.data) {
+                                        const adviserSig = data.data.adviserSig;
+                                        const endorsed = data.data.endorsedMembers;
+                                        let isSigned = false;
+                                        if (adviserSig && typeof adviserSig === "string" && adviserSig.trim() !== "") {
+                                            isSigned = true;
+                                        } else if (Array.isArray(endorsed)) {
+                                            isSigned = endorsed.some((m: any) => m.signature && m.signature.trim() !== "");
+                                        }
+                                        setSignedForms(prev => ({ ...prev, [activeFormDoc]: isSigned }));
+                                    }
+                                }}
                             />
                         </div>
                     </div>

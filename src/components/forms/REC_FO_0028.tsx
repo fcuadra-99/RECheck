@@ -1,35 +1,35 @@
 import { useState } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 import MemberListInput from "./MemberListInput";
+import type { FormProps } from "./FormViewer";
 
-function EthicsStudyProtocolInformationForm() {
-  const [controlNo] = useState("");
+function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, proposalTitle, proposalId, formName, savedData = {}, onSave, reviewType }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [protocolSubmissionDate, setProtocolSubmissionDate] = useState(today);
-  const [studyProtocolTitle, setStudyProtocolTitle] = useState("");
-  const [principalInvestigator, setPrincipalInvestigator] = useState([""]);
-  const [typeOfReview, setTypeOfReview] = useState("");
-  const [sponsor, setSponsor] = useState("");
-
-  const [protocolTitle, setProtocolTitle] = useState("");
-  const [tablePrincipalInvestigator, setTablePrincipalInvestigator] =
-    useState([""]);
-  const [objectivesGeneral, setObjectivesGeneral] = useState("");
-  const [objectivesSpecific, setObjectivesSpecific] = useState("");
-  const [researchDesign, setResearchDesign] = useState("");
-  const [setting, setSetting] = useState("");
-  const [subjectInclusion, setSubjectInclusion] = useState("");
-  const [subjectExclusion, setSubjectExclusion] = useState("");
-  const [samplingProcedures, setSamplingProcedures] = useState("");
-  const [interventionsAndComparisons, setInterventionsAndComparisons] =
-    useState("");
-  const [dataGathering, setDataGathering] = useState("");
-  const [variables, setVariables] = useState("");
-  const [sampleSizeComputation, setSampleSizeComputation] = useState("");
-  const [dataHandlingAnalysis, setDataHandlingAnalysis] = useState("");
-  const [ethicalConsiderations, setEthicalConsiderations] = useState("");
-
-  const [preparedMembers, setPreparedMembers] = useSubmittedByMembers();
+  const [controlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [protocolSubmissionDate, setProtocolSubmissionDate] = useState<string>(s.protocolSubmissionDate ?? today);
+  const [studyProtocolTitle, setStudyProtocolTitle] = useState<string>(s.studyProtocolTitle ?? proposalTitle ?? "");
+  const [principalInvestigator, setPrincipalInvestigator] = useState<string[]>(s.principalInvestigator ?? (researcherName ? [researcherName] : [""]));
+  const [typeOfReview, setTypeOfReview] = useState<string>(s.typeOfReview ?? reviewType ?? "");
+  const [sponsor, setSponsor] = useState<string>(s.sponsor ?? "");
+  const [protocolTitle, setProtocolTitle] = useState<string>(s.protocolTitle ?? proposalTitle ?? "");
+  const [tablePrincipalInvestigator, setTablePrincipalInvestigator] = useState<string[]>(s.tablePrincipalInvestigator ?? (researcherName ? [researcherName] : [""]));
+  const [objectivesGeneral, setObjectivesGeneral] = useState<string>(s.objectivesGeneral ?? "");
+  const [objectivesSpecific, setObjectivesSpecific] = useState<string>(s.objectivesSpecific ?? "");
+  const [researchDesign, setResearchDesign] = useState<string>(s.researchDesign ?? "");
+  const [setting, setSetting] = useState<string>(s.setting ?? "");
+  const [subjectInclusion, setSubjectInclusion] = useState<string>(s.subjectInclusion ?? "");
+  const [subjectExclusion, setSubjectExclusion] = useState<string>(s.subjectExclusion ?? "");
+  const [samplingProcedures, setSamplingProcedures] = useState<string>(s.samplingProcedures ?? "");
+  const [interventionsAndComparisons, setInterventionsAndComparisons] = useState<string>(s.interventionsAndComparisons ?? "");
+  const [dataGathering, setDataGathering] = useState<string>(s.dataGathering ?? "");
+  const [variables, setVariables] = useState<string>(s.variables ?? "");
+  const [sampleSizeComputation, setSampleSizeComputation] = useState<string>(s.sampleSizeComputation ?? "");
+  const [dataHandlingAnalysis, setDataHandlingAnalysis] = useState<string>(s.dataHandlingAnalysis ?? "");
+  const [ethicalConsiderations, setEthicalConsiderations] = useState<string>(s.ethicalConsiderations ?? "");
+  const [preparedMembers, setPreparedMembers] = useSubmittedByMembers(s.preparedMembers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -328,7 +328,9 @@ function EthicsStudyProtocolInformationForm() {
       <SubmittedByTable
         title="Prepared by (Signature over Printed Name):"
         members={preparedMembers}
-        onChange={setPreparedMembers}
+        onChange={(v) => { setPreparedMembers(v); save({ preparedMembers: v }); }}
+        proposalId={proposalId}
+        formName={formName}
       />
 
       <div style={footerWrap}>

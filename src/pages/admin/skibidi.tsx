@@ -1,7 +1,10 @@
 import { useRef, useState } from "react";
-import { FileText, Download, Loader2 } from "lucide-react";
+import { FileText, Download, Loader2, Upload } from "lucide-react";
 import { useReactToPrint } from "react-to-print";
 import { Badge } from "@/components/ui/badge";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { supabase } from "@/DB";
 
 import RECEndorsementForm from "@/components/forms/REC_EndorsementForm";
 import EthicsProtocolChecklist from "@/components/forms/REC_FO_0026";
@@ -22,8 +25,9 @@ interface FormEntry {
   id: string;
   label: string;
   code: string;
-  component: React.ComponentType;
+  component?: React.ComponentType;
   tag?: string;
+  listOnly?: boolean;
 }
 
 const categoryMeta: Record<Category, { label: string; color: string; description: string }> = {
@@ -44,6 +48,14 @@ const categoryMeta: Record<Category, { label: string; color: string; description
   },
 };
 
+const uploadDocs: FormEntry[] = [
+  { id: "upload-grades", code: "Upload", label: "All Grades", listOnly: true },
+  { id: "upload-cv", code: "Upload", label: "Updated CV", listOnly: true },
+  { id: "upload-minutes", code: "Upload", label: "Minutes of Proposal Defense", listOnly: true },
+  { id: "upload-receipt-defense", code: "Upload", label: "Defense Receipt", tag: "Graduate only", listOnly: true },
+  { id: "upload-payment", code: "Upload", label: "Payment Receipt", listOnly: true },
+];
+
 const formsByCategory: Record<Category, FormEntry[]> = {
   expedited: [
     { id: "endorsement", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
@@ -55,12 +67,14 @@ const formsByCategory: Record<Category, FormEntry[]> = {
     { id: "fo0031", code: "REC_FO_0031", label: "Sample Informed Consent Form (ICF)", component: EthicsInformedConsentFormSample },
     { id: "fo0034", code: "REC_FO_0034", label: "Sample Assent Form", component: EthicsAssentFormSample },
     { id: "fo0036fb", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAFormFullBoard },
+    ...uploadDocs,
   ],
   exempt: [
     { id: "endorsement3", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
     { id: "fo0032", code: "REC_FO_0032", label: "Ethics Protocol Checklist", component: EthicsChecklistForm },
     { id: "fo0033", code: "REC_FO_0033", label: "Protocol Information Form for Exemption (PIFE)", component: ProtocolInformationForm },
     { id: "fo0036ex", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAForm },
+    ...uploadDocs,
   ],
   fullboard: [
     { id: "endorsement2", code: "Endorsement", label: "Endorsement Form", tag: "Graduate only", component: RECEndorsementForm },
@@ -72,6 +86,7 @@ const formsByCategory: Record<Category, FormEntry[]> = {
     { id: "fo0031b", code: "REC_FO_0031", label: "Sample Informed Consent Form (ICF)", component: EthicsInformedConsentFormSample },
     { id: "fo0034b", code: "REC_FO_0034", label: "Sample Assent Form", component: EthicsAssentFormSample },
     { id: "fo0036fb2", code: "REC_FO_0036", label: "Memorandum of Agreement", component: EthicsMOAFormFullBoard },
+    ...uploadDocs,
   ],
 };
 
@@ -81,6 +96,7 @@ export default function DocumentPrototype() {
   const [activeCategory, setActiveCategory] = useState<Category>("expedited");
   const [activeFormId, setActiveFormId] = useState<string>("endorsement");
   const [exporting, setExporting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   const forms = formsByCategory[activeCategory];
@@ -105,6 +121,56 @@ export default function DocumentPrototype() {
     onBeforePrint: () => { setExporting(true); return Promise.resolve(); },
     onAfterPrint: () => setExporting(false),
   });
+
+  const handleUploadTest = async () => {
+    if (!printRef.current || activeForm.listOnly) return;
+    setUploading(true);
+    try {
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        onclone: (_doc, el) => {
+          // html2canvas doesn't support oklch — strip all computed styles back to safe values
+          el.querySelectorAll("*").forEach((node) => {
+            if (node instanceof HTMLElement) {
+              const s = node.style;
+              for (const prop of Array.from(s)) {
+                const val = s.getPropertyValue(prop);
+                if (val.includes("oklch")) {
+                  s.setProperty(prop, "transparent");
+                }
+              }
+              // Also sanitize computed styles by forcing background on known wrappers
+              const computed = window.getComputedStyle(node);
+              if (computed.backgroundColor.includes("oklch")) {
+                node.style.backgroundColor = "transparent";
+              }
+              if (computed.color.includes("oklch")) {
+                node.style.color = "#000000";
+              }
+              if (computed.borderColor.includes("oklch")) {
+                node.style.borderColor = "#cccccc";
+              }
+            }
+          });
+        },
+      });
+      const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      const blob = pdf.output("blob");
+      const file = new File([blob], "test.pdf", { type: "application/pdf" });
+      const { error } = await supabase.storage.from("documents").upload("test.pdf", file, { upsert: true });
+      if (error) throw error;
+      alert("Uploaded to documents/test.pdf successfully.");
+    } catch (err: any) {
+      alert("Upload failed: " + (err.message || err));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const meta = categoryMeta[activeCategory];
 
@@ -181,18 +247,34 @@ export default function DocumentPrototype() {
           </div>
           <button
             onClick={() => handlePrint()}
-            disabled={exporting}
+            disabled={exporting || activeForm.listOnly}
             className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors ml-4 shrink-0"
           >
             {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {exporting ? "Preparing..." : "Export PDF"}
+          </button>
+          <button
+            onClick={handleUploadTest}
+            disabled={uploading || activeForm.listOnly}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium rounded-md transition-colors ml-2 shrink-0"
+          >
+            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            {uploading ? "Uploading..." : "Test Upload"}
           </button>
         </div>
 
         {/* Form content */}
         <div className="flex-1 overflow-auto p-6">
           <div ref={printRef} className="shadow-lg rounded-sm">
-            <FormComponent />
+            {activeForm.listOnly ? (
+              <div className="bg-white p-12 text-center text-gray-400">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm font-medium">Upload-only document</p>
+                <p className="text-xs mt-1">No form template — submitted directly by the researcher.</p>
+              </div>
+            ) : (
+              FormComponent && <FormComponent />
+            )}
           </div>
         </div>
       </main>

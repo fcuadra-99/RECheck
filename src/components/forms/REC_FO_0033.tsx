@@ -1,14 +1,18 @@
 import React, { useState } from "react";
+import type { FormProps } from "./FormViewer";
 
-const ProtocolInformationForm: React.FC = () => {
-  const [title, setTitle] = useState("");
-  const [researchers, setResearchers] = useState("");
-  const [controlNo, setControlNo] = useState("");
-  const [institution, setInstitution] = useState("");
-  const [researchConductedBy, setResearchConductedBy] = useState("");
-  const [signature, setSignature] = useState("");
+const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, savedData = {}, onSave }) => {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [dateSigned, setDateSigned] = useState(today);
+  const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");
+  const [researchers, setResearchers] = useState<string>(s.researchers ?? researcherName ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [institution, setInstitution] = useState<string>(s.institution ?? "");
+  const [researchConductedBy, setResearchConductedBy] = useState<string>(s.researchConductedBy ?? researcherName ?? "");
+  const [signature, setSignature] = useState<string>(s.signature ?? "");
+  const [dateSigned, setDateSigned] = useState<string>(s.dateSigned ?? today);
   // ✅ NEW STATES FOR SAMPLE TEXT
   const [purpose, setPurpose] = useState(
     "This study aims to predict the retirement decision among employees in private HEI in Davao City in terms of their socio-economic and demographic profile, psychological and organizational factors including social security benefits. It also aims to develop a model of retirement decision among employees of private HEIs in Davao City.",

@@ -1,20 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MemberListInput from "./MemberListInput";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
+import type { FormProps } from "./FormViewer";
 
-function EthicsInformedConsentChecklist() {
-  const [controlNo, setControlNo] = useState("");
-  const [researchTitle, setResearchTitle] = useState("");
-  const [facultyResearchers, setFacultyResearchers] = useState([""]);
-  const [studentResearchers, setStudentResearchers] = useState([""]);
-  const [sponsor, setSponsor] = useState("");
+function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [dateSubmitted, setDateSubmitted] = useState(today);
-  const [dateReceived, setDateReceived] = useState(today);
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [researchTitle, setResearchTitle] = useState<string>(s.researchTitle ?? proposalTitle ?? "");
+  const [facultyResearchers, setFacultyResearchers] = useState<string[]>(s.facultyResearchers ?? (advisorName ? [advisorName] : [""]));
+  const [studentResearchers, setStudentResearchers] = useState<string[]>(s.studentResearchers ?? (researcherName ? [researcherName] : [""]));
+  const [sponsor, setSponsor] = useState<string>(s.sponsor ?? "");
+  const [dateSubmitted, setDateSubmitted] = useState<string>(s.dateSubmitted ?? today);
+  const [dateReceived, setDateReceived] = useState<string>(s.dateReceived ?? today);
+  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers(s.submittedMembers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
+  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers(s.endorsedMembers ?? (advisorName ? [{ name: advisorName, signature: "" }] : undefined));
+  const [dateFiled, setDateFiled] = useState<string>(s.dateFiled ?? today);
 
-  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers();
-  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers();
-  const [dateFiled, setDateFiled] = useState(today);
+  // Sync advisor name once it arrives async (only if not already saved locally)
+  useEffect(() => {
+    if (advisorName && !s.endorsedMembers) setEndorsedMembers([{ name: advisorName, signature: "" }]);
+    if (advisorName && !s.facultyResearchers) setFacultyResearchers([advisorName]);
+    if (advisorName) save({ ...(s.endorsedMembers ? {} : { endorsedMembers: [{ name: advisorName, signature: "" }] }), ...(s.facultyResearchers ? {} : { facultyResearchers: [advisorName] }) });
+  }, [advisorName]);
 
   const checklistItems = [
     "Informed consent form is attached.",
@@ -36,13 +46,26 @@ function EthicsInformedConsentChecklist() {
   ];
 
   const [answers, setAnswers] = useState<string[]>(
-    Array(checklistItems.length).fill(""),
+    s.answers ?? Array(checklistItems.length).fill(""),
   );
+
+  useEffect(() => { if (savedData.answers) setAnswers(savedData.answers); }, [savedData]);
+
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.researchTitle && proposalTitle) patch.researchTitle = proposalTitle;
+    if (!s.studentResearchers && researcherName) patch.studentResearchers = [researcherName];
+    if (!s.submittedMembers && researcherName) patch.submittedMembers = [{ name: researcherName, signature: "" }];
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
 
   const handleAnswer = (index: number, value: string) => {
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
+    save({ answers: updated });
   };
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -172,7 +195,6 @@ function EthicsInformedConsentChecklist() {
               <td style={answerCell}>
                 <input
                   type="radio"
-                  name={`q-${idx}`}
                   value="yes"
                   checked={answers[idx] === "yes"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
@@ -181,7 +203,6 @@ function EthicsInformedConsentChecklist() {
               <td style={answerCell}>
                 <input
                   type="radio"
-                  name={`q-${idx}`}
                   value="no"
                   checked={answers[idx] === "no"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
@@ -190,7 +211,6 @@ function EthicsInformedConsentChecklist() {
               <td style={answerCell}>
                 <input
                   type="radio"
-                  name={`q-${idx}`}
                   value="na"
                   checked={answers[idx] === "na"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
@@ -214,7 +234,6 @@ function EthicsInformedConsentChecklist() {
                 <td style={answerCell}>
                   <input
                     type="radio"
-                    name={`q-${actualIndex}`}
                     value="yes"
                     checked={answers[actualIndex] === "yes"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
@@ -223,7 +242,6 @@ function EthicsInformedConsentChecklist() {
                 <td style={answerCell}>
                   <input
                     type="radio"
-                    name={`q-${actualIndex}`}
                     value="no"
                     checked={answers[actualIndex] === "no"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
@@ -232,7 +250,6 @@ function EthicsInformedConsentChecklist() {
                 <td style={answerCell}>
                   <input
                     type="radio"
-                    name={`q-${actualIndex}`}
                     value="na"
                     checked={answers[actualIndex] === "na"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
@@ -251,12 +268,15 @@ function EthicsInformedConsentChecklist() {
         <span style={legendNA}>N/A - Not Applicable</span>
       </div>
 
-      <SubmittedByTable members={submittedMembers} onChange={setSubmittedMembers} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
         members={endorsedMembers}
-        onChange={setEndorsedMembers}
+        onChange={(v) => { setEndorsedMembers(v); save({ endorsedMembers: v }); }}
+        readOnly={readOnlyAdvisor}
+        proposalId={proposalId}
+        formName={formName}
       />
 
       <div style={dateFiledWrap}>

@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
+import type { FormProps } from "./FormViewer";
 
-function EthicsChecklistForm() {
+function EthicsChecklistForm({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [title, setTitle] = useState("");
-  const [investigator, setInvestigator] = useState("");
-  const [controlNo, setControlNo] = useState("");
-  const [submissionDate, setSubmissionDate] = useState(today);
-  const [verifiedBy, setVerifiedBy] = useState(today);
-  const [dateFiled, setDateFiled] = useState(today);
+  const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");
+  const [investigator, setInvestigator] = useState<string>(s.investigator ?? researcherName ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [submissionDate, setSubmissionDate] = useState<string>(s.submissionDate ?? today);
+  const [verifiedBy, setVerifiedBy] = useState<string>(s.verifiedBy ?? today);
+  const [dateFiled, setDateFiled] = useState<string>(s.dateFiled ?? today);
+  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers(s.submittedMembers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
+  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers(s.endorsedMembers ?? (advisorName ? [{ name: advisorName, signature: "" }] : undefined));
 
 
   const questions = [
@@ -30,12 +37,33 @@ function EthicsChecklistForm() {
     "The research facilities are adequate.",
   ];
 
-  const [answers, setAnswers] = useState<string[]>(Array(17).fill(""));
+  const [answers, setAnswers] = useState<string[]>(s.answers ?? Array(17).fill(""));
+
+  useEffect(() => { if (savedData.answers) setAnswers(savedData.answers); }, [savedData]);
+
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.title && proposalTitle) patch.title = proposalTitle;
+    if (!s.investigator && researcherName) patch.investigator = researcherName;
+    if (!s.submittedMembers && researcherName) patch.submittedMembers = [{ name: researcherName, signature: "" }];
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
+
+  // Sync advisor name once it arrives async
+  useEffect(() => {
+    if (advisorName && !s.endorsedMembers) {
+      setEndorsedMembers([{ name: advisorName, signature: "" }]);
+      save({ endorsedMembers: [{ name: advisorName, signature: "" }] });
+    }
+  }, [advisorName]);
 
   const handleAnswer = (index: number, value: string) => {
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
+    save({ answers: updated });
   };
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -125,7 +153,7 @@ function EthicsChecklistForm() {
               <textarea
                 style={textareaStyle}
                 value={investigator}
-                onChange={(e) => setInvestigator(e.target.value)}
+                onChange={(e) => { setInvestigator(e.target.value); save({ investigator: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -220,7 +248,7 @@ function EthicsChecklistForm() {
               <td style={td}>
                 <input
                   type="radio"
-                  name={`q${i}`}
+                  checked={answers[i] === "yes"}
                   onChange={() => handleAnswer(i, "yes")}
                 />
               </td>
@@ -228,7 +256,7 @@ function EthicsChecklistForm() {
               <td style={td}>
                 <input
                   type="radio"
-                  name={`q${i}`}
+                  checked={answers[i] === "no"}
                   onChange={() => handleAnswer(i, "no")}
                 />
               </td>
@@ -236,7 +264,7 @@ function EthicsChecklistForm() {
               <td style={td}>
                 <input
                   type="radio"
-                  name={`q${i}`}
+                  checked={answers[i] === "na"}
                   onChange={() => handleAnswer(i, "na")}
                 />
               </td>
@@ -252,22 +280,21 @@ function EthicsChecklistForm() {
       </p>
 
       {/* SIGNATURES */}
-      <h3>Submitted by:</h3>
+      <SubmittedByTable
+        members={submittedMembers}
+        onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }}
+        proposalId={proposalId}
+        formName={formName}
+      />
 
-      <div style={{ display: "flex", gap: "20px", marginTop: "20px" }}>
-        <textarea style={textareaStyle} onInput={autoExpand} />
-        <textarea style={textareaStyle} onInput={autoExpand} />
-      </div>
-
-      <div style={{ display: "flex", gap: "20px", marginTop: "20px" }}>
-        <textarea style={textareaStyle} onInput={autoExpand} />
-        <textarea style={textareaStyle} onInput={autoExpand} />
-      </div>
-
-      <p>
-        <strong>Endorsed by:</strong>
-        <input style={inputStyle} />
-      </p>
+      <SubmittedByTable
+        title="Endorsed by:"
+        members={endorsedMembers}
+        onChange={(v) => { setEndorsedMembers(v); save({ endorsedMembers: v }); }}
+        readOnly={readOnlyAdvisor}
+        proposalId={proposalId}
+        formName={formName}
+      />
 
       <p>
         Date Filed:

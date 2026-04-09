@@ -1,21 +1,23 @@
 import { useState } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
-import SignatureCell from "./SignatureCell";
+import type { FormProps } from "./FormViewer";
 
-function EthicsMOAFormFullBoard() {
+function EthicsMOAFormFullBoard({ protocolCode, researcherName, proposalId, formName, savedData = {}, onSave }: FormProps) {
   const now = new Date();
   const day = now.getDate();
   const ordinal = day + (["th","st","nd","rd"][((day%100-20)%10)||((day%100>10&&day%100<14)?0:day%10)] || "th");
   const monthName = now.toLocaleString("default", { month: "long" });
   const autoDay = `${ordinal} day of ${monthName}`;
-  const autoYear = String(now.getFullYear()).slice(2); // e.g. "25"
+  const autoYear = String(now.getFullYear()).slice(2);
 
-  const [controlNo, setControlNo] = useState("");
-  const [signedDay, setSignedDay] = useState(autoDay);
-  const [year, setYear] = useState(autoYear);
-  const [researchers, setResearchers] = useSubmittedByMembers();
-  const [witnesses, setWitnesses] = useSubmittedByMembers();
-  const [monaSig, setMonaSig] = useState("");
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [signedDay, setSignedDay] = useState<string>(s.signedDay ?? autoDay);
+  const [year, setYear] = useState<string>(s.year ?? autoYear);
+  const [researchers, setResearchers] = useSubmittedByMembers(s.researchers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
+  const [witnesses, setWitnesses] = useSubmittedByMembers(s.witnesses);
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -102,31 +104,16 @@ function EthicsMOAFormFullBoard() {
         in Davao City, Philippines.
       </p>
 
-      <SubmittedByTable members={researchers} onChange={setResearchers} />
+      <SubmittedByTable members={researchers} onChange={(v) => { setResearchers(v); save({ researchers: v }); }} proposalId={proposalId} formName={formName} />
 
       <div style={witnessTitle}>Witnesses:</div>
-      <SubmittedByTable members={witnesses} onChange={setWitnesses} />
+      <SubmittedByTable members={witnesses} onChange={(v) => { setWitnesses(v); save({ witnesses: v }); }} title="" proposalId={proposalId} formName={formName} />
 
       <div style={{ marginTop: "20px", fontWeight: 700, fontSize: "12px" }}>Noted by:</div>
-      <table style={monaTable}>
-        <thead>
-          <tr>
-            <th style={monaThName}>Name</th>
-            <th style={monaThSig}>Signature</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={monaTdName}>
-              <div style={{ fontWeight: 700 }}>Dr. Mona L. Laya</div>
-              <div style={{ fontSize: "11px" }}>Chair, UIC-Research Ethics Committee</div>
-            </td>
-            <td style={monaTdSig}>
-              <SignatureCell value={monaSig} onChange={setMonaSig} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div style={{ marginTop: "6px", fontSize: "12px" }}>
+        <div style={{ fontWeight: 700 }}>Dr. Mona L. Laya</div>
+        <div style={{ fontSize: "11px" }}>Chair, UIC-Research Ethics Committee</div>
+      </div>
 
       <div style={footerWrap}>
         <span style={footerDot}>•</span>
@@ -282,45 +269,6 @@ const witnessTitle: React.CSSProperties = {
   marginBottom: "6px",
   fontWeight: 700,
   fontSize: "12px",
-};
-
-const monaTable: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  tableLayout: "fixed",
-  marginTop: "6px",
-};
-
-const monaThName: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "6px",
-  background: "#f0f0f0",
-  fontWeight: 700,
-  fontSize: "12px",
-  textAlign: "left",
-  width: "45%",
-};
-
-const monaThSig: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "6px",
-  background: "#f0f0f0",
-  fontWeight: 700,
-  fontSize: "12px",
-  textAlign: "left",
-};
-
-const monaTdName: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "8px",
-  verticalAlign: "middle",
-  fontSize: "12px",
-};
-
-const monaTdSig: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "8px",
-  verticalAlign: "middle",
 };
 
 const footerWrap: React.CSSProperties = {

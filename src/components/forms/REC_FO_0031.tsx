@@ -1,10 +1,16 @@
-ï»¿import { useState } from "react";
+import { useState } from "react";
+import SignatureCell from "./SignatureCell";
+import type { FormProps } from "./FormViewer";
 
-function EthicsInformedConsentFormSample() {
-  const [formFor, setFormFor] = useState("");
-  const [researcherNames, setResearcherNames] = useState("");
-  const [introResearcher, setIntroResearcher] = useState("");
-  const [questionnaireReturnTo, setQuestionnaireReturnTo] = useState("");
+function EthicsInformedConsentFormSample({ researcherName, proposalTitle, savedData = {}, onSave }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
+  const today = new Date().toISOString().split("T")[0];
+  const [formFor, setFormFor] = useState<string>(s.formFor ?? "");
+  const [researcherNames, setResearcherNames] = useState<string>(s.researcherNames ?? researcherName ?? "");
+  const [introResearcher, setIntroResearcher] = useState<string>(s.introResearcher ?? researcherName ?? "");
+  const [questionnaireReturnTo, setQuestionnaireReturnTo] = useState<string>(s.questionnaireReturnTo ?? "");
 
   const [purposeText, setPurposeText] = useState(
     "This study aims to determine the relationship between supply chain agility and competitive advantage, moderated by information and communication technology capabilities, and the underlying implications of competitive advantage in drugstores in Region XI.",
@@ -48,11 +54,12 @@ function EthicsInformedConsentFormSample() {
   );
   const [participantRightsEdited, setParticipantRightsEdited] = useState(false);
 
-  const today = new Date().toISOString().split("T")[0];
-  const [participantName, setParticipantName] = useState("");
-  const [participantDateSigned, setParticipantDateSigned] = useState(today);
-  const [consentObtainerName, setConsentObtainerName] = useState("");
-  const [consentObtainerDateSigned, setConsentObtainerDateSigned] = useState(today);
+  const [participantName, setParticipantName] = useState<string>(s.participantName ?? "");
+  const [participantSig, setParticipantSig] = useState<string>(s.participantSig ?? "");
+  const [participantDateSigned, setParticipantDateSigned] = useState<string>(s.participantDateSigned ?? today);
+  const [consentObtainerName, setConsentObtainerName] = useState<string>(s.consentObtainerName ?? "");
+  const [consentObtainerSig, setConsentObtainerSig] = useState<string>(s.consentObtainerSig ?? "");
+  const [consentObtainerDateSigned, setConsentObtainerDateSigned] = useState<string>(s.consentObtainerDateSigned ?? today);
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -279,6 +286,7 @@ function EthicsInformedConsentFormSample() {
         <tbody>
           <tr>
             <td style={signatureCellWide}>
+              <SignatureCell value={participantSig} onChange={(v) => { setParticipantSig(v); save({ participantSig: v }); }} />
               <textarea
                 rows={1}
                 style={lineTextarea}
@@ -316,6 +324,7 @@ function EthicsInformedConsentFormSample() {
         <tbody>
           <tr>
             <td style={signatureCellWide}>
+              <SignatureCell value={consentObtainerSig} onChange={(v) => { setConsentObtainerSig(v); save({ consentObtainerSig: v }); }} />
               <textarea
                 rows={1}
                 style={lineTextarea}
@@ -339,9 +348,9 @@ function EthicsInformedConsentFormSample() {
       </table>
 
       <div style={footerWrap}>
-        <span style={footerDot}>â€¢</span>
+        <span style={footerDot}>•</span>
         <span>Telephone No. (082) 227-82-86 (loc. 211)</span>
-        <span style={footerDot}>â€¢</span>
+        <span style={footerDot}>•</span>
         <span>Email Address: rec@uic.edu.ph</span>
       </div>
     </div>
@@ -391,7 +400,7 @@ function ContactTable({ label, entries, onChange }: { label: string; entries: Co
                 </td>
               ))}
               <td style={{ border: "1px solid black", padding: "2px", textAlign: "center", width: "24px" }}>
-                <button type="button" onClick={() => remove(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#999", fontSize: "12px", lineHeight: 1 }}>Ã—</button>
+                <button type="button" onClick={() => remove(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#999", fontSize: "12px", lineHeight: 1 }}>×</button>
               </td>
             </tr>
           ))}

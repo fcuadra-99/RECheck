@@ -11,9 +11,12 @@ interface SubmittedByTableProps {
   members: Member[];
   onChange: (members: Member[]) => void;
   title?: string;
+  readOnly?: boolean;
+  proposalId?: number;
+  formName?: string;
 }
 
-export default function SubmittedByTable({ members, onChange, title = "Submitted by:" }: SubmittedByTableProps) {
+export default function SubmittedByTable({ members, onChange, title = "Submitted by:", readOnly, proposalId, formName }: SubmittedByTableProps) {
   const updateName = (i: number, name: string) => {
     const next = [...members];
     next[i] = { ...next[i], name };
@@ -35,7 +38,7 @@ export default function SubmittedByTable({ members, onChange, title = "Submitted
 
   return (
     <div style={wrap}>
-      <strong>{title}</strong>
+      {title && <strong>{title}</strong>}
       <table style={table}>
         <thead>
           <tr>
@@ -52,30 +55,35 @@ export default function SubmittedByTable({ members, onChange, title = "Submitted
                   style={nameInput}
                   value={m.name}
                   placeholder="Enter name"
-                  onChange={(e) => updateName(i, e.target.value)}
+                  readOnly={readOnly}
+                  onChange={(e) => !readOnly && updateName(i, e.target.value)}
                 />
               </td>
               <td style={tdSig}>
-                <SignatureCell value={m.signature} onChange={(v) => updateSig(i, v)} />
+                <SignatureCell value={m.signature} onChange={(v) => updateSig(i, v)} readOnly={readOnly} proposalId={proposalId} formName={formName} />
               </td>
               <td style={tdRemove}>
-                <button type="button" onClick={() => remove(i)} style={removeBtn} title="Remove">
-                  <X size={11} />
-                </button>
+                {!readOnly && (
+                  <button type="button" onClick={() => remove(i)} style={removeBtn} title="Remove">
+                    <X size={11} />
+                  </button>
+                )}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <button type="button" onClick={add} style={addBtn}>
-        <Plus size={12} /> Add member
-      </button>
+      {!readOnly && (
+        <button type="button" onClick={add} style={addBtn}>
+          <Plus size={12} /> Add member
+        </button>
+      )}
     </div>
   );
 }
 
-export function useSubmittedByMembers() {
-  return useState<{ name: string; signature: string }[]>([{ name: "", signature: "" }]);
+export function useSubmittedByMembers(initial?: { name: string; signature: string }[]) {
+  return useState<{ name: string; signature: string }[]>(initial ?? [{ name: "", signature: "" }]);
 }
 
 const wrap: React.CSSProperties = { marginTop: "20px" };

@@ -1,23 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MemberListInput from "./MemberListInput";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
+import type { FormProps } from "./FormViewer";
 
-function EthicsApplicationProcedure() {
-  const [controlNo, setControlNo] = useState("");
-  const [researchTitle, setResearchTitle] = useState("");
-  const [facultyResearchers, setFacultyResearchers] = useState([""]);
-  const [studentResearchers, setStudentResearchers] = useState([""]);
-  const [sponsor, setSponsor] = useState("");
+function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [dateSubmitted, setDateSubmitted] = useState(today);
-  const [dateReceived, setDateReceived] = useState(today);
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [researchTitle, setResearchTitle] = useState<string>(s.researchTitle ?? proposalTitle ?? "");
+  const [facultyResearchers, setFacultyResearchers] = useState<string[]>(s.facultyResearchers ?? (advisorName ? [advisorName] : [""]));
+  const [studentResearchers, setStudentResearchers] = useState<string[]>(s.studentResearchers ?? (researcherName ? [researcherName] : [""]));
+  const [sponsor, setSponsor] = useState<string>(s.sponsor ?? "");
+  const [dateSubmitted, setDateSubmitted] = useState<string>(s.dateSubmitted ?? today);
+  const [dateReceived, setDateReceived] = useState<string>(s.dateReceived ?? today);
+  const [vulnerablePopulation, setVulnerablePopulation] = useState<string>(s.vulnerablePopulation ?? "");
+  const [otherVulnerable, setOtherVulnerable] = useState<string>(s.otherVulnerable ?? "");
+  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers(s.submittedMembers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
+  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers(s.endorsedMembers ?? (advisorName ? [{ name: advisorName, signature: "" }] : undefined));
+  const [dateFiled, setDateFiled] = useState<string>(s.dateFiled ?? today);
 
-  const [vulnerablePopulation, setVulnerablePopulation] = useState("");
-  const [otherVulnerable, setOtherVulnerable] = useState("");
-  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers();
-
-  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers();
-  const [dateFiled, setDateFiled] = useState(today);
+  // Sync advisor name once it arrives async (only if not already saved locally)
+  useEffect(() => {
+    if (advisorName && !s.endorsedMembers) setEndorsedMembers([{ name: advisorName, signature: "" }]);
+    if (advisorName && !s.facultyResearchers) setFacultyResearchers([advisorName]);
+    if (advisorName) save({ ...(s.endorsedMembers ? {} : { endorsedMembers: [{ name: advisorName, signature: "" }] }), ...(s.facultyResearchers ? {} : { facultyResearchers: [advisorName] }) });
+  }, [advisorName]);
 
   const vulnerableOptions = [
     "Pregnant Women",
@@ -53,13 +62,26 @@ function EthicsApplicationProcedure() {
   ];
 
   const [answers, setAnswers] = useState<string[]>(
-    Array(checklist.length + 4).fill(""),
+    s.answers ?? Array(checklist.length + 4).fill(""),
   );
+
+  useEffect(() => { if (savedData.answers) setAnswers(savedData.answers); }, [savedData]);
+
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.researchTitle && proposalTitle) patch.researchTitle = proposalTitle;
+    if (!s.studentResearchers && researcherName) patch.studentResearchers = [researcherName];
+    if (!s.submittedMembers && researcherName) patch.submittedMembers = [{ name: researcherName, signature: "" }];
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
 
   const handleAnswer = (index: number, value: string) => {
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
+    save({ answers: updated });
   };
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -225,20 +247,14 @@ function EthicsApplicationProcedure() {
                   type="checkbox"
                   checked={vulnerablePopulation.includes(option)}
                   onChange={(e) => {
+                    let updated: string;
                     if (e.target.checked) {
-                      setVulnerablePopulation(
-                        vulnerablePopulation
-                          ? vulnerablePopulation + ", " + option
-                          : option,
-                      );
+                      updated = vulnerablePopulation ? vulnerablePopulation + ", " + option : option;
                     } else {
-                      setVulnerablePopulation(
-                        vulnerablePopulation
-                          .split(", ")
-                          .filter((p) => p !== option)
-                          .join(", "),
-                      );
+                      updated = vulnerablePopulation.split(", ").filter((p) => p !== option).join(", ");
                     }
+                    setVulnerablePopulation(updated);
+                    save({ vulnerablePopulation: updated });
                   }}
                 />{" "}
                 {option}
@@ -256,7 +272,7 @@ function EthicsApplicationProcedure() {
                 type="text"
                 style={{ ...inputStyle, marginLeft: "8px", minWidth: "200px" }}
                 value={otherVulnerable}
-                onChange={(e) => setOtherVulnerable(e.target.value)}
+                onChange={(e) => { setOtherVulnerable(e.target.value); save({ otherVulnerable: e.target.value }); }}
               />
             </label>
           </div>
@@ -284,7 +300,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`item-${index}`}
                     value="C"
                     checked={answers[index] === "C"}
                     onChange={(e) => handleAnswer(index, e.target.value)}
@@ -293,7 +308,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`item-${index}`}
                     value="NC"
                     checked={answers[index] === "NC"}
                     onChange={(e) => handleAnswer(index, e.target.value)}
@@ -302,7 +316,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`item-${index}`}
                     value="N/A"
                     checked={answers[index] === "N/A"}
                     onChange={(e) => handleAnswer(index, e.target.value)}
@@ -334,7 +347,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`sub-item-${subIndex}`}
                     value="C"
                     checked={answers[checklist.length + subIndex] === "C"}
                     onChange={(e) =>
@@ -345,7 +357,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`sub-item-${subIndex}`}
                     value="NC"
                     checked={answers[checklist.length + subIndex] === "NC"}
                     onChange={(e) =>
@@ -356,7 +367,6 @@ function EthicsApplicationProcedure() {
                 <td style={responseCell}>
                   <input
                     type="radio"
-                    name={`sub-item-${subIndex}`}
                     value="N/A"
                     checked={answers[checklist.length + subIndex] === "N/A"}
                     onChange={(e) =>
@@ -377,12 +387,15 @@ function EthicsApplicationProcedure() {
         </div>
       </div>
 
-      <SubmittedByTable members={submittedMembers} onChange={setSubmittedMembers} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
         members={endorsedMembers}
-        onChange={setEndorsedMembers}
+        onChange={(v) => { setEndorsedMembers(v); save({ endorsedMembers: v }); }}
+        readOnly={readOnlyAdvisor}
+        proposalId={proposalId}
+        formName={formName}
       />
 
       <div style={dateFiledSectionWrap}>

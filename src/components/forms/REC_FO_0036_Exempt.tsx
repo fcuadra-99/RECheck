@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
-import SignatureCell from "./SignatureCell";
+import type { FormProps } from "./FormViewer";
 
-const EthicsMOAForm: React.FC = () => {
+const EthicsMOAForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalId, formName, savedData = {}, onSave }) => {
   const now = new Date();
   const day = now.getDate();
   const ordinal = day + (["th","st","nd","rd"][((day%100-20)%10)||((day%100>10&&day%100<14)?0:day%10)] || "th");
@@ -10,12 +10,14 @@ const EthicsMOAForm: React.FC = () => {
   const autoDay = `${ordinal} day of ${monthName}`;
   const autoYear = String(now.getFullYear()).slice(2);
 
-  const [controlNo, setControlNo] = useState("");
-  const [date, setDate] = useState(autoDay);
-  const [year, setYear] = useState(autoYear);
-  const [researchers, setResearchers] = useSubmittedByMembers();
-  const [witnesses, setWitnesses] = useSubmittedByMembers();
-  const [monaSig, setMonaSig] = useState("");
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [date, setDate] = useState<string>(s.date ?? autoDay);
+  const [year, setYear] = useState<string>(s.year ?? autoYear);
+  const [researchers, setResearchers] = useSubmittedByMembers(s.researchers ?? (researcherName ? [{ name: researcherName, signature: "" }] : undefined));
+  const [witnesses, setWitnesses] = useSubmittedByMembers(s.witnesses);
 
   const container: React.CSSProperties = {
     width: "210mm",
@@ -243,33 +245,18 @@ const EthicsMOAForm: React.FC = () => {
       </table>
 
       {/* RESEARCHER SIGNATURES */}
-      <SubmittedByTable members={researchers} onChange={setResearchers} />
+      <SubmittedByTable members={researchers} onChange={(v) => { setResearchers(v); save({ researchers: v }); }} proposalId={proposalId} formName={formName} />
 
       {/* WITNESSES */}
       <div style={{ marginTop: "20px", fontWeight: "bold", fontSize: "12px" }}>Witnesses:</div>
-      <SubmittedByTable members={witnesses} onChange={setWitnesses} />
+      <SubmittedByTable members={witnesses} onChange={(v) => { setWitnesses(v); save({ witnesses: v }); }} title="" proposalId={proposalId} formName={formName} />
 
-      {/* DR. MONA TABLE */}
+      {/* DR. MONA */}
       <div style={{ marginTop: "20px", fontWeight: "bold", fontSize: "12px" }}>Noted by:</div>
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: "6px" }}>
-        <thead>
-          <tr>
-            <th style={{ border: "1px solid black", padding: "6px", background: "#f0f0f0", fontWeight: 700, fontSize: "12px", textAlign: "left", width: "45%" }}>Name</th>
-            <th style={{ border: "1px solid black", padding: "6px", background: "#f0f0f0", fontWeight: 700, fontSize: "12px", textAlign: "left" }}>Signature</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={{ border: "1px solid black", padding: "8px", verticalAlign: "middle", fontSize: "12px" }}>
-              <div style={{ fontWeight: 700 }}>Dr. Mona L. Laya</div>
-              <div style={{ fontSize: "11px" }}>Chair, UIC-Research Ethics Committee</div>
-            </td>
-            <td style={{ border: "1px solid black", padding: "8px", verticalAlign: "middle" }}>
-              <SignatureCell value={monaSig} onChange={setMonaSig} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div style={{ marginTop: "6px", fontSize: "12px" }}>
+        <div style={{ fontWeight: 700 }}>Dr. Mona L. Laya</div>
+        <div style={{ fontSize: "11px" }}>Chair, UIC-Research Ethics Committee</div>
+      </div>
       <div style={footerWrap}>
         <span style={footerDot}>•</span>
         <span>Telephone No. (082) 227-82-86 (loc. 211)</span>

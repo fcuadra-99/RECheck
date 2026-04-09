@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MemberListInput from "./MemberListInput";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
+import type { FormProps } from "./FormViewer";
 
 const basicRequirements = [
   "Updated Curriculum Vitae (CV) of the Adviser(s) and the Researcher (At least 1 copy)",
@@ -43,28 +44,55 @@ const checklist = [
   "The research facilities are adequate.",
 ];
 
-export default function EthicsProtocolChecklist() {
-  const [controlNo, setControlNo] = useState("");
-  const [protocolTitle, setProtocolTitle] = useState("");
-  const [principalInvestigator, setPrincipalInvestigator] = useState([""]);
+export default function EthicsProtocolChecklist({
+  protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor,
+}: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
   const today = new Date().toISOString().split("T")[0];
-  const [protocolSubmissionDate, setProtocolSubmissionDate] = useState(today);
-  const [verifiedBy, setVerifiedBy] = useState(today);
-  const [researchTitle, setResearchTitle] = useState("");
-  const [facultyResearchers, setFacultyResearchers] = useState([""]);
-  const [studentResearchers, setStudentResearchers] = useState([""]);
-  const [sponsor, setSponsor] = useState("");
-  const [dateSubmitted, setDateSubmitted] = useState(today);
-  const [dateReceived, setDateReceived] = useState(today);
-  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers();
-  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers();
-  const [dateFiled, setDateFiled] = useState(today);
-  const [answers, setAnswers] = useState<string[]>(Array(checklist.length).fill(""));
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [protocolTitle, setProtocolTitle] = useState<string>(s.protocolTitle ?? proposalTitle ?? "");
+  const [principalInvestigator, setPrincipalInvestigator] = useState<string[]>(s.principalInvestigator ?? (researcherName ? [researcherName] : [""]));
+  const [protocolSubmissionDate, setProtocolSubmissionDate] = useState<string>(s.protocolSubmissionDate ?? today);
+  const [verifiedBy, setVerifiedBy] = useState<string>(s.verifiedBy ?? today);
+  const [researchTitle, setResearchTitle] = useState<string>(s.researchTitle ?? proposalTitle ?? "");
+  const [facultyResearchers, setFacultyResearchers] = useState<string[]>(s.facultyResearchers ?? [""]);
+  const [studentResearchers, setStudentResearchers] = useState<string[]>(s.studentResearchers ?? (researcherName ? [researcherName] : [""]));
+  const [sponsor, setSponsor] = useState<string>(s.sponsor ?? "");
+  const [dateSubmitted, setDateSubmitted] = useState<string>(s.dateSubmitted ?? today);
+  const [dateReceived, setDateReceived] = useState<string>(s.dateReceived ?? today);
+  const [submittedMembers, setSubmittedMembers] = useSubmittedByMembers(s.submittedMembers);
+  const [endorsedMembers, setEndorsedMembers] = useSubmittedByMembers(s.endorsedMembers ?? (advisorName ? [{ name: advisorName, signature: "" }] : undefined));
+  const [dateFiled, setDateFiled] = useState<string>(s.dateFiled ?? today);
+  const [answers, setAnswers] = useState<string[]>(s.answers ?? Array(checklist.length).fill(""));
+
+  // Sync answers from savedData (handles async load)
+  useEffect(() => {
+    if (savedData.answers) setAnswers(savedData.answers);
+  }, [savedData]);
+
+  // Sync advisor name once it arrives async (only if not already saved locally)
+  useEffect(() => {
+    if (advisorName && !s.endorsedMembers) setEndorsedMembers([{ name: advisorName, signature: "" }]);
+  }, [advisorName]);
+
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.protocolTitle && proposalTitle) patch.protocolTitle = proposalTitle;
+    if (!s.researchTitle && proposalTitle) patch.researchTitle = proposalTitle;
+    if (!s.principalInvestigator && researcherName) patch.principalInvestigator = [researcherName];
+    if (!s.studentResearchers && researcherName) patch.studentResearchers = [researcherName];
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
 
   const handleAnswer = (index: number, value: string) => {
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
+    save({ answers: updated });
   };
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -97,15 +125,15 @@ export default function EthicsProtocolChecklist() {
         <tbody>
           <tr>
             <td style={tdLabel}>Control No. / Protocol Code</td>
-            <td colSpan={3} style={tdInput}><input style={inputStyle} value={controlNo} onChange={(e) => setControlNo(e.target.value)} /></td>
+            <td colSpan={3} style={tdInput}><input style={inputStyle} value={controlNo} onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }} /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Study Protocol Title<br /><span style={subText}>(Title of Study)</span></td>
-            <td colSpan={3} style={tdInput}><textarea style={textareaStyle} value={protocolTitle} onChange={(e) => setProtocolTitle(e.target.value)} onInput={autoExpand} /></td>
+            <td colSpan={3} style={tdInput}><textarea style={textareaStyle} value={protocolTitle} onChange={(e) => { setProtocolTitle(e.target.value); save({ protocolTitle: e.target.value }); }} onInput={autoExpand} /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Principal Investigator<br /><span style={subText}>(Researcher/s)</span></td>
-            <td colSpan={3} style={tdInput}><MemberListInput values={principalInvestigator} onChange={setPrincipalInvestigator} placeholder="Enter investigator name" /></td>
+            <td colSpan={3} style={tdInput}><MemberListInput values={principalInvestigator} onChange={(v) => { setPrincipalInvestigator(v); save({ principalInvestigator: v }); }} placeholder="Enter investigator name" /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Study Protocol Submission Date</td>
@@ -162,9 +190,9 @@ export default function EthicsProtocolChecklist() {
             <tr key={i}>
               <td style={td}>{i + 1}</td>
               <td style={{ ...td, textAlign: "left" }}>{item}</td>
-              <td style={td}><input type="radio" name={`q${i}`} checked={answers[i] === "yes"} onChange={() => handleAnswer(i, "yes")} /></td>
-              <td style={td}><input type="radio" name={`q${i}`} checked={answers[i] === "no"} onChange={() => handleAnswer(i, "no")} /></td>
-              <td style={td}><input type="radio" name={`q${i}`} checked={answers[i] === "na"} onChange={() => handleAnswer(i, "na")} /></td>
+              <td style={td}><input type="radio" checked={answers[i] === "yes"} onChange={() => handleAnswer(i, "yes")} /></td>
+              <td style={td}><input type="radio" checked={answers[i] === "no"} onChange={() => handleAnswer(i, "no")} /></td>
+              <td style={td}><input type="radio" checked={answers[i] === "na"} onChange={() => handleAnswer(i, "na")} /></td>
             </tr>
           ))}
         </tbody>
@@ -172,12 +200,15 @@ export default function EthicsProtocolChecklist() {
 
       <p style={legendText}><strong>Legend:</strong> <span style={legendComplied}>C</span> - Complied, <span style={legendNotComplied}> NC</span> - Not Complied, <span style={legendNA}> N/A</span> - Not Applicable</p>
 
-      <SubmittedByTable members={submittedMembers} onChange={setSubmittedMembers} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
         members={endorsedMembers}
-        onChange={setEndorsedMembers}
+        onChange={(v) => { setEndorsedMembers(v); save({ endorsedMembers: v }); }}
+        readOnly={readOnlyAdvisor}
+        proposalId={proposalId}
+        formName={formName}
       />
 
       <div style={dateFiledSectionWrap}>

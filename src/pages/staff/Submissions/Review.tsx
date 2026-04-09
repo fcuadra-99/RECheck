@@ -28,6 +28,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
+import FormViewer from "@/components/forms/FormViewer";
 
 type Status =
   | "Check Manuscript"
@@ -140,6 +141,8 @@ export const SReview = () => {
   const [formsDocs, setFormsDocs] = React.useState<{ name: string; file: string }[]>([]);
   const [revisionDocs, setRevisionDocs] = React.useState<{ name: string; file: string }[]>([]);
   const [reviewComments, setReviewComments] = React.useState<any[]>([]);
+  const [interactiveForms, setInteractiveForms] = React.useState<string[]>([]);
+  const [activeInteractiveForm, setActiveInteractiveForm] = React.useState<string | null>(null);
 
   const [selectedReviewers, setSelectedReviewers] = React.useState<string[]>([]);
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
@@ -366,6 +369,13 @@ export const SReview = () => {
         setFormsDocs(
           validFormsFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
         );
+
+        // Fetch interactive form_data records
+        const { data: formDataRows } = await supabase
+          .from("form_data")
+          .select("form_name")
+          .eq("proposal_id", parseInt(id));
+        setInteractiveForms((formDataRows || []).map((r: any) => r.form_name));
 
         // For revision phase
         if (status === "Check Revision") {
@@ -728,8 +738,9 @@ export const SReview = () => {
                 key={doc.file}
                 variant={selectedDoc === doc.file ? "default" : "outline"}
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent event bubbling
+                  e.stopPropagation();
                   setSelectedDoc(doc.file);
+                  setActiveInteractiveForm(null);
                 }}
                 className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
               >
@@ -739,7 +750,25 @@ export const SReview = () => {
                 </div>
               </Button>
             ))}
-            {currentDocs.length === 0 && (
+            {activePreview === "forms" && interactiveForms.map((formName) => (
+              <Button
+                key={formName}
+                variant={activeInteractiveForm === formName ? "default" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveInteractiveForm(formName);
+                  setSelectedDoc("");
+                  setDocURL("");
+                }}
+                className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
+              >
+                <div className="flex items-center gap-3">
+                  <FileCheck className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                  <span className="text-sm truncate text-ellipsis">{formName.replace(".pdf", "")}</span>
+                </div>
+              </Button>
+            ))}
+            {currentDocs.length === 0 && interactiveForms.length === 0 && (
               <div className="text-center text-gray-500 py-8">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p>No documents available</p>
@@ -774,8 +803,18 @@ export const SReview = () => {
           </div>
 
           {/* Document Content */}
-          <div className="flex-1 relative bg-gray-100">
-            {docURL === null ? (
+          <div className="flex-1 overflow-auto bg-gray-100">
+            {activeInteractiveForm ? (
+              <div className="min-h-full flex flex-col">
+                <FormViewer
+                  key={`${id}-${activeInteractiveForm}`}
+                  documentName={activeInteractiveForm}
+                  proposalId={parseInt(id)}
+                  readOnly={true}
+                  onDone={() => setActiveInteractiveForm(null)}
+                />
+              </div>
+            ) : docURL === null ? (
               <div className="absolute inset-0 flex items-center justify-center text-gray-500">
                 <div className="text-center">
                   <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />

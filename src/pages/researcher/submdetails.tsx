@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
+import FormViewer from "@/components/forms/FormViewer";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/DB";
@@ -21,6 +22,7 @@ interface Submission {
     category: string;
     review_type: string | null;
     researcher: string | null;
+    advisor_id?: string | null;
     status: string;
     date: string;
 }
@@ -475,28 +477,32 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
             {answerDialogOpen && (
                 <div className="fixed inset-0 bg-background z-50 flex flex-col">
                     <div className="flex items-center justify-between p-4 border-b">
-                        <div className="font-semibold text-lg">Answer Form - {activeDocument}</div>
+                        <div className="font-semibold text-lg">Fill Out Form - {activeDocument}</div>
                         <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => {
-                                setAnswerDialogOpen(false);
-                            }}
+                            onClick={() => setAnswerDialogOpen(false)}
                         >
                             <X className="h-4 w-4" />
                         </Button>
                     </div>
-                    <div className="flex-1 relative">
+                    <div className="flex-1 relative overflow-hidden">
                         {activeDocument && activeSubmission ? (
-                            <PdfFormViewer
-                                document={activeDocument}
-                                onAnswersSubmit={(answers: Record<string, string>) => {
-                                    console.log('Form answers:', answers);
-                                    setAnsweredDocuments(prev => ({ ...prev, [activeDocument]: true }));
+                            <FormViewer
+                                documentName={activeDocument}
+                                proposalId={activeSubmission.proposal_id}
+                                protocolCode={activeSubmission.protocol_id}
+                                proposalTitle={activeSubmission.proposal_title}
+                                reviewType={activeSubmission.review_type}
+                                researcherName={(() => {
+                                    const p = profiles.find(p => p.id === activeSubmission.researcher);
+                                    return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                })()}
+                                advisorId={activeSubmission.advisor_id}
+                                onDone={() => {
+                                    setAnsweredDocuments(prev => ({ ...prev, [activeDocument!]: true }));
                                     setAnswerDialogOpen(false);
                                 }}
-                                proposalId={activeSubmission.proposal_id}
-                                status={activeSubmission.status}
                             />
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center">

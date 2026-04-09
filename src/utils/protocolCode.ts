@@ -91,10 +91,21 @@ export async function generateProtocolCode(
  */
 export async function updateProtocolCode(
   proposalId: string,
-  category: string,
+  _unused: string,
   reviewType: string
 ): Promise<string> {
-  const protocolCode = await generateProtocolCode(category, reviewType);
+  // Fetch the proposal's category since it's not passed in
+  const { data: proposal, error: fetchError } = await supabase
+    .from("proposals")
+    .select("category")
+    .eq("proposal_id", proposalId)
+    .single();
+
+  if (fetchError || !proposal) {
+    throw new Error("Could not fetch proposal category: " + fetchError?.message);
+  }
+
+  const protocolCode = await generateProtocolCode(proposal.category, reviewType);
 
   const { error } = await supabase
     .from("proposals")

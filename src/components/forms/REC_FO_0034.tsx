@@ -1,23 +1,24 @@
 import { useState } from "react";
+import type { FormProps } from "./FormViewer";
 
-function EthicsAssentFormSample() {
-  const [letterHtml, setLetterHtml] = useState(`
+function EthicsAssentFormSample({ researcherName, savedData = {}, onSave }: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
+  const [letterHtml, setLetterHtml] = useState<string>(s.letterHtml ?? `
     <p><span style="color:#b10000;font-style:italic;">Kami, _________________________________________ ay mga mananaliksik at mga empleyado ng ating institusyon ay kasalukuyang gumagawa ng isang pag-aaral na may pamagat na "________________________________________________".</span></p>
     <p><span style="color:#b10000;font-style:italic;">Humihingi kami sa inyo ng pahintulot na kayo ay maging bahagi ng aming pag-aaral sa pamamagitan ng pagsagot ng dalawampung (20) multiple choice na mga katanungan na may kinalaman sa kasalukuyang sitwasyon niyo bilang isang anak ng OFW. Ang inyong tapat na pagsagot ay malaki ang maitutulong sa inyo at sa ating institusyon upang makagawa ang ating institusyon ng nararapat na mga aktibidad para sa mga anak ng OFW.</span></p>
     <p><span style="color:#b10000;font-style:italic;">Kung sumasang-ayon ka na maging bahagi ng aming pag-aaral, kasama ang ilan pang anak ng OFW ng ating institusyon, kayo ay titipunin sa isang silid aralan upang sagutin ang questionnaire na aming inihanda para sa inyo. Ito ay magtatagal lamang ng 30-45 na minuto. Huwag kang mag-alala dahil kayo ay gagabayan ng mga mananaliksik at walang magiging tama at maling sagot dahil ito ay hindi isang pagsusulit. Karagdagan dito, ikaw ay maaaring magtanong tungkol sa pag-aaral sa anumang oras at kung magpasya ka na hindi tapusin o hindi sagutin ang ilang bahagi ng mga katanungan, ito ay maaari mong hilingin sa amin na walang anumang kaakabay na kaparusahan.</span></p>
     <p><span style="color:#b10000;font-style:italic;">Kung ikaw ay pipirma sa papel na ito, nangangahulugan na nabasa at naintindihan mo ang mga hinahangad ng mga mananaliksik samaktuwid nais mong maging bahagi sa pag-aaral, ngunit kung hindi mo nais maging parte nito huwag pipirma sa papel na ito. Ang pagiging bahagi sa pag-aaral ay nasa sa iyo, at walang sinuman ang maaring pumilit sa iyo.</span></p>
     <p><span style="color:#b10000;font-style:italic;">Maraming Salamat.</span></p>
   `);
-
-  const [participantSignature, setParticipantSignature] = useState("");
-  const [participantDate, setParticipantDate] = useState("");
-  const [participantName, setParticipantName] = useState("");
-  const [participantNameDate, setParticipantNameDate] = useState("");
-
-  const [consentRequesterSignature, setConsentRequesterSignature] =
-    useState("");
-  const [consentRequesterDate, setConsentRequesterDate] = useState("");
-  const [consentRequesterName, setConsentRequesterName] = useState("");
+  const [participantSignature, setParticipantSignature] = useState<string>(s.participantSignature ?? "");
+  const [participantDate, setParticipantDate] = useState<string>(s.participantDate ?? "");
+  const [participantName, setParticipantName] = useState<string>(s.participantName ?? "");
+  const [participantNameDate, setParticipantNameDate] = useState<string>(s.participantNameDate ?? "");
+  const [consentRequesterSignature, setConsentRequesterSignature] = useState<string>(s.consentRequesterSignature ?? "");
+  const [consentRequesterDate, setConsentRequesterDate] = useState<string>(s.consentRequesterDate ?? "");
+  const [consentRequesterName, setConsentRequesterName] = useState<string>(s.consentRequesterName ?? researcherName ?? "");
   const [consentRequesterNameDate, setConsentRequesterNameDate] = useState("");
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {

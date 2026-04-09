@@ -1,12 +1,34 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SignatureCell from "./SignatureCell";
+import type { FormProps } from "./FormViewer";
 
-export default function RECEndorsementForm() {
-  const [controlNo, setControlNo] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [degreeProgram, setDegreeProgram] = useState("");
-  const [adviserName, setAdviserName] = useState("");
-  const [adviserSig, setAdviserSig] = useState("");
+export default function RECEndorsementForm({
+  protocolCode, researcherName, advisorName, proposalTitle, savedData = {}, onSave, readOnlyAdvisor,
+}: FormProps) {
+  const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
+
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [studentName, setStudentName] = useState<string>(s.studentName ?? researcherName ?? "");
+  const [degreeProgram, setDegreeProgram] = useState<string>(s.degreeProgram ?? proposalTitle ?? "");
+  const [adviserName, setAdviserName] = useState<string>(s.adviserName ?? advisorName ?? "");
+  const [adviserSig, setAdviserSig] = useState<string>(s.adviserSig ?? "");
+
+  // Sync advisor name once it arrives async (only if not already saved locally)
+  useEffect(() => {
+    if (advisorName && !s.adviserName) {
+      setAdviserName(advisorName);
+      save({ adviserName: advisorName });
+    }
+  }, [advisorName]);
+
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.studentName && researcherName) patch.studentName = researcherName;
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -33,7 +55,7 @@ export default function RECEndorsementForm() {
           </div>
           <div style={controlWrap}>
             <span>Control No.:</span>
-            <textarea rows={1} style={controlLine} value={controlNo} onChange={(e) => setControlNo(e.target.value)} onInput={autoExpand} />
+            <textarea rows={1} style={controlLine} value={controlNo} onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }} onInput={autoExpand} />
           </div>
         </div>
       </div>
@@ -55,7 +77,7 @@ export default function RECEndorsementForm() {
         <div style={studentNameSentence}>
           <span>Endorsing to your good office, Mr./Ms.</span>
           <div style={studentNameFieldGroup}>
-            <textarea rows={1} style={studentNameLine} value={studentName} onChange={(e) => setStudentName(e.target.value)} onInput={autoExpand} />
+            <textarea rows={1} style={studentNameLine} value={studentName} onChange={(e) => { setStudentName(e.target.value); save({ studentName: e.target.value }); }} onInput={autoExpand} />
             <div style={studentNameCaptionWrap}><div style={caption}>(Name of Student)</div></div>
           </div>
           <span>, of</span>
@@ -64,7 +86,7 @@ export default function RECEndorsementForm() {
 
       <div style={degreeAndCaptionWrapper}>
         <div style={degreeSection}>
-          <textarea rows={1} style={degreeLine} value={degreeProgram} onChange={(e) => setDegreeProgram(e.target.value)} onInput={autoExpand} />
+          <textarea rows={1} style={degreeLine} value={degreeProgram} onChange={(e) => { setDegreeProgram(e.target.value); save({ degreeProgram: e.target.value }); }} onInput={autoExpand} />
           <span style={degreeText}>for the ethical consideration concerns.</span>
         </div>
         <div style={degreeNameCaptionWrap}><div style={caption}>(Name of Degree/Program)</div></div>
@@ -72,8 +94,14 @@ export default function RECEndorsementForm() {
 
       <div style={{ ...signSection, fontWeight: 700 }}>Endorsed by:</div>
       <div style={signLineWrap}>
-        <SignatureCell value={adviserSig} onChange={setAdviserSig} />
-        <textarea rows={1} style={signatureLine} value={adviserName} onChange={(e) => setAdviserName(e.target.value)} onInput={autoExpand} />
+        <SignatureCell value={adviserSig} onChange={(v) => { setAdviserSig(v); save({ adviserSig: v }); }} readOnly={readOnlyAdvisor} />
+        {readOnlyAdvisor ? (
+          <div style={{ ...signatureLine, borderBottom: "1px solid #ccc", color: advisorName ? "#000" : "#aaa", fontSize: "11px", minHeight: "16px", display: "flex", alignItems: "center" }}>
+            {advisorName || "To be signed by adviser"}
+          </div>
+        ) : (
+          <textarea rows={1} style={signatureLine} value={adviserName} onChange={(e) => { setAdviserName(e.target.value); save({ adviserName: e.target.value }); }} onInput={autoExpand} />
+        )}
         <div style={caption}>Adviser</div>
       </div>
 

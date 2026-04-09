@@ -1,13 +1,18 @@
 import { useRef, useState } from "react";
 import SignatureCanvas from "react-signature-canvas";
 import { Pen, Upload, RotateCcw, Check } from "lucide-react";
+import { supabase } from "@/DB";
 
 interface SignatureCellProps {
-  value: string; // base64 data URL or ""
+  value: string;
   onChange: (val: string) => void;
+  readOnly?: boolean;
+  /** Storage context for organized uploads */
+  proposalId?: number;
+  formName?: string;
 }
 
-export default function SignatureCell({ value, onChange }: SignatureCellProps) {
+export default function SignatureCell({ value, onChange, readOnly, proposalId, formName }: SignatureCellProps) {
   const [mode, setMode] = useState<"idle" | "draw">("idle");
   const sigRef = useRef<SignatureCanvas>(null);
 
@@ -23,14 +28,47 @@ export default function SignatureCell({ value, onChange }: SignatureCellProps) {
     onChange("");
   };
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => onChange(ev.target?.result as string);
-    reader.readAsDataURL(file);
     e.target.value = "";
+
+    // If small enough (<200KB), just use base64 — avoids storage overhead
+    if (file.size < 200 * 1024) {
+      const reader = new FileReader();
+      reader.onload = (ev) => onChange(ev.target?.result as string);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // Large image — upload to storage and store URL
+    setUploading(true);
+    try {
+      const folder = proposalId && formName
+        ? `${proposalId}/Send Forms/${formName}/signature`
+        : `signatures`;
+      const path = `${folder}/${Date.now()}_${file.name}`;
+      const { error } = await supabase.storage.from("documents").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = supabase.storage.from("documents").getPublicUrl(path);
+      onChange(data.publicUrl);
+    } catch {
+      // Fall back to base64 if upload fails
+      const reader = new FileReader();
+      reader.onload = (ev) => onChange(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } finally {
+      setUploading(false);
+    }
   };
+
+  if (readOnly) {
+    return value
+      ? <div style={previewWrap}><img src={value} alt="signature" style={previewImg} /></div>
+      : <div style={{ ...idleWrap, color: "#aaa", fontSize: "11px" }}>Signature pending</div>;
+  }
 
   if (mode === "draw") {
     return (
@@ -74,8 +112,8 @@ export default function SignatureCell({ value, onChange }: SignatureCellProps) {
         <Pen size={11} /> Draw
       </button>
       <label style={btnOutline}>
-        <Upload size={11} /> Upload
-        <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} />
+        {uploading ? "Uploading..." : <><Upload size={11} /> Upload</>}
+        <input type="file" accept="image/*" style={{ display: "none" }} onChange={handleUpload} disabled={uploading} />
       </label>
     </div>
   );
