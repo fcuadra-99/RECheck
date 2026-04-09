@@ -1,5 +1,4 @@
 import { useState } from "react";
-import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 
 function EthicsChecklistForm() {
   const today = new Date().toISOString().split("T")[0];
