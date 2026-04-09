@@ -25,7 +25,7 @@ interface FormEntry {
   id: string;
   label: string;
   code: string;
-  component?: React.ComponentType;
+  component?: React.ComponentType<any>;
   tag?: string;
   listOnly?: boolean;
 }

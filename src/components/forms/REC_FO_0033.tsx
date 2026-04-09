@@ -3,7 +3,7 @@ import type { FormProps } from "./FormViewer";
 
 const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, savedData = {}, onSave }) => {
   const s = savedData;
-  const save = (patch: Record<string, any>) => onSave?.(patch);
+  const _save = (patch: Record<string, any>) => onSave?.(patch);
 
   const today = new Date().toISOString().split("T")[0];
   const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");

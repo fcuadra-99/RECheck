@@ -2,7 +2,7 @@ import { useState } from "react";
 import SignatureCell from "./SignatureCell";
 import type { FormProps } from "./FormViewer";
 
-function EthicsInformedConsentFormSample({ researcherName, proposalTitle, savedData = {}, onSave }: FormProps) {
+function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSave }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
@@ -348,9 +348,9 @@ function EthicsInformedConsentFormSample({ researcherName, proposalTitle, savedD
       </table>
 
       <div style={footerWrap}>
-        <span style={footerDot}>•</span>
+        <span style={footerDot}>ï¿½</span>
         <span>Telephone No. (082) 227-82-86 (loc. 211)</span>
-        <span style={footerDot}>•</span>
+        <span style={footerDot}>ï¿½</span>
         <span>Email Address: rec@uic.edu.ph</span>
       </div>
     </div>
@@ -400,7 +400,7 @@ function ContactTable({ label, entries, onChange }: { label: string; entries: Co
                 </td>
               ))}
               <td style={{ border: "1px solid black", padding: "2px", textAlign: "center", width: "24px" }}>
-                <button type="button" onClick={() => remove(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#999", fontSize: "12px", lineHeight: 1 }}>×</button>
+                <button type="button" onClick={() => remove(i)} style={{ border: "none", background: "transparent", cursor: "pointer", color: "#999", fontSize: "12px", lineHeight: 1 }}>ï¿½</button>
               </td>
             </tr>
           ))}
