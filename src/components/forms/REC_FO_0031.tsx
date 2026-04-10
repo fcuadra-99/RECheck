@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SignatureCell from "./SignatureCell";
 import type { FormProps } from "./FormViewer";
 
@@ -12,47 +12,26 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
   const [introResearcher, setIntroResearcher] = useState<string>(s.introResearcher ?? researcherName ?? "");
   const [questionnaireReturnTo, setQuestionnaireReturnTo] = useState<string>(s.questionnaireReturnTo ?? "");
 
-  const [purposeText, setPurposeText] = useState(
-    "This study aims to determine the relationship between supply chain agility and competitive advantage, moderated by information and communication technology capabilities, and the underlying implications of competitive advantage in drugstores in Region XI.",
-  );
-  const [purposeEdited, setPurposeEdited] = useState(false);
+  const defaultPurpose = "This study aims to determine the relationship between supply chain agility and competitive advantage, moderated by information and communication technology capabilities, and the underlying implications of competitive advantage in drugstores in Region XI.";
+  const defaultProcedures = "- You are requested to sign this ICF to signify your voluntary participation.\n- You will answer the questionnaire for 30 minutes.\n- You can bring home the survey questionnaire to read thoroughly and carefully and answer completely.\n- You will return the survey questionnaire to the designated person/office.";
+  const defaultRisks = "- The topic is not sensitive. However, if you are uncomfortable answering the survey questionnaire items, you may opt not to answer questions that make you feel any psychological or emotional distress.\n- You may withdraw as a participant from the study at any time.\n- Your welfare will be prioritized during the study.";
+  const defaultBenefits = "This study can generate relevant information that can be useful to pharmacists, managers, pharmacy owners, researchers, and other entrepreneurs in Region XI. Findings may contribute to improving healthcare services, patient outcomes, and evidence-based interventions.";
+  const defaultPrivacy = "The study will ensure the privacy and confidentiality of your information in accordance with the Data Privacy Act of 2012 (RA 10173). Your responses will be handled with strict confidentiality, and no personally identifiable information will be disclosed in publications or presentations.";
+  const defaultVoluntariness = "Your participation is voluntary. Refusal to participate will involve no penalty or loss of benefits to which you are otherwise entitled. You may withdraw your consent at any time without penalty.";
+  const defaultReimbursement = "You may be given a reasonable incentive as a sign of gratitude for helping accomplish the study.";
+  const defaultParticipantRights = "If you have questions, concerns, or complaints about your rights as a research participant, please contact the University of the Immaculate Conception Research Ethics Committee at (082) 227-4860 local 211.";
 
-  const [proceduresText, setProceduresText] = useState(
-    "- You are requested to sign this ICF to signify your voluntary participation.\n- You will answer the questionnaire for 30 minutes.\n- You can bring home the survey questionnaire to read thoroughly and carefully and answer completely.\n- You will return the survey questionnaire to the designated person/office.",
-  );
-  const [proceduresEdited, setProceduresEdited] = useState(false);
+  const [purposeText, setPurposeText] = useState(s.purposeText ?? defaultPurpose);
+  const [proceduresText, setProceduresText] = useState(s.proceduresText ?? defaultProcedures);
+  const [risksText, setRisksText] = useState(s.risksText ?? defaultRisks);
+  const [benefitsText, setBenefitsText] = useState(s.benefitsText ?? defaultBenefits);
+  const [privacyText, setPrivacyText] = useState(s.privacyText ?? defaultPrivacy);
+  const [voluntarinessText, setVoluntarinessText] = useState(s.voluntarinessText ?? defaultVoluntariness);
+  const [reimbursementText, setReimbursementText] = useState(s.reimbursementText ?? defaultReimbursement);
+  const [participantRights, setParticipantRights] = useState(s.participantRights ?? defaultParticipantRights);
 
-  const [risksText, setRisksText] = useState(
-    "- The topic is not sensitive. However, if you are uncomfortable answering the survey questionnaire items, you may opt not to answer questions that make you feel any psychological or emotional distress.\n- You may withdraw as a participant from the study at any time.\n- Your welfare will be prioritized during the study.",
-  );
-  const [risksEdited, setRisksEdited] = useState(false);
-
-  const [benefitsText, setBenefitsText] = useState(
-    "This study can generate relevant information that can be useful to pharmacists, managers, pharmacy owners, researchers, and other entrepreneurs in Region XI. Findings may contribute to improving healthcare services, patient outcomes, and evidence-based interventions.",
-  );
-  const [benefitsEdited, setBenefitsEdited] = useState(false);
-
-  const [privacyText, setPrivacyText] = useState(
-    "The study will ensure the privacy and confidentiality of your information in accordance with the Data Privacy Act of 2012 (RA 10173). Your responses will be handled with strict confidentiality, and no personally identifiable information will be disclosed in publications or presentations.",
-  );
-  const [privacyEdited, setPrivacyEdited] = useState(false);
-
-  const [voluntarinessText, setVoluntarinessText] = useState(
-    "Your participation is voluntary. Refusal to participate will involve no penalty or loss of benefits to which you are otherwise entitled. You may withdraw your consent at any time without penalty.",
-  );
-  const [voluntarinessEdited, setVoluntarinessEdited] = useState(false);
-
-  const [reimbursementText, setReimbursementText] = useState(
-    "You may be given a reasonable incentive as a sign of gratitude for helping accomplish the study.",
-  );
-  const [reimbursementEdited, setReimbursementEdited] = useState(false);
-
-  const [investigators, setInvestigators] = useState([{ name: "", phone: "", email: "", address: "" }]);
-  const [advisers, setAdvisers] = useState([{ name: "", phone: "", email: "", address: "" }]);
-  const [participantRights, setParticipantRights] = useState(
-    "If you have questions, concerns, or complaints about your rights as a research participant, please contact the University of the Immaculate Conception Research Ethics Committee at (082) 227-4860 local 211.",
-  );
-  const [participantRightsEdited, setParticipantRightsEdited] = useState(false);
+  const [investigators, setInvestigators] = useState<ContactEntry[]>(s.investigators ?? [{ name: "", phone: "", email: "", address: "" }]);
+  const [advisers, setAdvisers] = useState<ContactEntry[]>(s.advisers ?? [{ name: "", phone: "", email: "", address: "" }]);
 
   const [participantName, setParticipantName] = useState<string>(s.participantName ?? "");
   const [participantSig, setParticipantSig] = useState<string>(s.participantSig ?? "");
@@ -60,6 +39,22 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
   const [consentObtainerName, setConsentObtainerName] = useState<string>(s.consentObtainerName ?? "");
   const [consentObtainerSig, setConsentObtainerSig] = useState<string>(s.consentObtainerSig ?? "");
   const [consentObtainerDateSigned, setConsentObtainerDateSigned] = useState<string>(s.consentObtainerDateSigned ?? today);
+
+  // Save autofill values on mount
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.researcherNames && researcherName) patch.researcherNames = researcherName;
+    if (!s.introResearcher && researcherName) patch.introResearcher = researcherName;
+    if (!s.purposeText) patch.purposeText = defaultPurpose;
+    if (!s.proceduresText) patch.proceduresText = defaultProcedures;
+    if (!s.risksText) patch.risksText = defaultRisks;
+    if (!s.benefitsText) patch.benefitsText = defaultBenefits;
+    if (!s.privacyText) patch.privacyText = defaultPrivacy;
+    if (!s.voluntarinessText) patch.voluntarinessText = defaultVoluntariness;
+    if (!s.reimbursementText) patch.reimbursementText = defaultReimbursement;
+    if (!s.participantRights) patch.participantRights = defaultParticipantRights;
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
@@ -99,7 +94,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
           rows={1}
           style={lineTextarea}
           value={formFor}
-          onChange={(e) => setFormFor(e.target.value)}
+          onChange={(e) => { setFormFor(e.target.value); save({ formFor: e.target.value }); }}
           onInput={autoExpand}
         />
       </div>
@@ -110,7 +105,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
           rows={1}
           style={lineTextarea}
           value={researcherNames}
-          onChange={(e) => setResearcherNames(e.target.value)}
+          onChange={(e) => { setResearcherNames(e.target.value); save({ researcherNames: e.target.value }); }}
           onInput={autoExpand}
         />
       </div>
@@ -127,7 +122,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
           rows={1}
           style={{ ...lineTextarea, margin: "0 6px", width: "180px" }}
           value={introResearcher}
-          onChange={(e) => setIntroResearcher(e.target.value)}
+          onChange={(e) => { setIntroResearcher(e.target.value); save({ introResearcher: e.target.value }); }}
           onInput={autoExpand}
         />
         at the University of the Immaculate Conception, because you fit the
@@ -147,30 +142,18 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
 
       <SectionTitle text="PURPOSE OF THE STUDY" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: purposeEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={purposeText}
-        onChange={(e) => {
-          setPurposeText(e.target.value);
-          setPurposeEdited(true);
-        }}
+        onChange={(e) => { setPurposeText(e.target.value); save({ purposeText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="STUDY PROCEDURES" />
       <p style={paragraph}>If you volunteer to participate in this study:</p>
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: proceduresEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={proceduresText}
-        onChange={(e) => {
-          setProceduresText(e.target.value);
-          setProceduresEdited(true);
-        }}
+        onChange={(e) => { setProceduresText(e.target.value); save({ proceduresText: e.target.value }); }}
         onInput={autoExpand}
       />
       <div style={lineFieldWrap}>
@@ -179,7 +162,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
           rows={1}
           style={{ ...lineTextarea, width: "220px" }}
           value={questionnaireReturnTo}
-          onChange={(e) => setQuestionnaireReturnTo(e.target.value)}
+          onChange={(e) => { setQuestionnaireReturnTo(e.target.value); save({ questionnaireReturnTo: e.target.value }); }}
           onInput={autoExpand}
         />
         <span>.</span>
@@ -187,89 +170,53 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
 
       <SectionTitle text="POTENTIAL RISKS AND DISCOMFORTS" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: risksEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={risksText}
-        onChange={(e) => {
-          setRisksText(e.target.value);
-          setRisksEdited(true);
-        }}
+        onChange={(e) => { setRisksText(e.target.value); save({ risksText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="POTENTIAL BENEFITS TO PARTICIPANTS AND/OR TO SOCIETY" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: benefitsEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={benefitsText}
-        onChange={(e) => {
-          setBenefitsText(e.target.value);
-          setBenefitsEdited(true);
-        }}
+        onChange={(e) => { setBenefitsText(e.target.value); save({ benefitsText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="DATA PRIVACY AND CONFIDENTIALITY" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: privacyEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={privacyText}
-        onChange={(e) => {
-          setPrivacyText(e.target.value);
-          setPrivacyEdited(true);
-        }}
+        onChange={(e) => { setPrivacyText(e.target.value); save({ privacyText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="VOLUNTARINESS OF PARTICIPATION AND RIGHTS TO WITHDRAW FROM THE RESEARCH" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: voluntarinessEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={voluntarinessText}
-        onChange={(e) => {
-          setVoluntarinessText(e.target.value);
-          setVoluntarinessEdited(true);
-        }}
+        onChange={(e) => { setVoluntarinessText(e.target.value); save({ voluntarinessText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="REIMBURSEMENT AND COMPENSATION" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: reimbursementEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={reimbursementText}
-        onChange={(e) => {
-          setReimbursementText(e.target.value);
-          setReimbursementEdited(true);
-        }}
+        onChange={(e) => { setReimbursementText(e.target.value); save({ reimbursementText: e.target.value }); }}
         onInput={autoExpand}
       />
 
       <SectionTitle text="INVESTIGATOR'S and ADVISER'S CONTACT INFORMATION" />
-      <ContactTable label="Investigator(s)" entries={investigators} onChange={setInvestigators} />
-      <ContactTable label="Adviser(s)" entries={advisers} onChange={setAdvisers} />
+      <ContactTable label="Investigator(s)" entries={investigators} onChange={(v) => { setInvestigators(v); save({ investigators: v }); }} />
+      <ContactTable label="Adviser(s)" entries={advisers} onChange={(v) => { setAdvisers(v); save({ advisers: v }); }} />
 
       <SectionTitle text="RIGHTS OF RESEARCH PARTICIPANT" />
       <textarea
-        style={{
-          ...sectionTextarea,
-          fontStyle: participantRightsEdited ? "normal" : "italic",
-        }}
+        style={{ ...sectionTextarea }}
         value={participantRights}
-        onChange={(e) => {
-          setParticipantRights(e.target.value);
-          setParticipantRightsEdited(true);
-        }}
+        onChange={(e) => { setParticipantRights(e.target.value); save({ participantRights: e.target.value }); }}
         onInput={autoExpand}
       />
 
@@ -291,7 +238,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
                 rows={1}
                 style={lineTextarea}
                 value={participantName}
-                onChange={(e) => setParticipantName(e.target.value)}
+                onChange={(e) => { setParticipantName(e.target.value); save({ participantName: e.target.value }); }}
                 onInput={autoExpand}
               />
               <div style={signatureLabel}>
@@ -303,7 +250,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
                 type="date"
                 style={dateInputStyle}
                 value={participantDateSigned}
-                onChange={(e) => setParticipantDateSigned(e.target.value)}
+                onChange={(e) => { setParticipantDateSigned(e.target.value); save({ participantDateSigned: e.target.value }); }}
               />
               <div style={signatureLabel}>Date Signed</div>
             </td>
@@ -329,7 +276,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
                 rows={1}
                 style={lineTextarea}
                 value={consentObtainerName}
-                onChange={(e) => setConsentObtainerName(e.target.value)}
+                onChange={(e) => { setConsentObtainerName(e.target.value); save({ consentObtainerName: e.target.value }); }}
                 onInput={autoExpand}
               />
               <div style={signatureLabel}>Name of Person Obtaining Consent</div>
@@ -339,7 +286,7 @@ function EthicsInformedConsentFormSample({ researcherName, savedData = {}, onSav
                 type="date"
                 style={dateInputStyle}
                 value={consentObtainerDateSigned}
-                onChange={(e) => setConsentObtainerDateSigned(e.target.value)}
+                onChange={(e) => { setConsentObtainerDateSigned(e.target.value); save({ consentObtainerDateSigned: e.target.value }); }}
               />
               <div style={signatureLabel}>Date Signed</div>
             </td>

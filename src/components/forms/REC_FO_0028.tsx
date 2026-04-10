@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 import MemberListInput from "./MemberListInput";
 import type { FormProps } from "./FormViewer";
@@ -37,6 +37,19 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
     el.style.height = el.scrollHeight + "px";
   };
 
+  // Save autofill values on mount if not already persisted
+  useEffect(() => {
+    const patch: Record<string, any> = {};
+    if (!s.protocolSubmissionDate) patch.protocolSubmissionDate = today;
+    if (!s.studyProtocolTitle && proposalTitle) patch.studyProtocolTitle = proposalTitle;
+    if (!s.protocolTitle && proposalTitle) patch.protocolTitle = proposalTitle;
+    if (!s.principalInvestigator && researcherName) patch.principalInvestigator = [researcherName];
+    if (!s.tablePrincipalInvestigator && researcherName) patch.tablePrincipalInvestigator = [researcherName];
+    if (!s.typeOfReview && reviewType) patch.typeOfReview = reviewType;
+    if (!s.preparedMembers && researcherName) patch.preparedMembers = [{ name: researcherName, signature: "" }];
+    if (Object.keys(patch).length > 0) save(patch);
+  }, []);
+
   return (
     <div style={container}>
       <div style={headerWrap}>
@@ -72,7 +85,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
             type="date"
             style={dateInputStyle}
             value={protocolSubmissionDate}
-            onChange={(e) => setProtocolSubmissionDate(e.target.value)}
+            onChange={(e) => { setProtocolSubmissionDate(e.target.value); save({ protocolSubmissionDate: e.target.value }); }}
           />
         </div>
 
@@ -81,7 +94,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
           <textarea
             style={textareaStyle}
             value={studyProtocolTitle}
-            onChange={(e) => setStudyProtocolTitle(e.target.value)}
+            onChange={(e) => { setStudyProtocolTitle(e.target.value); save({ studyProtocolTitle: e.target.value }); }}
             onInput={autoExpand}
           />
         </div>
@@ -94,7 +107,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
 
         <div style={fieldRow}>
           <label style={fieldLabel}>Principal Investigator</label>
-          <MemberListInput values={principalInvestigator} onChange={setPrincipalInvestigator} placeholder="Enter investigator name" />
+          <MemberListInput values={principalInvestigator} onChange={(v) => { setPrincipalInvestigator(v); save({ principalInvestigator: v }); }} placeholder="Enter investigator name" />
         </div>
 
         <div style={fieldRow}>
@@ -102,7 +115,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
           <input
             style={inputStyle}
             value={typeOfReview}
-            onChange={(e) => setTypeOfReview(e.target.value)}
+            onChange={(e) => { setTypeOfReview(e.target.value); save({ typeOfReview: e.target.value }); }}
           />
           <div style={hintText}>(full board or expedited)</div>
         </div>
@@ -124,7 +137,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
           <textarea
             style={textareaStyle}
             value={sponsor}
-            onChange={(e) => setSponsor(e.target.value)}
+            onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }}
             onInput={autoExpand}
           />
         </div>
@@ -150,7 +163,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={protocolTitle}
-                onChange={(e) => setProtocolTitle(e.target.value)}
+                onChange={(e) => { setProtocolTitle(e.target.value); save({ protocolTitle: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -159,7 +172,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
           <tr>
             <td style={tdLabel}>Principal Investigator</td>
             <td style={tdInput}>
-              <MemberListInput values={tablePrincipalInvestigator} onChange={setTablePrincipalInvestigator} placeholder="Enter investigator name" />
+              <MemberListInput values={tablePrincipalInvestigator} onChange={(v) => { setTablePrincipalInvestigator(v); save({ tablePrincipalInvestigator: v }); }} placeholder="Enter investigator name" />
             </td>
           </tr>
 
@@ -171,7 +184,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
                 <textarea
                   style={tableTextareaStyle}
                   value={objectivesGeneral}
-                  onChange={(e) => setObjectivesGeneral(e.target.value)}
+                  onChange={(e) => { setObjectivesGeneral(e.target.value); save({ objectivesGeneral: e.target.value }); }}
                   onInput={autoExpand}
                 />
               </div>
@@ -180,7 +193,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
                 <textarea
                   style={tableTextareaStyle}
                   value={objectivesSpecific}
-                  onChange={(e) => setObjectivesSpecific(e.target.value)}
+                  onChange={(e) => { setObjectivesSpecific(e.target.value); save({ objectivesSpecific: e.target.value }); }}
                   onInput={autoExpand}
                 />
               </div>
@@ -193,7 +206,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={researchDesign}
-                onChange={(e) => setResearchDesign(e.target.value)}
+                onChange={(e) => { setResearchDesign(e.target.value); save({ researchDesign: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -205,7 +218,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={setting}
-                onChange={(e) => setSetting(e.target.value)}
+                onChange={(e) => { setSetting(e.target.value); save({ setting: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -217,7 +230,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={subjectInclusion}
-                onChange={(e) => setSubjectInclusion(e.target.value)}
+                onChange={(e) => { setSubjectInclusion(e.target.value); save({ subjectInclusion: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -229,7 +242,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={subjectExclusion}
-                onChange={(e) => setSubjectExclusion(e.target.value)}
+                onChange={(e) => { setSubjectExclusion(e.target.value); save({ subjectExclusion: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -241,7 +254,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={samplingProcedures}
-                onChange={(e) => setSamplingProcedures(e.target.value)}
+                onChange={(e) => { setSamplingProcedures(e.target.value); save({ samplingProcedures: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -253,7 +266,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={interventionsAndComparisons}
-                onChange={(e) => setInterventionsAndComparisons(e.target.value)}
+                onChange={(e) => { setInterventionsAndComparisons(e.target.value); save({ interventionsAndComparisons: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -265,7 +278,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={dataGathering}
-                onChange={(e) => setDataGathering(e.target.value)}
+                onChange={(e) => { setDataGathering(e.target.value); save({ dataGathering: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -277,7 +290,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={variables}
-                onChange={(e) => setVariables(e.target.value)}
+                onChange={(e) => { setVariables(e.target.value); save({ variables: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -289,7 +302,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={sampleSizeComputation}
-                onChange={(e) => setSampleSizeComputation(e.target.value)}
+                onChange={(e) => { setSampleSizeComputation(e.target.value); save({ sampleSizeComputation: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -301,7 +314,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={dataHandlingAnalysis}
-                onChange={(e) => setDataHandlingAnalysis(e.target.value)}
+                onChange={(e) => { setDataHandlingAnalysis(e.target.value); save({ dataHandlingAnalysis: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -313,7 +326,7 @@ function EthicsStudyProtocolInformationForm({ protocolCode, researcherName, prop
               <textarea
                 style={tableTextareaStyle}
                 value={ethicalConsiderations}
-                onChange={(e) => setEthicalConsiderations(e.target.value)}
+                onChange={(e) => { setEthicalConsiderations(e.target.value); save({ ethicalConsiderations: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>

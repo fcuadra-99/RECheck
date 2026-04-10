@@ -124,7 +124,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
               <input
                 style={inputStyle}
                 value={controlNo}
-                onChange={(e) => setControlNo(e.target.value)}
+                onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }}
               />
             </td>
           </tr>
@@ -138,7 +138,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
               <textarea
                 style={textareaStyle}
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => { setTitle(e.target.value); save({ title: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -164,13 +164,13 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
             <td style={tdLabel}>Study Protocol Submission Date</td>
 
             <td style={tdInput}>
-              <input type="date" style={dateInputStyle} value={submissionDate} onChange={(e) => setSubmissionDate(e.target.value)} />
+              <input type="date" style={dateInputStyle} value={submissionDate} onChange={(e) => { setSubmissionDate(e.target.value); save({ submissionDate: e.target.value }); }} />
             </td>
 
             <td style={tdLabel}>Verified Complete By</td>
 
             <td style={tdInput}>
-              <input type="date" style={dateInputStyle} value={verifiedBy} onChange={(e) => setVerifiedBy(e.target.value)} />
+              <input type="date" style={dateInputStyle} value={verifiedBy} onChange={(e) => { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); }} />
             </td>
           </tr>
         </tbody>
@@ -298,7 +298,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
 
       <p>
         Date Filed:
-        <input type="date" style={inputStyle} value={dateFiled} onChange={(e) => setDateFiled(e.target.value)} />
+        <input type="date" style={inputStyle} value={dateFiled} onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }} />
       </p>
 
       <div style={footerWrap}>

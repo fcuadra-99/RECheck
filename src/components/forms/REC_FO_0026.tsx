@@ -137,9 +137,9 @@ export default function EthicsProtocolChecklist({
           </tr>
           <tr>
             <td style={tdLabel}>Study Protocol Submission Date</td>
-            <td style={tdInput}><input type="date" style={dateInputStyle} value={protocolSubmissionDate} onChange={(e) => setProtocolSubmissionDate(e.target.value)} /></td>
+            <td style={tdInput}><input type="date" style={dateInputStyle} value={protocolSubmissionDate} onChange={(e) => { setProtocolSubmissionDate(e.target.value); save({ protocolSubmissionDate: e.target.value }); }} /></td>
             <td style={tdLabel}>Verified Complete By</td>
-            <td style={tdInput}><input type="date" style={inputStyle} value={verifiedBy} onChange={(e) => setVerifiedBy(e.target.value)} /></td>
+            <td style={tdInput}><input type="date" style={inputStyle} value={verifiedBy} onChange={(e) => { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); }} /></td>
           </tr>
         </tbody>
       </table>
@@ -155,17 +155,17 @@ export default function EthicsProtocolChecklist({
         <div style={importantNote}><strong>IMPORTANT:</strong> All fields <u>must be completed.</u></div>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <tbody>
-            <tr><td style={tdInput}><span style={label}>Research Title:</span><textarea style={textareaStyle} value={researchTitle} onChange={(e) => setResearchTitle(e.target.value)} onInput={autoExpand} /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Faculty Researchers:</span><MemberListInput values={facultyResearchers} onChange={setFacultyResearchers} placeholder="Enter faculty researcher name" /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Student Researchers:</span><MemberListInput values={studentResearchers} onChange={setStudentResearchers} placeholder="Enter student researcher name" /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Name of Sponsor (if applicable):</span><input style={inputStyle} value={sponsor} onChange={(e) => setSponsor(e.target.value)} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Research Title:</span><textarea style={textareaStyle} value={researchTitle} onChange={(e) => { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); }} onInput={autoExpand} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Faculty Researchers:</span><MemberListInput values={facultyResearchers} onChange={(v) => { setFacultyResearchers(v); save({ facultyResearchers: v }); }} placeholder="Enter faculty researcher name" /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Student Researchers:</span><MemberListInput values={studentResearchers} onChange={(v) => { setStudentResearchers(v); save({ studentResearchers: v }); }} placeholder="Enter student researcher name" /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Name of Sponsor (if applicable):</span><input style={inputStyle} value={sponsor} onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }} /></td></tr>
             <tr>
               <td style={tdInput}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <tbody>
                     <tr>
-                      <td style={{ border: "none", width: "50%", padding: "0 10px 0 0" }}><span style={label}>Date Submitted:</span><input type="date" style={inputStyle} value={dateSubmitted} onChange={(e) => setDateSubmitted(e.target.value)} /></td>
-                      <td style={{ border: "none", width: "50%", padding: "0 0 0 10px" }}><span style={label}>Date Received:</span><input style={inputStyle} value={dateReceived} onChange={(e) => setDateReceived(e.target.value)} /></td>
+                      <td style={{ border: "none", width: "50%", padding: "0 10px 0 0" }}><span style={label}>Date Submitted:</span><input type="date" style={inputStyle} value={dateSubmitted} onChange={(e) => { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); }} /></td>
+                      <td style={{ border: "none", width: "50%", padding: "0 0 0 10px" }}><span style={label}>Date Received:</span><input style={inputStyle} value={dateReceived} onChange={(e) => { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); }} /></td>
                     </tr>
                   </tbody>
                 </table>
@@ -213,7 +213,7 @@ export default function EthicsProtocolChecklist({
 
       <div style={dateFiledSectionWrap}>
         <strong>Date Filed:</strong>
-        <input type="date" style={{ ...inputStyle, marginTop: "6px" }} value={dateFiled} onChange={(e) => setDateFiled(e.target.value)} />
+        <input type="date" style={{ ...inputStyle, marginTop: "6px" }} value={dateFiled} onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }} />
       </div>
 
       <div style={footerWrap}>

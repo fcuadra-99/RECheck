@@ -98,7 +98,7 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
               <textarea
                 style={textareaStyle}
                 value={researchTitle}
-                onChange={(e) => setResearchTitle(e.target.value)}
+                onChange={(e) => { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -106,13 +106,13 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
           <tr>
             <td style={labelCell}>Faculty Researchers</td>
             <td style={inputCell}>
-              <MemberListInput values={facultyResearchers} onChange={setFacultyResearchers} placeholder="Enter faculty researcher name" />
+              <MemberListInput values={facultyResearchers} onChange={(v) => { setFacultyResearchers(v); save({ facultyResearchers: v }); }} placeholder="Enter faculty researcher name" />
             </td>
           </tr>
           <tr>
             <td style={labelCell}>Student Researchers</td>
             <td style={inputCell}>
-              <MemberListInput values={studentResearchers} onChange={setStudentResearchers} placeholder="Enter student researcher name" />
+              <MemberListInput values={studentResearchers} onChange={(v) => { setStudentResearchers(v); save({ studentResearchers: v }); }} placeholder="Enter student researcher name" />
             </td>
           </tr>
           <tr>
@@ -121,7 +121,7 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
               <textarea
                 style={textareaStyle}
                 value={sponsor}
-                onChange={(e) => setSponsor(e.target.value)}
+                onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }}
                 onInput={autoExpand}
               />
             </td>
@@ -133,7 +133,7 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
                 type="date"
                 style={dateInputStyle}
                 value={dateSubmitted}
-                onChange={(e) => setDateSubmitted(e.target.value)}
+                onChange={(e) => { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); }}
               />
             </td>
           </tr>
@@ -144,7 +144,7 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
                 type="date"
                 style={dateInputStyle}
                 value={dateReceived}
-                onChange={(e) => setDateReceived(e.target.value)}
+                onChange={(e) => { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); }}
               />
             </td>
           </tr>
@@ -224,7 +224,7 @@ function EthicsInformedConsentAssessmentForm({ researcherName, advisorName, prop
           type="date"
           style={{ ...dateInputStyle, marginTop: "6px" }}
           value={dateFiled}
-          onChange={(e) => setDateFiled(e.target.value)}
+          onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }}
         />
       </div>
 

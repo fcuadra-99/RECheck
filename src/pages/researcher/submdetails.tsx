@@ -140,6 +140,13 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
     const [previewTitle, setPreviewTitle] = useState<string>("");
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
     const [answerDialogOpen, setAnswerDialogOpen] = useState(false);
+
+    // Lock body scroll when any full-screen dialog is open
+    useEffect(() => {
+        const isOpen = previewOpen || answerDialogOpen || signatureDialogOpen;
+        document.body.style.overflow = isOpen ? "hidden" : "";
+        return () => { document.body.style.overflow = ""; };
+    }, [previewOpen, answerDialogOpen, signatureDialogOpen]);
     const [activeDocument, setActiveDocument] = useState<string | null>(null);
 
     useEffect(() => {
