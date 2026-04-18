@@ -124,6 +124,8 @@ const navConfig = {
     items: [
       { title: "My Reports", url: "/researcher/final-report", role: "Researcher" },
       { title: "Manage Reports", url: "/chairperson/final-reports", role: "Chairperson" },
+      { title: "Assigned Reports", url: "/reviewer/final-reports", role: "Reviewer" },
+      { title: "Assigned Reports", url: "/staff/final-reports", role: "Admin Assistant" },
     ],
   },
   formsReview: {
@@ -132,6 +134,22 @@ const navConfig = {
     icon: ClipboardCheck,
     items: [
       { title: "Submissions", url: "/chairperson/template-submissions", role: "Chairperson" },
+    ],
+  },
+  reviewerFormsReview: {
+    title: "Assigned Forms",
+    url: "/reviewer/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Assigned Forms", url: "/reviewer/template-submissions", role: "Reviewer" },
+    ],
+  },
+  staffFormsReview: {
+    title: "Assigned Forms",
+    url: "/staff/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Assigned Forms", url: "/staff/template-submissions", role: "Admin Assistant" },
     ],
   },
   researcherHistory: {

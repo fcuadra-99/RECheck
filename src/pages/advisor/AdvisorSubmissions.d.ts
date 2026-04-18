@@ -1,1 +1,1 @@
-export default function AdvisorSubmissions(): JSX.Element;
+export default function AdvisorSubmissions(): import("react/jsx-runtime").JSX.Element;

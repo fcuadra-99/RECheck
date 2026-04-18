@@ -13,7 +13,7 @@ export interface TemplateSubmission {
     file_type: string;
     description?: string;
     submission_date: string;
-    status: 'pending' | 'in_review' | 'approved' | 'rejected' | 'revision_requested';
+    status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'revision_requested' | 'needs_revision';
     priority: 'low' | 'medium' | 'high' | 'urgent';
     reviewer_id?: string;
     reviewer_name?: string;
@@ -31,6 +31,12 @@ export interface TemplateSubmission {
     updated_at: string;
     metadata?: any;
 }
+export interface ReviewerProfile {
+    id: string;
+    name: string;
+    email: string;
+    role?: string;
+}
 export interface CreateTemplateSubmissionData {
     submission_title: string;
     template_name: string;
@@ -40,11 +46,12 @@ export interface CreateTemplateSubmissionData {
     priority?: 'low' | 'medium' | 'high' | 'urgent';
 }
 export interface ReviewTemplateSubmissionData {
-    status: 'approved' | 'rejected' | 'revision_requested';
+    status: 'approved' | 'rejected' | 'revision_requested' | 'needs_revision';
     review_comments?: string;
     reviewer_name: string;
 }
 export declare class TemplateSubmissionService {
+    private static readonly CUSTOM_JSON_TEMPLATE_IDS;
     /**
      * Create a new template submission with file upload
      */
@@ -80,6 +87,36 @@ export declare class TemplateSubmissionService {
     getResearcherSubmissions(researcherId?: string): Promise<{
         success: boolean;
         submissions?: TemplateSubmission[];
+        error?: string;
+    }>;
+    /**
+     * Get all reviewers for chairperson assignment
+     */
+    getReviewerProfiles(): Promise<{
+        success: boolean;
+        reviewers?: ReviewerProfile[];
+        error?: string;
+    }>;
+    /**
+     * Assign one to four staff members to a submission
+     */
+    assignReviewers(submissionId: string, reviewerIds: string[]): Promise<{
+        success: boolean;
+        error?: string;
+    }>;
+    /**
+     * Get submissions assigned to currently logged-in reviewer
+     */
+    getAssignedSubmissionsForReviewer(): Promise<{
+        success: boolean;
+        submissions?: TemplateSubmission[];
+        error?: string;
+    }>;
+    /**
+     * Submit reviewer-filled form and attach to submission metadata
+     */
+    submitReviewerUpdate(submissionId: string, file: File, comments?: string): Promise<{
+        success: boolean;
         error?: string;
     }>;
     /**

@@ -1,6 +1,4 @@
 export interface AppBreadcrumbProps {
+    userId?: string;
 }
-export declare function AppBreadcrumb(): import("react/jsx-runtime").JSX.Element;
-export declare function BreadcrumbPortal({ children }: {
-    children: React.ReactNode;
-}): import("react").ReactPortal | null;
+export declare const AppBreadcrumb: import("react").NamedExoticComponent<AppBreadcrumbProps>;

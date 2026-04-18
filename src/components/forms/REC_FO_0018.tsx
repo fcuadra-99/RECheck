@@ -40,12 +40,10 @@ export default function EthicsStudyProtocolAmendmentForm({
   const [telephone, setTelephone] = useState<string>(s.telephone ?? "");
   const [mobile, setMobile] = useState<string>(s.mobile ?? "");
   const [versionDate, setVersionDate] = useState<string>(s.versionDate ?? "");
-  const [clearanceApprovedProtocol, setClearanceApprovedProtocol] = useState<string>(s.clearanceApprovedProtocol ?? "");
   const [effectiveFrom, setEffectiveFrom] = useState<string>(s.effectiveFrom ?? "");
   const [effectiveTo, setEffectiveTo] = useState<string>(s.effectiveTo ?? "");
   const [uicRecProtocolCode, setUicRecProtocolCode] = useState<string>(s.uicRecProtocolCode ?? protocolCode ?? "");
   const [typeOfReview, setTypeOfReview] = useState<string>(s.typeOfReview ?? "");
-  const [amendmentSubmissionDate, setAmendmentSubmissionDate] = useState<string>(s.amendmentSubmissionDate ?? "");
   const [amendmentNumber, setAmendmentNumber] = useState<string>(s.amendmentNumber ?? "");
   const [natureOfAmendment, setNatureOfAmendment] = useState<string>(s.natureOfAmendment ?? "");
   const [amendmentRows, setAmendmentRows] = useState<AmendmentRow[]>(

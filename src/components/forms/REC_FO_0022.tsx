@@ -25,7 +25,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [controlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
   const [studyProtocolTitle, setStudyProtocolTitle] = useState<string>(s.studyProtocolTitle ?? proposalTitle ?? "");
   const [approvalDate, setApprovalDate] = useState<string>(s.approvalDate ?? "");
   const [principalInvestigator, setPrincipalInvestigator] = useState<string>(s.principalInvestigator ?? researcherName ?? "");
@@ -50,7 +50,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
   const [researcherSignature, setResearcherSignature] = useState<string>(s.researcherSignature ?? "");
   const [dateOfApplication, setDateOfApplication] = useState<string>(s.dateOfApplication ?? today);
 
-  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo] = useState<string>(s.staffControlNo ?? "");
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [terminationJustifiable, setTerminationJustifiable] = useState<YesNo>(s.terminationJustifiable ?? "");
   const [studyAffectParticipants, setStudyAffectParticipants] = useState<YesNo>(s.studyAffectParticipants ?? "");

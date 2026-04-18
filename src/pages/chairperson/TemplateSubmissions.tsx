@@ -12,7 +12,7 @@ interface TemplateSubmission {
   file_url: string;
   submitted_by: string;
   submitted_at: string;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'needs_revision';
+  status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'needs_revision' | 'revision_requested';
   reviewer_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -140,18 +140,22 @@ export default function TemplateSubmissions() {
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      in_review: 'bg-sky-100 text-sky-800 border-sky-200',
       under_review: 'bg-blue-100 text-blue-800 border-blue-200',
       approved: 'bg-green-100 text-green-800 border-green-200',
       rejected: 'bg-red-100 text-red-800 border-red-200',
-      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200'
+      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200',
+      revision_requested: 'bg-orange-100 text-orange-800 border-orange-200'
     };
 
     const icons = {
       pending: <Clock className="w-3 h-3" />,
+      in_review: <Eye className="w-3 h-3" />,
       under_review: <Eye className="w-3 h-3" />,
       approved: <CheckCircle className="w-3 h-3" />,
       rejected: <AlertCircle className="w-3 h-3" />,
-      needs_revision: <AlertCircle className="w-3 h-3" />
+      needs_revision: <AlertCircle className="w-3 h-3" />,
+      revision_requested: <AlertCircle className="w-3 h-3" />
     };
 
     return (

@@ -984,11 +984,6 @@ const subItemLabel: React.CSSProperties = {
   fontWeight: 600,
 };
 
-const bulletLine: React.CSSProperties = {
-  marginTop: "4px",
-  marginLeft: "10px",
-};
-
 const checkLine: React.CSSProperties = {
   display: "block",
   marginTop: "6px",

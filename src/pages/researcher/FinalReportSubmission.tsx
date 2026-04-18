@@ -76,6 +76,9 @@ const FinalReportSubmission: React.FC = () => {
   const [showFinalReportForm, setShowFinalReportForm] = useState(false);
   const [currentFillingDocId, setCurrentFillingDocId] = useState<string | null>(null);
   const [finalReportData, setFinalReportData] = useState<Record<string, any>>({});
+  const [showFinalReportPreview, setShowFinalReportPreview] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState('');
 
   async function loadReports() {
     setLoading(true);
@@ -242,6 +245,44 @@ const FinalReportSubmission: React.FC = () => {
     });
   };
 
+  async function handleViewAttachment(filePath: string) {
+    try {
+      const fileName = filePath.split('/').pop() || 'Document';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+
+      const { data } = await supabase.storage
+        .from('storage')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Unable to resolve file URL');
+      }
+
+      if (!isFinalReportJson) {
+        window.open(data.publicUrl, '_blank');
+        return;
+      }
+
+      setPreviewLoading(true);
+      setPreviewTitle(fileName);
+
+      const response = await fetch(data.publicUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setFinalReportData(parsed && typeof parsed === 'object' ? parsed : {});
+      setShowFinalReportPreview(true);
+    } catch (error) {
+      console.error('Error viewing attachment:', error);
+      alert(`Failed to view attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   // Show Final Report React Form if using template (check this FIRST before submission form)
   if (showFinalReportForm) {
     return (
@@ -274,6 +315,37 @@ const FinalReportSubmission: React.FC = () => {
               savedData={finalReportData}
               onSave={(patch) => setFinalReportData((prev) => ({ ...prev, ...patch }))}
             />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFinalReportPreview) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {previewLoading ? 'Loading Form Preview...' : `Final Report Preview: ${previewTitle}`}
+            </div>
+            <button
+              onClick={() => setShowFinalReportPreview(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            {previewLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <div style={{ pointerEvents: 'none' }}>
+                <FinalReportForm savedData={finalReportData} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -521,15 +593,7 @@ const FinalReportSubmission: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={async () => {
-                                const { data } = await supabase.storage
-                                  .from('storage')
-                                  .getPublicUrl(filePath);
-                                
-                                if (data?.publicUrl) {
-                                  window.open(data.publicUrl, '_blank');
-                                }
-                              }}
+                              onClick={() => handleViewAttachment(filePath)}
                               className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
                             >
                               <Eye className="w-4 h-4" />

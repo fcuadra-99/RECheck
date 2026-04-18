@@ -11,6 +11,21 @@ export interface FinalReport {
     last_updated_at: string;
     attachments: string[];
     remarks?: string | null;
+    metadata?: {
+        assignedStaffIds?: string[];
+        assignedById?: string;
+        assignedByName?: string;
+        assignedAt?: string;
+        staffSubmissions?: Record<string, {
+            staffId: string;
+            staffName: string;
+            role?: string;
+            filePath: string;
+            fileName: string;
+            comments?: string;
+            submittedAt: string;
+        }>;
+    };
 }
 export type FinalReportStatus = 'Pending Review' | 'Under Review' | 'Requires Revision' | 'Approved' | 'Rejected';
 export interface FinalReportWithMeta extends FinalReport {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
-import { getFinalReport, updateFinalReport } from '../../services/finalReportService';
+import { assignFinalReportToStaff, getAssignableFinalReportStaff, getFinalReport, getFinalReportAssignments, updateFinalReport, type AssignableStaffProfile, type FinalReportAssignment } from '../../services/finalReportService';
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
@@ -52,6 +52,10 @@ const FinalReportDetail: React.FC = () => {
   const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
   const [finalReportFormLoading, setFinalReportFormLoading] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+  const [assignableStaff, setAssignableStaff] = useState<AssignableStaffProfile[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [assigningStaff, setAssigningStaff] = useState(false);
+  const [reportAssignments, setReportAssignments] = useState<FinalReportAssignment[]>([]);
   
   // Load predefined fields based on selected PDF
   const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
@@ -64,8 +68,22 @@ const FinalReportDetail: React.FC = () => {
   useEffect(() => {
     if (id) {
       loadReport();
+      loadAssignableStaff();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (assignableStaff.length === 0) return;
+    const validIds = new Set(assignableStaff.map((staff) => staff.id));
+    setSelectedStaffIds((prev) => prev.filter((staffId) => validIds.has(staffId)));
+  }, [assignableStaff]);
+
+  async function loadAssignableStaff() {
+    const result = await getAssignableFinalReportStaff();
+    if (result.success) {
+      setAssignableStaff(result.staff || []);
+    }
+  }
 
   async function loadReport() {
     if (!id) return;
@@ -78,6 +96,15 @@ const FinalReportDetail: React.FC = () => {
         setEditStatus(reportData.status);
         setEditOutcome(reportData.outcome || '');
         setEditRemarks(reportData.remarks || '');
+
+        const assignmentResult = await getFinalReportAssignments(reportData.id);
+        if (assignmentResult.success) {
+          setReportAssignments(assignmentResult.assignments || []);
+          setSelectedStaffIds((assignmentResult.assignments || []).map((assignment) => assignment.assignee_id).slice(0, 4));
+        } else {
+          setReportAssignments([]);
+          setSelectedStaffIds([]);
+        }
 
         // Load proposal details
         if (reportData.proposal_date) {
@@ -100,6 +127,44 @@ const FinalReportDetail: React.FC = () => {
     }
   }
 
+  function toggleStaffSelection(staffId: string) {
+    setSelectedStaffIds((prev) => {
+      if (prev.includes(staffId)) {
+        return prev.filter((id) => id !== staffId);
+      }
+
+      if (prev.length >= 4) {
+        return prev;
+      }
+
+      return [...prev, staffId];
+    });
+  }
+
+  async function handleAssignStaff() {
+    if (!report) return;
+
+    if (selectedStaffIds.length < 1 || selectedStaffIds.length > 4) {
+      alert('Please select 1 to 4 staff members.');
+      return;
+    }
+
+    try {
+      setAssigningStaff(true);
+      const result = await assignFinalReportToStaff(report.id, selectedStaffIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to assign staff');
+      }
+      alert('Final report passed to assigned staff successfully.');
+      await loadReport();
+    } catch (error) {
+      console.error('Error assigning final report staff:', error);
+      alert(`Failed to assign staff: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAssigningStaff(false);
+    }
+  }
+
   async function handleSave() {
     if (!report) return;
     
@@ -117,7 +182,7 @@ const FinalReportDetail: React.FC = () => {
     }
 
     // Type validation for editStatus - only allow specific statuses
-    const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved'];
+    const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved', 'Rejected'];
     if (!validStatuses.includes(editStatus as FinalReportStatus)) {
       alert('Invalid status selected');
       return;
@@ -136,6 +201,8 @@ const FinalReportDetail: React.FC = () => {
       // If status is being changed to Approved, show success message with certificate info
       if (newStatus === 'Approved') {
         alert('Final report approved! A certificate is now available for the researcher.');
+      } else if (newStatus === 'Rejected') {
+        alert('Final report rejected. The researcher will be notified of the decision.');
       } else if (newStatus === 'Requires Revision') {
         alert('Final report sent back for revision. The researcher will be able to resubmit.');
       } else {
@@ -667,10 +734,54 @@ const FinalReportDetail: React.FC = () => {
           {/* Right Column - Review Actions */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Pass to Assigned Staff</h2>
+              <p className="text-xs text-gray-600 mb-3">Select 1 to 4 reviewers or admin assistants.</p>
+
+              <div className="space-y-2 max-h-44 overflow-y-auto border border-gray-200 rounded p-2 mb-3">
+                {assignableStaff.length === 0 ? (
+                  <p className="text-xs text-gray-500">No assignable staff found.</p>
+                ) : (
+                  assignableStaff.map((staff) => (
+                    <label key={staff.id} className="flex items-start gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedStaffIds.includes(staff.id)}
+                        onChange={() => toggleStaffSelection(staff.id)}
+                        disabled={!selectedStaffIds.includes(staff.id) && selectedStaffIds.length >= 4}
+                      />
+                      <span>
+                        <span className="block font-medium text-gray-900">{staff.name}</span>
+                        <span className="block text-xs text-gray-500">
+                          {staff.email}{staff.role ? ` • ${staff.role}` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={handleAssignStaff}
+                disabled={assigningStaff || selectedStaffIds.length < 1}
+                className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition mb-6"
+              >
+                {assigningStaff ? 'Passing...' : 'Pass to Selected Staff'}
+              </button>
+
+              {reportAssignments.length > 0 && (
+                <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded p-2">
+                  <p className="text-xs text-indigo-900 font-medium">
+                    Assigned: {reportAssignments.length} staff member{reportAssignments.length > 1 ? 's' : ''}
+                  </p>
+                  {reportAssignments[0]?.assigned_at && (
+                    <p className="text-xs text-indigo-700">{formatDate(reportAssignments[0].assigned_at)}</p>
+                  )}
+                </div>
+              )}
+
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Update</h2>
               
-              {/* Show review form only for pending status */}
-              {report.status === 'Pending Review' ? (
+              {/* Show review form for chairperson while report is still in active review */}
+              {report.status === 'Pending Review' || report.status === 'Under Review' ? (
                 <div className="space-y-4">
                   {/* Status Selection */}
                   <div>
@@ -685,6 +796,7 @@ const FinalReportDetail: React.FC = () => {
                       <option value="Pending Review">Pending Review</option>
                       <option value="Requires Revision">Requires Revision</option>
                       <option value="Approved">Approved</option>
+                      <option value="Rejected">Rejected</option>
                     </select>
                   </div>
 
@@ -770,7 +882,7 @@ const FinalReportDetail: React.FC = () => {
               )}
 
               {/* Always show the current outcome for reference if it exists */}
-              {report.outcome && report.status === 'Pending Review' && (
+              {report.outcome && (report.status === 'Pending Review' || report.status === 'Under Review') && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Current Outcome

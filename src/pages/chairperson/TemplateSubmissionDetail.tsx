@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../DB';
+import { TemplateSubmissionService, type ReviewerProfile } from '../../services/templateSubmissionService';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
 import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
@@ -29,7 +30,7 @@ interface TemplateSubmission {
   file_url: string;
   submitted_by: string;
   submitted_at: string;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'needs_revision';
+  status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'needs_revision' | 'revision_requested';
   reviewer_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -37,6 +38,19 @@ interface TemplateSubmission {
   signature_date?: string;
   submission_notes?: string;
   signature_image?: string;
+  metadata?: {
+    assignedReviewerIds?: string[];
+    assignedByName?: string;
+    assignedAt?: string;
+    reviewerSubmissions?: Record<string, {
+      reviewerId: string;
+      reviewerName: string;
+      fileUrl: string;
+      fileName: string;
+      comments?: string;
+      submittedAt: string;
+    }>;
+  };
 }
 
 export default function TemplateSubmissionDetail() {
@@ -53,6 +67,9 @@ export default function TemplateSubmissionDetail() {
   const [showCustomFormView, setShowCustomFormView] = useState(false);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [customFormLoading, setCustomFormLoading] = useState(false);
+  const [reviewers, setReviewers] = useState<ReviewerProfile[]>([]);
+  const [selectedReviewerIds, setSelectedReviewerIds] = useState<string[]>([]);
+  const [assigningReviewers, setAssigningReviewers] = useState(false);
   
   // Get template ID for loading predefined fields
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
@@ -71,7 +88,21 @@ export default function TemplateSubmissionDetail() {
 
   useEffect(() => {
     fetchSubmission();
+    fetchReviewers();
   }, [id]);
+
+  const fetchReviewers = async () => {
+    const templateService = new TemplateSubmissionService();
+    const result = await templateService.getReviewerProfiles();
+    if (result.success) {
+      setReviewers(result.reviewers || []);
+      if ((result.reviewers || []).length === 0) {
+        console.warn('No reviewer profiles available for assignment.');
+      }
+    } else {
+      console.error('Failed to fetch reviewer profiles:', result.error);
+    }
+  };
 
   const fetchSubmission = async () => {
     if (!id) return;
@@ -120,10 +151,12 @@ export default function TemplateSubmissionDetail() {
           reviewed_at: data.review_date,
           reviewer_notes: data.review_comments,
           submission_notes: data.description,
-          signature_image: signatureImage
+          signature_image: signatureImage,
+          metadata: data.metadata || {}
         };
 
         setSubmission(transformedSubmission);
+        setSelectedReviewerIds((data.metadata?.assignedReviewerIds || []).slice(0, 2));
       }
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -180,6 +213,47 @@ export default function TemplateSubmissionDetail() {
       alert('Failed to submit review. Please try again.');
     } finally {
       setReviewing(false);
+    }
+  };
+
+  const toggleReviewerSelection = (reviewerId: string) => {
+    setSelectedReviewerIds((prev) => {
+      if (prev.includes(reviewerId)) {
+        return prev.filter((id) => id !== reviewerId);
+      }
+
+      if (prev.length >= 4) {
+        return prev;
+      }
+
+      return [...prev, reviewerId];
+    });
+  };
+
+  const handleAssignReviewers = async () => {
+    if (!submission) return;
+
+    if (selectedReviewerIds.length < 1 || selectedReviewerIds.length > 4) {
+      alert('Please select 1 to 4 staff members.');
+      return;
+    }
+
+    try {
+      setAssigningReviewers(true);
+      const templateService = new TemplateSubmissionService();
+      const result = await templateService.assignReviewers(submission.id, selectedReviewerIds);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to assign reviewers');
+      }
+
+      alert('Submission successfully passed to reviewers.');
+      await fetchSubmission();
+    } catch (error) {
+      console.error('Error assigning reviewers:', error);
+      alert(`Failed to assign reviewers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAssigningReviewers(false);
     }
   };
 
@@ -403,18 +477,22 @@ export default function TemplateSubmissionDetail() {
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      in_review: 'bg-sky-100 text-sky-800 border-sky-200',
       under_review: 'bg-blue-100 text-blue-800 border-blue-200',
       approved: 'bg-green-100 text-green-800 border-green-200',
       rejected: 'bg-red-100 text-red-800 border-red-200',
-      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200'
+      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200',
+      revision_requested: 'bg-orange-100 text-orange-800 border-orange-200'
     };
 
     const icons = {
       pending: <AlertCircle className="w-4 h-4" />,
+      in_review: <Eye className="w-4 h-4" />,
       under_review: <Eye className="w-4 h-4" />,
       approved: <CheckCircle className="w-4 h-4" />,
       rejected: <XCircle className="w-4 h-4" />,
-      needs_revision: <AlertCircle className="w-4 h-4" />
+      needs_revision: <AlertCircle className="w-4 h-4" />,
+      revision_requested: <AlertCircle className="w-4 h-4" />
     };
 
     return (
@@ -648,7 +726,52 @@ export default function TemplateSubmissionDetail() {
           <div className="space-y-6">
             {/* Review Actions */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
-              {submission.status === 'pending' || submission.status === 'under_review' ? (
+              <h4 className="text-base font-medium text-gray-900 mb-3">Pass to Assigned Staff</h4>
+              <p className="text-xs text-gray-600 mb-3">Select 1 to 4 reviewers or admin assistants for this submission.</p>
+              <div className="space-y-2 max-h-44 overflow-y-auto border border-gray-200 rounded p-2 mb-3">
+                {reviewers.length === 0 ? (
+                  <p className="text-xs text-gray-500">No reviewers found.</p>
+                ) : (
+                  reviewers.map((reviewer) => (
+                    <label key={reviewer.id} className="flex items-start gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedReviewerIds.includes(reviewer.id)}
+                        onChange={() => toggleReviewerSelection(reviewer.id)}
+                        disabled={!selectedReviewerIds.includes(reviewer.id) && selectedReviewerIds.length >= 4}
+                      />
+                      <span>
+                        <span className="block font-medium text-gray-900">{reviewer.name}</span>
+                        <span className="block text-xs text-gray-500">
+                          {reviewer.email}{reviewer.role ? ` • ${reviewer.role}` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={handleAssignReviewers}
+                disabled={assigningReviewers || selectedReviewerIds.length < 1}
+                className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition"
+              >
+                {assigningReviewers ? 'Passing...' : 'Pass to Selected Staff'}
+              </button>
+
+              {submission.metadata?.assignedReviewerIds && submission.metadata.assignedReviewerIds.length > 0 && (
+                <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded p-2">
+                  <p className="text-xs text-indigo-900 font-medium">
+                    Assigned: {submission.metadata.assignedReviewerIds.length} reviewer{submission.metadata.assignedReviewerIds.length > 1 ? 's' : ''}
+                  </p>
+                  {submission.metadata.assignedAt && (
+                    <p className="text-xs text-indigo-700">{formatDate(submission.metadata.assignedAt)}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              {submission.status === 'pending' || submission.status === 'under_review' || submission.status === 'in_review' ? (
                 <>
                   <h4 className="text-base font-medium text-gray-900 mb-3">Review Decision</h4>
                   <select
