@@ -1,6 +1,95 @@
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-export default SReview;
+import { Button } from "@/components/ui/button";
+import * as React from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/DB";
+import { toast } from "sonner";
+import { updateProtocolCode } from "@/utils/protocolCode";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  FileText,
+  User,
+  Mail,
+  Calendar,
+  CheckCircle,
+  Pencil,
+  Shield,
+  Zap,
+  Ban,
+  Check,
+  X,
+  Badge,
+  X as CloseIcon,
+  Crown,
+  FileCheck,
+} from "lucide-react";
+import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
+import FormViewer from "@/components/forms/FormViewer";
 
+type Status =
+  | "Check Manuscript"
+  | "Risk Assessment"
+  | "Forms Check"
+  | "Deploy Queue"
+  | "Send Revision"
+  | "Check Revision"
+  | "Resend Revision"
+  | "Assign Review"
+  | "Proposal Review"
+  | "Revise Proposal"
+  | "Data Collection"
+  | "Deviation Check"
+  | "Study Report Check"
+  | "Revise Documents";
+
+let ide = "";
+let titlee = "";
+let researchere = "";
+let emaile = "";
+let statuse: Status;
+let submDatee = "";
+let typee = "";
+
+export function handleCheck(
+  _id: string,
+  _title: string,
+  _researcher: string,
+  _email: string,
+  _submDate: string,
+  _reviewer: string,
+  _status: Status,
+  _type: string
+) {
+  ide = _id;
+  titlee = _title;
+  researchere = _researcher;
+  emaile = _email;
+  statuse = _status;
+  submDatee = _submDate;
+  typee = _type;
+}
+
+function stat(params: Status) {
+  const awa = {
+    "Check Manuscript": "Risk Assessment",
+    "Risk Assessment": "Send Forms",
+    "Forms Check": "Deploy Queue",
+    "Deploy Queue": "Assign Review",
+    "Send Revision": "Check Revision",
+    "Check Revision": "Assign Review",
+    "Resend Revision": "Check Revision",
+    "Assign Review": "Proposal Review",
+    "Proposal Review": "Data Collection",
+    "Revise Proposal": "Proposal Review",
+    "Data Collection": "Data Collection",
+    "Deviation Check": "Data Collection",
+    "Study Report Check": " Send Final Report",
+    "Revise Documents": "Deviation Check",
+  };
   return awa[params];
 }
 
@@ -613,9 +702,6 @@ export const SReview = () => {
     setActiveInteractiveForm(null);
     setIsFullscreen(false);
   };
-
-
-  console.log(getCurrentDocs())
 
   const handleClosePreview = () => {
     setActivePreview(null);
