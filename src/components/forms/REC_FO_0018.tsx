@@ -11,6 +11,13 @@ type RecommendedAction = {
   recommendFurtherAction: boolean;
 };
 
+type AmendmentRow = {
+  sectionPageNo: string;
+  originalVersion: string;
+  proposedAmendment: string;
+  justification: string;
+};
+
 export default function EthicsStudyProtocolAmendmentForm({
   protocolCode,
   researcherName,
@@ -41,16 +48,24 @@ export default function EthicsStudyProtocolAmendmentForm({
   const [amendmentSubmissionDate, setAmendmentSubmissionDate] = useState<string>(s.amendmentSubmissionDate ?? "");
   const [amendmentNumber, setAmendmentNumber] = useState<string>(s.amendmentNumber ?? "");
   const [natureOfAmendment, setNatureOfAmendment] = useState<string>(s.natureOfAmendment ?? "");
-
-  const [sectionPageNo1, setSectionPageNo1] = useState<string>(s.sectionPageNo1 ?? "");
-  const [originalVersion1, setOriginalVersion1] = useState<string>(s.originalVersion1 ?? "");
-  const [proposedAmendment1, setProposedAmendment1] = useState<string>(s.proposedAmendment1 ?? "");
-  const [justification1, setJustification1] = useState<string>(s.justification1 ?? "");
-
-  const [sectionPageNo2, setSectionPageNo2] = useState<string>(s.sectionPageNo2 ?? "");
-  const [originalVersion2, setOriginalVersion2] = useState<string>(s.originalVersion2 ?? "");
-  const [proposedAmendment2, setProposedAmendment2] = useState<string>(s.proposedAmendment2 ?? "");
-  const [justification2, setJustification2] = useState<string>(s.justification2 ?? "");
+  const [amendmentRows, setAmendmentRows] = useState<AmendmentRow[]>(
+    Array.isArray(s.amendmentRows) && s.amendmentRows.length > 0
+      ? s.amendmentRows
+      : [
+          {
+            sectionPageNo: s.sectionPageNo1 ?? "",
+            originalVersion: s.originalVersion1 ?? "",
+            proposedAmendment: s.proposedAmendment1 ?? "",
+            justification: s.justification1 ?? "",
+          },
+          {
+            sectionPageNo: s.sectionPageNo2 ?? "",
+            originalVersion: s.originalVersion2 ?? "",
+            proposedAmendment: s.proposedAmendment2 ?? "",
+            justification: s.justification2 ?? "",
+          },
+        ]
+  );
 
   const [reportedBy, setReportedBy] = useState<string>(s.reportedBy ?? researcherName ?? "");
   const [dateSubmitted, setDateSubmitted] = useState<string>(s.dateSubmitted ?? today);
@@ -107,6 +122,33 @@ export default function EthicsStudyProtocolAmendmentForm({
     const next = { ...recommendedAction, [key]: !recommendedAction[key] };
     setRecommendedAction(next);
     save({ recommendedAction: next });
+  };
+
+  const updateAmendmentRow = (
+    index: number,
+    key: keyof AmendmentRow,
+    value: string
+  ) => {
+    const next = amendmentRows.map((row, rowIndex) =>
+      rowIndex === index ? { ...row, [key]: value } : row
+    );
+    setAmendmentRows(next);
+    save({ amendmentRows: next });
+  };
+
+  const addAmendmentRow = () => {
+    const next = [
+      ...amendmentRows,
+      { sectionPageNo: "", originalVersion: "", proposedAmendment: "", justification: "" },
+    ];
+    setAmendmentRows(next);
+    save({ amendmentRows: next });
+  };
+
+  const removeAmendmentRow = (index: number) => {
+    const next = amendmentRows.filter((_, rowIndex) => rowIndex !== index);
+    setAmendmentRows(next);
+    save({ amendmentRows: next });
   };
 
   return (
@@ -233,37 +275,56 @@ export default function EthicsStudyProtocolAmendmentForm({
               <td style={{ ...headerGrayCell, width: "25%" }}><strong>Justification</strong></td>
               <td style={{ ...fieldCell, width: "0%", padding: 0, border: "none" }} />
             </tr>
-            <tr>
-              <td style={amendCell}>
-                <strong>Section and Page no.</strong>
-                <textarea style={blockTextarea} value={sectionPageNo1} onChange={(e) => { setSectionPageNo1(e.target.value); save({ sectionPageNo1: e.target.value }); }} onInput={autoExpand} />
-                <textarea style={blockTextarea} value={originalVersion1} onChange={(e) => { setOriginalVersion1(e.target.value); save({ originalVersion1: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={amendCell}>
-                <textarea style={largeTextarea} value={proposedAmendment1} onChange={(e) => { setProposedAmendment1(e.target.value); save({ proposedAmendment1: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={amendCell}>
-                <textarea style={largeTextarea} value={justification1} onChange={(e) => { setJustification1(e.target.value); save({ justification1: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={{ ...fieldCell, width: "0%", padding: 0, border: "none" }} />
-            </tr>
-            <tr>
-              <td style={amendCell}>
-                <strong>Section and Page no.</strong>
-                <textarea style={blockTextarea} value={sectionPageNo2} onChange={(e) => { setSectionPageNo2(e.target.value); save({ sectionPageNo2: e.target.value }); }} onInput={autoExpand} />
-                <textarea style={blockTextarea} value={originalVersion2} onChange={(e) => { setOriginalVersion2(e.target.value); save({ originalVersion2: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={amendCell}>
-                <textarea style={largeTextarea} value={proposedAmendment2} onChange={(e) => { setProposedAmendment2(e.target.value); save({ proposedAmendment2: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={amendCell}>
-                <textarea style={largeTextarea} value={justification2} onChange={(e) => { setJustification2(e.target.value); save({ justification2: e.target.value }); }} onInput={autoExpand} />
-              </td>
-              <td style={{ ...fieldCell, width: "0%", padding: 0, border: "none" }} />
-            </tr>
+            {amendmentRows.map((row, index) => (
+              <tr key={`amendment-row-${index}`}>
+                <td style={amendCell}>
+                  <strong>Section and Page no.</strong>
+                  <textarea
+                    style={blockTextarea}
+                    value={row.sectionPageNo}
+                    onChange={(e) => updateAmendmentRow(index, "sectionPageNo", e.target.value)}
+                    onInput={autoExpand}
+                  />
+                  <textarea
+                    style={blockTextarea}
+                    value={row.originalVersion}
+                    onChange={(e) => updateAmendmentRow(index, "originalVersion", e.target.value)}
+                    onInput={autoExpand}
+                  />
+                </td>
+                <td style={amendCell}>
+                  <textarea
+                    style={largeTextarea}
+                    value={row.proposedAmendment}
+                    onChange={(e) => updateAmendmentRow(index, "proposedAmendment", e.target.value)}
+                    onInput={autoExpand}
+                  />
+                </td>
+                <td style={amendCell}>
+                  <textarea
+                    style={largeTextarea}
+                    value={row.justification}
+                    onChange={(e) => updateAmendmentRow(index, "justification", e.target.value)}
+                    onInput={autoExpand}
+                  />
+                </td>
+                <td style={rowActionCell}>
+                  {amendmentRows.length > 1 && (
+                    <button type="button" onClick={() => removeAmendmentRow(index)} style={removeRowButton}>
+                      Remove
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
 
             <tr>
-              <td colSpan={4} style={fieldCell}><strong>ADD A ROW IF NECESSARY</strong></td>
+              <td colSpan={4} style={fieldCell}>
+                <strong>ADD A ROW IF NECESSARY</strong>
+                <button type="button" onClick={addAmendmentRow} style={addRowButton}>
+                  Add Row
+                </button>
+              </td>
             </tr>
             <tr>
               <td colSpan={4} style={fieldCell}><strong>Reported by:</strong>
@@ -629,6 +690,31 @@ const amendCell: React.CSSProperties = {
   padding: "6px",
   verticalAlign: "top",
   minHeight: "98px",
+};
+
+const rowActionCell: React.CSSProperties = {
+  border: "1px solid black",
+  padding: "6px",
+  verticalAlign: "middle",
+  textAlign: "center",
+  width: "90px",
+};
+
+const addRowButton: React.CSSProperties = {
+  marginLeft: "10px",
+  padding: "3px 10px",
+  border: "1px solid #333",
+  background: "#f4f4f4",
+  cursor: "pointer",
+  fontSize: "11px",
+};
+
+const removeRowButton: React.CSSProperties = {
+  padding: "3px 8px",
+  border: "1px solid #333",
+  background: "#fff",
+  cursor: "pointer",
+  fontSize: "11px",
 };
 
 const fieldCellBig: React.CSSProperties = {

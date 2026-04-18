@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import PDFFormFiller from '../../components/PDFFormFiller';
+import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
+import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
+import EthicsStudyProtocolAmendmentForm from '@/components/forms/REC_FO_0018';
+import EthicsContinuingReviewApplicationForm from '@/components/forms/REC_FO_0023';
+import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_FO_0022';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { useTemplateFields } from '@/hooks/useTemplateFields';
 import { 
@@ -43,9 +48,23 @@ export default function TemplateSubmissionDetail() {
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewDecision, setReviewDecision] = useState<'approved' | 'rejected' | 'needs_revision'>('approved');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
+  const [showCustomFormFiller, setShowCustomFormFiller] = useState(false);
+  const [showCustomFormView, setShowCustomFormView] = useState(false);
+  const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
+  const [customFormLoading, setCustomFormLoading] = useState(false);
   
   // Get template ID for loading predefined fields
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
+  const isCustomJsonTemplate = Boolean(
+    template?.id &&
+      ['progress-report', 'new-event-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
+  );
+  const isStaffInputSubmitted = Boolean(
+    submission?.original_filename?.toLowerCase().includes('_reviewed.') ||
+      submission?.status === 'approved' ||
+      submission?.status === 'rejected' ||
+      submission?.status === 'needs_revision'
+  );
   const { fields: predefinedFields } = useTemplateFields(template?.id || null);
 
   useEffect(() => {
@@ -162,7 +181,35 @@ export default function TemplateSubmissionDetail() {
     }
   };
 
-  const handleFillPdf = () => {
+  const handleFillPdf = async () => {
+    if (!submission) return;
+
+    if (isStaffInputSubmitted) {
+      alert('Staff input has already been submitted. Editing is locked.');
+      return;
+    }
+
+    if (isCustomJsonTemplate) {
+      try {
+        setCustomFormLoading(true);
+        const response = await fetch(submission.file_url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+        }
+
+        const text = await response.text();
+        const parsed = JSON.parse(text);
+        setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+        setShowCustomFormFiller(true);
+      } catch (error) {
+        console.error('Error loading custom form data:', error);
+        alert(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+        setCustomFormLoading(false);
+      }
+      return;
+    }
+
     setShowPdfFiller(true);
   };
 
@@ -170,7 +217,130 @@ export default function TemplateSubmissionDetail() {
     setShowPdfFiller(false);
   };
 
+  const handleCancelCustomFormFiller = () => {
+    setShowCustomFormFiller(false);
+  };
+
+  const handleCustomFormPatch = (patch: Record<string, any>) => {
+    setCustomFormData((prev) => ({ ...prev, ...patch }));
+  };
+
+  const handleViewSubmission = async () => {
+    if (!submission) return;
+
+    if (!isCustomJsonTemplate) {
+      window.open(submission.file_url, '_blank');
+      return;
+    }
+
+    try {
+      setCustomFormLoading(true);
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setShowCustomFormView(true);
+    } catch (error) {
+      console.error('Error loading submitted form:', error);
+      alert(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCustomFormLoading(false);
+    }
+  };
+
+  const handleSaveCustomForm = async () => {
+    if (!submission) return;
+
+    if (isStaffInputSubmitted) {
+      alert('Staff input has already been submitted. Editing is locked.');
+      return;
+    }
+
+    try {
+      const json = JSON.stringify(customFormData, null, 2);
+      const jsonBlob = new Blob([json], { type: 'application/json' });
+      const reviewedFile = new File([jsonBlob], `${submission.template_type}_reviewed.json`, {
+        type: 'application/json',
+        lastModified: Date.now(),
+      });
+
+      const fileName = `${id}/reviewed_${Date.now()}.json`;
+      const { error: uploadError } = await supabase.storage
+        .from('storage')
+        .upload(fileName, reviewedFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('storage')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('template_submissions')
+        .update({
+          file_url: urlData.publicUrl,
+          file_name: reviewedFile.name,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      alert('Form data reviewed and saved successfully!');
+      setShowCustomFormFiller(false);
+      fetchSubmission();
+    } catch (error) {
+      console.error('Error saving custom form:', error);
+      alert(`Failed to save form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const renderCustomForm = () => {
+    if (!submission || !template?.id) return null;
+
+    const commonProps = {
+      proposalId: 0,
+      protocolCode: customFormData.protocolCodeValue || customFormData.controlNo || '',
+      researcherName: customFormData.nameResearcher || customFormData.principalInvestigator || submission.submitted_by,
+      proposalTitle: customFormData.titleOfStudy || customFormData.studyProtocolTitle || submission.template_type,
+      formName: submission.original_filename,
+      savedData: customFormData,
+      onSave: handleCustomFormPatch,
+    };
+
+    if (template.id === 'progress-report') {
+      return <EthicsStudyProgressReport {...commonProps} />;
+    }
+
+    if (template.id === 'new-event-report') {
+      return <EthicsStudyReportableNegativeEventReport {...commonProps} />;
+    }
+
+    if (template.id === 'protocol-amendment') {
+      return <EthicsStudyProtocolAmendmentForm {...commonProps} />;
+    }
+
+    if (template.id === 'continuing-review') {
+      return <EthicsContinuingReviewApplicationForm {...commonProps} />;
+    }
+
+    if (template.id === 'early-termination') {
+      return <EthicsEarlyStudyTerminationApplicationForm {...commonProps} />;
+    }
+
+    return null;
+  };
+
   const handleSavePdf = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
+    if (isStaffInputSubmitted) {
+      alert('Staff input has already been submitted. Editing is locked.');
+      return;
+    }
+
     console.log('Chairperson filled PDF:', formData);
     console.log('PDF size:', pdfBytes.length, 'bytes');
     
@@ -292,6 +462,61 @@ export default function TemplateSubmissionDetail() {
     );
   }
 
+  if (showCustomFormView && submission) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Submitted Form View: {submission.template_type}</div>
+            <button
+              onClick={() => setShowCustomFormView(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            <div style={{ pointerEvents: 'none' }}>
+              {renderCustomForm()}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showCustomFormFiller && submission) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Fill and Review: {submission.template_type}</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancelCustomFormFiller}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCustomForm}
+                disabled={isStaffInputSubmitted}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Save Reviewed Form
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">{renderCustomForm()}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -362,18 +587,20 @@ export default function TemplateSubmissionDetail() {
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={handleFillPdf}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+                  disabled={customFormLoading || isStaffInputSubmitted}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 disabled:cursor-not-allowed"
                 >
                   <Edit3 className="w-4 h-4 mr-2" />
-                  Fill & Review
+                  {customFormLoading ? 'Loading...' : isStaffInputSubmitted ? 'Already Submitted' : 'Fill & Review'}
                 </button>
 
                 <button
-                  onClick={() => window.open(submission.file_url, '_blank')}
+                  onClick={handleViewSubmission}
+                  disabled={customFormLoading}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
                 >
                   <Eye className="w-4 h-4 mr-2" />
-                  View PDF
+                  {customFormLoading ? 'Loading...' : isCustomJsonTemplate ? 'View File' : 'View PDF'}
                 </button>
                 
                 <a
