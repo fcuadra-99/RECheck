@@ -1216,7 +1216,17 @@ export default function PhaseContent({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                        onSetPreviewUrl(doc.url);
+                                        const isEthicalClearanceJson =
+                                            doc.type === 'ethical_clearance' && doc.name.toLowerCase().endsWith('.json');
+                                        const isDecisionLetterJson =
+                                            doc.type === 'decision_letter' && doc.name.toLowerCase().endsWith('.json');
+                                        onSetPreviewUrl(
+                                            isEthicalClearanceJson
+                                                ? `json-ethical-clearance:${doc.url}`
+                                                : isDecisionLetterJson
+                                                    ? `json-decision-letter:${doc.url}`
+                                                    : doc.url
+                                        );
                                         onSetPreviewTitle(doc.type === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter');
                                         onOpenPreview(true);
                                     }}

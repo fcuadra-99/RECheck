@@ -7,6 +7,7 @@ import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock,
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { useTemplateFields } from '@/hooks/useTemplateFields';
+import FinalReportForm from '@/components/forms/FinalReportForm';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -47,6 +48,9 @@ const FinalReportDetail: React.FC = () => {
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
   const [showPdfFiller, setShowPdfFiller] = useState(false);
+  const [showFinalReportFormFiller, setShowFinalReportFormFiller] = useState(false);
+  const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
+  const [finalReportFormLoading, setFinalReportFormLoading] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
   
   // Load predefined fields based on selected PDF
@@ -188,6 +192,80 @@ const FinalReportDetail: React.FC = () => {
     } catch (error) {
       console.error('Error opening PDF:', error);
       alert('Failed to open PDF for editing');
+    }
+  }
+
+  async function handleOpenFinalReportForm(filePath: string) {
+    try {
+      const { data } = await supabase.storage
+        .from('storage')
+        .getPublicUrl(filePath);
+
+      if (!data.publicUrl) {
+        throw new Error('Unable to resolve file URL');
+      }
+
+      setFinalReportFormLoading(true);
+      const response = await fetch(data.publicUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setSelectedPdfName(filePath.split('/').pop() || 'final-report-filled.json');
+      setShowFinalReportFormFiller(true);
+    } catch (error) {
+      console.error('Error opening final report form:', error);
+      alert(`Failed to open final report form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setFinalReportFormLoading(false);
+    }
+  }
+
+  async function handleSaveFinalReportForm() {
+    try {
+      if (!report) return;
+
+      const json = JSON.stringify(finalReportFormData, null, 2);
+      const jsonBlob = new Blob([json], { type: 'application/json' });
+      const jsonFile = new File(
+        [jsonBlob],
+        `${selectedPdfName.replace('.json', '')}_reviewed.json`,
+        { type: 'application/json', lastModified: Date.now() }
+      );
+
+      const timestamp = Date.now();
+      const fileName = `final-reports/reviewed/${report.id}/filled_${timestamp}_${jsonFile.name}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('storage')
+        .upload(fileName, jsonFile, {
+          contentType: 'application/json',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const updatedAttachments = [...(report.attachments || []), fileName];
+
+      const { error: updateError } = await supabase
+        .from('final_reports')
+        .update({
+          attachments: updatedAttachments,
+          last_updated_at: new Date().toISOString(),
+        })
+        .eq('id', report.id);
+
+      if (updateError) throw updateError;
+
+      alert('Reviewed form saved successfully!');
+      setShowFinalReportFormFiller(false);
+      loadReport();
+    } catch (error) {
+      console.error('Error saving reviewed form:', error);
+      alert(`Failed to save reviewed form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -341,6 +419,47 @@ const FinalReportDetail: React.FC = () => {
     );
   }
 
+  if (showFinalReportFormFiller) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {finalReportFormLoading ? 'Loading Form...' : `Fill and Review: ${selectedPdfName}`}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFinalReportFormFiller(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFinalReportForm}
+                disabled={finalReportFormLoading}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+              >
+                Save Reviewed Form
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            {finalReportFormLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <FinalReportForm
+                savedData={finalReportFormData}
+                onSave={(patch) => setFinalReportFormData((prev) => ({ ...prev, ...patch }))}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -451,6 +570,7 @@ const FinalReportDetail: React.FC = () => {
                   {report.attachments.map((filePath, index) => {
                     const fileName = filePath.split('/').pop() || 'Document';
                     const isPdf = fileName.toLowerCase().endsWith('.pdf');
+                    const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
                     
                     return (
                       <div
@@ -462,6 +582,15 @@ const FinalReportDetail: React.FC = () => {
                           <span className="text-sm text-gray-700 font-medium">{fileName}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                          {isFinalReportJson && (
+                            <button
+                              onClick={() => handleOpenFinalReportForm(filePath)}
+                              className="px-3 py-1 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center gap-1"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View & Fill Form
+                            </button>
+                          )}
                           {isPdf && (
                             <button
                               onClick={() => handleOpenPdfFiller(filePath)}

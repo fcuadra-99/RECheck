@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import FormViewer from "@/components/forms/FormViewer";
+import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
+import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/DB";
@@ -138,6 +140,9 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
+    const [decisionPreviewData, setDecisionPreviewData] = useState<Record<string, any>>({});
+    const [ethicalPreviewData, setEthicalPreviewData] = useState<Record<string, any>>({});
+    const [ethicalPreviewLoading, setEthicalPreviewLoading] = useState(false);
     const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
     const [answerDialogOpen, setAnswerDialogOpen] = useState(false);
 
@@ -147,6 +152,62 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
         document.body.style.overflow = isOpen ? "hidden" : "";
         return () => { document.body.style.overflow = ""; };
     }, [previewOpen, answerDialogOpen, signatureDialogOpen]);
+
+    useEffect(() => {
+        const loadEthicalJsonPreview = async () => {
+            if (!previewOpen || !previewUrl || !previewUrl.startsWith("json-ethical-clearance:")) return;
+
+            const url = previewUrl.replace("json-ethical-clearance:", "");
+
+            try {
+                setEthicalPreviewLoading(true);
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to load ethical clearance: ${response.status} ${response.statusText}`);
+                }
+
+                const text = await response.text();
+                const parsed = JSON.parse(text);
+                setEthicalPreviewData(parsed && typeof parsed === "object" ? parsed : {});
+            } catch (error) {
+                console.error("Failed to load ethical clearance preview:", error);
+                toast.error("Failed to load ethical clearance preview");
+                setEthicalPreviewData({});
+            } finally {
+                setEthicalPreviewLoading(false);
+            }
+        };
+
+        loadEthicalJsonPreview();
+    }, [previewOpen, previewUrl]);
+
+    useEffect(() => {
+        const loadDecisionJsonPreview = async () => {
+            if (!previewOpen || !previewUrl || !previewUrl.startsWith("json-decision-letter:")) return;
+
+            const url = previewUrl.replace("json-decision-letter:", "");
+
+            try {
+                setEthicalPreviewLoading(true);
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to load decision letter: ${response.status} ${response.statusText}`);
+                }
+
+                const text = await response.text();
+                const parsed = JSON.parse(text);
+                setDecisionPreviewData(parsed && typeof parsed === "object" ? parsed : {});
+            } catch (error) {
+                console.error("Failed to load decision letter preview:", error);
+                toast.error("Failed to load decision letter preview");
+                setDecisionPreviewData({});
+            } finally {
+                setEthicalPreviewLoading(false);
+            }
+        };
+
+        loadDecisionJsonPreview();
+    }, [previewOpen, previewUrl]);
     const [activeDocument, setActiveDocument] = useState<string | null>(null);
 
     useEffect(() => {
@@ -440,7 +501,23 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                         </Button>
                     </div>
                     <div className="flex-1 relative">
-                        {previewUrl ? (
+                        {previewUrl?.startsWith("json-ethical-clearance:") || previewUrl?.startsWith("json-decision-letter:") ? (
+                            ethicalPreviewLoading ? (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="text-gray-500">Loading preview...</div>
+                                </div>
+                            ) : (
+                                <div className="absolute inset-0 overflow-auto bg-gray-100 p-4">
+                                    <div style={{ pointerEvents: "none" }}>
+                                        {previewUrl?.startsWith("json-ethical-clearance:") ? (
+                                            <EthicalClearanceForm savedData={ethicalPreviewData} />
+                                        ) : (
+                                            <DecisionLetterForm savedData={decisionPreviewData} />
+                                        )}
+                                    </div>
+                                </div>
+                            )
+                        ) : previewUrl ? (
                             <iframe
                                 src={previewUrl}
                                 className="absolute inset-0 w-full h-full border-0"

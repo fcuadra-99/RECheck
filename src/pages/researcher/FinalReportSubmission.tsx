@@ -16,8 +16,7 @@ import {
   Edit3,
   Award
 } from 'lucide-react';
-import PDFFormFiller from '../../components/PDFFormFiller';
-import { useTemplateFields } from '@/hooks/useTemplateFields';
+import FinalReportForm from '@/components/forms/FinalReportForm';
 
 interface Proposal {
   date: string;
@@ -74,14 +73,9 @@ const FinalReportSubmission: React.FC = () => {
     { id: '5', label: 'Upload any additional supporting documents', file: null, required: false },
   ]);
   const [submitting, setSubmitting] = useState(false);
-  const [showPdfFiller, setShowPdfFiller] = useState(false);
+  const [showFinalReportForm, setShowFinalReportForm] = useState(false);
   const [currentFillingDocId, setCurrentFillingDocId] = useState<string | null>(null);
-  
-  // Load predefined fields for Final Report template
-  const { fields: predefinedFields } = useTemplateFields('protocol-final-report');
-  
-  // Final report template URL
-  const FINAL_REPORT_TEMPLATE_URL = '/templates/Protocol_Final_Report_Template.pdf';
+  const [finalReportData, setFinalReportData] = useState<Record<string, any>>({});
 
   async function loadReports() {
     setLoading(true);
@@ -138,24 +132,20 @@ const FinalReportSubmission: React.FC = () => {
 
   const handleUseTemplate = (docId: string) => {
     setCurrentFillingDocId(docId);
-    setShowPdfFiller(true);
+    setShowFinalReportForm(true);
   };
 
-  const handlePdfSave = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
-    console.log('PDF filled with data:', formData);
-    
+  const handleFinalReportFormSave = async () => {
     if (!currentFillingDocId) return;
+    const json = JSON.stringify(finalReportData, null, 2);
+    const jsonBlob = new Blob([json], { type: 'application/json' });
+    const jsonFile = new File([jsonBlob], 'final-report-filled.json', { type: 'application/json' });
     
-    // Convert PDF bytes to File object
-    const pdfBlob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
-    const pdfFile = new File([pdfBlob], 'final-report-filled.pdf', { type: 'application/pdf' });
-    
-    // Update the document in the list
     setDocuments(prev => 
-      prev.map(doc => doc.id === currentFillingDocId ? { ...doc, file: pdfFile } : doc)
+      prev.map(doc => doc.id === currentFillingDocId ? { ...doc, file: jsonFile } : doc)
     );
     
-    setShowPdfFiller(false);
+    setShowFinalReportForm(false);
     setCurrentFillingDocId(null);
     alert('Template filled successfully! You can now submit your form.');
   };
@@ -252,19 +242,41 @@ const FinalReportSubmission: React.FC = () => {
     });
   };
 
-  // Show PDF Form Filler if using template (check this FIRST before submission form)
-  if (showPdfFiller) {
+  // Show Final Report React Form if using template (check this FIRST before submission form)
+  if (showFinalReportForm) {
     return (
-      <PDFFormFiller
-        templateUrl={FINAL_REPORT_TEMPLATE_URL}
-        templateName="Final Report Template"
-        onSave={handlePdfSave}
-        onCancel={() => {
-          setShowPdfFiller(false);
-          setCurrentFillingDocId(null);
-        }}
-        predefinedFields={predefinedFields}
-      />
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Fill Final Report Form</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowFinalReportForm(false);
+                  setCurrentFillingDocId(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalReportFormSave}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Save Form
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            <FinalReportForm
+              savedData={finalReportData}
+              onSave={(patch) => setFinalReportData((prev) => ({ ...prev, ...patch }))}
+            />
+          </div>
+        </div>
+      </div>
     );
   }
 
