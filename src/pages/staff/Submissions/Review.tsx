@@ -447,6 +447,12 @@ export const SReview = () => {
     }
   }, [id, navigate]);
 
+  // Lock body scroll when document is open fullscreen
+  React.useEffect(() => {
+    document.body.style.overflow = activePreview ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [activePreview]);
+
   // Auto-set to deny for reviewers
   React.useEffect(() => {
     if (currentUserRole === "Reviewer" && type === "Check") {
@@ -691,10 +697,9 @@ export const SReview = () => {
 
   const handleOpenPreview = (type: "manuscript" | "forms" | "revision") => {
     setActivePreview(type);
-    const docs = getCurrentDocsBasedOnType(type);
-    if (docs.length > 0) {
-      setSelectedDoc(docs[0].file);
-    }
+    setSelectedDoc("");
+    setDocURL("");
+    setActiveInteractiveForm(null);
     setIsFullscreen(false);
   };
 
@@ -724,15 +729,15 @@ export const SReview = () => {
     return (
       <div className="fixed inset-0 z-50 flex bg-white">
         {/* Sidebar - File List */}
-        <div className="w-80 bg-gray-50 border-r flex flex-col">
+        <div className="w-72 bg-gray-50 border-r flex flex-col flex-shrink-0">
           {/* Sidebar Header */}
           <div className="p-4 border-b bg-white">
-            <h2 className="text-lg font-semibold">{getPreviewTitle()}</h2>
-            <p className="text-sm text-gray-500 mt-1">Select a document to view</p>
+            <h2 className="text-base font-semibold">{getPreviewTitle()}</h2>
+            <p className="text-xs text-gray-500 mt-1">Select a document to view</p>
           </div>
 
           {/* File List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {currentDocs.map((doc) => (
               <Button
                 key={doc.file}
@@ -778,32 +783,25 @@ export const SReview = () => {
         </div>
 
         {/* Main Content - Document Preview */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b bg-white">
-            <div className="flex items-center gap-4">
-              <h3 className="text-lg font-semibold">
-                {selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
-              </h3>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent event bubbling
-                  handleClosePreview();
-                }}
-                className="flex items-center gap-2"
-              >
-                <CloseIcon className="h-4 w-4" />
-                Close
-              </Button>
-            </div>
+          <div className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0">
+            <h3 className="text-sm font-semibold truncate">
+              {activeInteractiveForm ? activeInteractiveForm.replace('.pdf', '') : selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClosePreview}
+              className="flex items-center gap-2 flex-shrink-0 ml-2"
+            >
+              <CloseIcon className="h-4 w-4" />
+              Close
+            </Button>
           </div>
 
           {/* Document Content */}
-          <div className="flex-1 overflow-auto bg-gray-100">
+          <div className="flex-1 overflow-auto bg-gray-100 relative">
             {activeInteractiveForm ? (
               <div className="min-h-full flex flex-col">
                 <FormViewer
@@ -814,8 +812,15 @@ export const SReview = () => {
                   onDone={() => setActiveInteractiveForm(null)}
                 />
               </div>
+            ) : !selectedDoc ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-sm">Select a document from the sidebar</p>
+                </div>
+              </div>
             ) : docURL === null ? (
-              <div className="absolute inset-0 flex items-center justify-center text-gray-500">
+              <div className="flex items-center justify-center h-full text-gray-500">
                 <div className="text-center">
                   <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                   <p className="text-lg">Document does not exist.</p>
@@ -823,16 +828,16 @@ export const SReview = () => {
                 </div>
               </div>
             ) : !docURL ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center w-full px-8">
                   <Skeleton className="w-64 h-8 mx-auto mb-4" />
-                  <Skeleton className="w-full h-[600px] max-w-4xl mx-auto" />
+                  <Skeleton className="w-full h-96 max-w-2xl mx-auto" />
                 </div>
               </div>
             ) : (
               <iframe
                 src={docURL}
-                className="absolute inset-0 w-full h-full border-0"
+                className="w-full h-full border-0"
                 title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
               />
             )}
