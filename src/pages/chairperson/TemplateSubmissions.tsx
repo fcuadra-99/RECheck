@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { Eye, FileText, Calendar, User, CheckCircle, Clock, AlertCircle, Search, Filter } from 'lucide-react';
 
 interface TemplateSubmission {
@@ -25,9 +26,27 @@ export default function TemplateSubmissions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [templateTypeFilter, setTemplateTypeFilter] = useState<string>('all');
+  const navigate = useNavigate();
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  const isCustomJsonTemplate = (templateType: string) => {
+    const template = TemplateDownloadService.getTemplateByName(templateType);
+    return Boolean(
+      template?.id &&
+        ['progress-report', 'new-event-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
+    );
+  };
+
+  const handleViewSubmissionFile = (submission: TemplateSubmission) => {
+    if (isCustomJsonTemplate(submission.template_type)) {
+      navigate(`/chairperson/template-submissions/${submission.id}?view=1`);
+      return;
+    }
+
+    window.open(submission.file_url, '_blank');
+  };
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -325,11 +344,11 @@ export default function TemplateSubmissions() {
                           Review
                         </Link>
                         <button
-                          onClick={() => window.open(submission.file_url, '_blank')}
+                          onClick={() => handleViewSubmissionFile(submission)}
                           className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                         >
                           <FileText className="w-4 h-4 mr-1" />
-                          View PDF
+                          {isCustomJsonTemplate(submission.template_type) ? 'View Form' : 'View PDF'}
                         </button>
                       </div>
                     </td>

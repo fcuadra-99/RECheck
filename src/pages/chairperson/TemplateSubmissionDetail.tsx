@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../DB';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
@@ -42,6 +42,7 @@ interface TemplateSubmission {
 export default function TemplateSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState(false);
@@ -66,6 +67,7 @@ export default function TemplateSubmissionDetail() {
       submission?.status === 'needs_revision'
   );
   const { fields: predefinedFields } = useTemplateFields(template?.id || null);
+  const autoOpenView = searchParams.get('view') === '1';
 
   useEffect(() => {
     fetchSubmission();
@@ -251,6 +253,16 @@ export default function TemplateSubmissionDetail() {
       setCustomFormLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!autoOpenView || !submission || loading || showCustomFormView || customFormLoading) return;
+    handleViewSubmission();
+  }, [autoOpenView, submission, loading, showCustomFormView]);
+
+  useEffect(() => {
+    if (!showCustomFormView || !autoOpenView || !id) return;
+    navigate(`/chairperson/template-submissions/${id}`, { replace: true });
+  }, [showCustomFormView, autoOpenView, id, navigate]);
 
   const handleSaveCustomForm = async () => {
     if (!submission) return;
@@ -469,7 +481,12 @@ export default function TemplateSubmissionDetail() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="text-sm font-medium text-gray-700">Submitted Form View: {submission.template_type}</div>
             <button
-              onClick={() => setShowCustomFormView(false)}
+              onClick={() => {
+                setShowCustomFormView(false);
+                if (id) {
+                  navigate(`/chairperson/template-submissions/${id}`, { replace: true });
+                }
+              }}
               className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
             >
               Back to Details
