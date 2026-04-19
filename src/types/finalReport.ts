@@ -17,6 +17,8 @@ export interface FinalReport {
     assignedById?: string;
     assignedByName?: string;
     assignedAt?: string;
+    sharedFormPath?: string;
+    staffSharedFormData?: Record<string, any>;
     staffSubmissions?: Record<string, {
       staffId: string;
       staffName: string;

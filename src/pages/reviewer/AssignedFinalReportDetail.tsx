@@ -28,6 +28,7 @@ export default function AssignedFinalReportDetail() {
   const [pdfUrl, setPdfUrl] = useState('');
   const [showFormFiller, setShowFormFiller] = useState(false);
   const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
+  const [initialFormData, setInitialFormData] = useState<Record<string, any>>({});
   const [selectedFilePath, setSelectedFilePath] = useState<string>('');
 
   const { fields: predefinedFields } = useTemplateFields('protocol-final-report');
@@ -79,6 +80,24 @@ export default function AssignedFinalReportDetail() {
     return report.attachments[report.attachments.length - 1];
   }, [report]);
 
+  const sharedFormPath = useMemo(() => {
+    if (!report?.attachments || report.attachments.length === 0) return '';
+
+    const metadataPath = report?.metadata?.sharedFormPath;
+    if (typeof metadataPath === 'string' && metadataPath.trim()) {
+      return metadataPath;
+    }
+
+    const jsonAttachments = report.attachments.filter((path) => path.toLowerCase().endsWith('.json'));
+    if (jsonAttachments.length === 0) return '';
+
+    const researcherScoped = jsonAttachments.find((path) =>
+      path.toLowerCase().startsWith(`final-reports/${(report.researcher_id || '').toLowerCase()}/`)
+    );
+
+    return researcherScoped || jsonAttachments[0];
+  }, [report]);
+
   const mySubmission = useMemo(() => {
     if (!assignment || assignment.status !== 'submitted') return null;
     return {
@@ -112,41 +131,89 @@ export default function AssignedFinalReportDetail() {
 
   const handleOpenAttachment = async (filePath: string) => {
     const fileName = filePath.split('/').pop() || 'Document';
-    const isJsonFinalReport = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+    const isJsonFinalReport = fileName.toLowerCase().endsWith('.json');
 
     if (isJsonFinalReport) {
-      const publicUrl = await getPublicUrl(filePath);
-      const response = await fetch(publicUrl);
-      if (!response.ok) {
+      const targetFormPath = sharedFormPath || filePath;
+      const metadataFormData = report?.metadata?.staffSharedFormData;
+
+      if (metadataFormData && typeof metadataFormData === 'object') {
+        setFinalReportFormData(metadataFormData as Record<string, any>);
+        setInitialFormData(metadataFormData as Record<string, any>);
+        setSelectedFilePath(targetFormPath);
+        setShowFormFiller(true);
+        return;
+      }
+
+      const { data, error } = await supabase.storage.from('storage').download(targetFormPath);
+      if (error || !data) {
         alert('Failed to load form data.');
         return;
       }
-      const text = await response.text();
+      const text = await data.text();
       const parsed = JSON.parse(text);
-      setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
-      setSelectedFilePath(filePath);
+      const formData = parsed && typeof parsed === 'object' ? parsed : {};
+      setFinalReportFormData(formData);
+      setInitialFormData(formData);
+      setSelectedFilePath(targetFormPath);
       setShowFormFiller(true);
       return;
     }
 
     const publicUrl = await getPublicUrl(filePath);
-    setPdfUrl(publicUrl);
+    setPdfUrl(`${publicUrl}?v=${Date.now()}`);
     setSelectedFilePath(filePath);
     setShowPdfFiller(true);
   };
 
-  const submitFile = async (file: File) => {
-    if (!report) return;
+  const handleSavePdf = async (pdfBytes: Uint8Array) => {
+    void pdfBytes;
+    alert('Please submit your assessment through the shared JSON final report form. PDF submissions are disabled for assigned staff.');
+  };
+
+  const handleSaveFinalReportForm = async () => {
+    if (!selectedFilePath || !sharedFormPath) {
+      alert('Please open a form first before submitting.');
+      return;
+    }
 
     try {
       setSaving(true);
-      const result = await submitAssignedFinalReportUpdate(report.id, file, comments);
+
+      // Always merge with the latest remote JSON so one assignee does not clobber another's changes.
+      const { data, error } = await supabase.storage.from('storage').download(sharedFormPath);
+      if (error || !data) {
+        throw new Error('Failed to load the latest form before submit.');
+      }
+
+      const latestText = await data.text();
+      const latestRemote = latestText ? JSON.parse(latestText) : {};
+      const latestObject = latestRemote && typeof latestRemote === 'object' ? latestRemote : {};
+
+      const changedKeys = Object.keys(finalReportFormData).filter((key) => {
+        const currentValue = finalReportFormData[key];
+        const initialValue = initialFormData[key];
+        return JSON.stringify(currentValue) !== JSON.stringify(initialValue);
+      });
+
+      const mergedData: Record<string, any> = { ...latestObject };
+      for (const key of changedKeys) {
+        mergedData[key] = finalReportFormData[key];
+      }
+
+      const json = JSON.stringify(mergedData, null, 2);
+      const originalName = sharedFormPath.split('/').pop() || 'final-report.json';
+      const file = new File([new Blob([json], { type: 'application/json' })], originalName, {
+        type: 'application/json',
+        lastModified: Date.now()
+      });
+
+      const result = await submitAssignedFinalReportUpdate(report!.id, file, comments, sharedFormPath, mergedData);
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit update');
       }
 
       alert(`${actorLabel} update submitted successfully.`);
-      setShowPdfFiller(false);
       setShowFormFiller(false);
       await refreshReport();
     } catch (error) {
@@ -154,25 +221,6 @@ export default function AssignedFinalReportDetail() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleSavePdf = async (pdfBytes: Uint8Array) => {
-    const file = new File([new Blob([new Uint8Array(Array.from(pdfBytes))], { type: 'application/pdf' })], `${actorLabel.toLowerCase().replace(' ', '-')}_final_report_${Date.now()}.pdf`, {
-      type: 'application/pdf',
-      lastModified: Date.now()
-    });
-
-    await submitFile(file);
-  };
-
-  const handleSaveFinalReportForm = async () => {
-    const json = JSON.stringify(finalReportFormData, null, 2);
-    const file = new File([new Blob([json], { type: 'application/json' })], `${actorLabel.toLowerCase().replace(' ', '-')}_final-report-filled_${Date.now()}.json`, {
-      type: 'application/json',
-      lastModified: Date.now()
-    });
-
-    await submitFile(file);
   };
 
   if (loading) {
@@ -241,7 +289,12 @@ export default function AssignedFinalReportDetail() {
           <div className="max-w-7xl mx-auto">
             <FinalReportForm
               savedData={finalReportFormData}
-              onSave={(patch) => setFinalReportFormData((prev) => ({ ...prev, ...patch }))}
+              onSave={(patch) => {
+                const next = patch.form && typeof patch.form === 'object'
+                  ? patch.form
+                  : { ...finalReportFormData, ...patch };
+                setFinalReportFormData(next);
+              }}
             />
           </div>
         </div>

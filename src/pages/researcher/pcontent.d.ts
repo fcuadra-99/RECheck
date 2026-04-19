@@ -1,5 +1,6 @@
 interface Submission {
     proposal_id: number;
+    protocol_id?: string | null;
     proposal_title: string;
     description: string;
     category: string;
@@ -49,6 +50,7 @@ interface PhaseContentProps {
     onSetSignatureDialogOpen: (open: boolean) => void;
     onSetAnswerDialogOpen: (open: boolean) => void;
     onSetActiveDocument: (doc: string) => void;
+    onSetPreviewPrintRequested: (requested: boolean) => void;
 }
-export default function PhaseContent({ phaseIndex, submission, userId, historyFiles, latestComment, uploadedFiles, answeredDocuments, signedDocuments, onUploadedFilesChange, onAnsweredDocumentsChange, onSignedDocumentsChange, onSubmissionUpdate, onOpenPreview, onSetPreviewUrl, onSetPreviewTitle, onSetSignatureDialogOpen, onSetAnswerDialogOpen, onSetActiveDocument }: PhaseContentProps): import("react/jsx-runtime").JSX.Element;
+export default function PhaseContent({ phaseIndex, submission, userId, historyFiles, latestComment, uploadedFiles, answeredDocuments, signedDocuments, onUploadedFilesChange, onAnsweredDocumentsChange, onSignedDocumentsChange, onSubmissionUpdate, onOpenPreview, onSetPreviewUrl, onSetPreviewTitle, onSetSignatureDialogOpen, onSetAnswerDialogOpen, onSetActiveDocument, onSetPreviewPrintRequested }: PhaseContentProps): import("react/jsx-runtime").JSX.Element;
 export {};

@@ -67,6 +67,7 @@ export default function TemplateSubmissionDetail() {
   const [showCustomFormView, setShowCustomFormView] = useState(false);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [customFormLoading, setCustomFormLoading] = useState(false);
+  const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
   const [reviewers, setReviewers] = useState<ReviewerProfile[]>([]);
   const [selectedReviewerIds, setSelectedReviewerIds] = useState<string[]>([]);
   const [assigningReviewers, setAssigningReviewers] = useState(false);
@@ -328,6 +329,67 @@ export default function TemplateSubmissionDetail() {
     }
   };
 
+  const handleDownloadSubmission = async () => {
+    if (!submission) return;
+
+    try {
+      if (!isCustomJsonTemplate) {
+        const response = await fetch(submission.file_url);
+        if (!response.ok) {
+          throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const fileName = submission.original_filename || 'download';
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        return;
+      }
+
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setPrintOnViewOpen(true);
+      setShowCustomFormView(true);
+    } catch (error) {
+      console.error('Error downloading submission:', error);
+      alert(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  useEffect(() => {
+    if (!showCustomFormView || !printOnViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showCustomFormView, printOnViewOpen]);
+
+  useEffect(() => {
+    if (showCustomFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showCustomFormView]);
+
   useEffect(() => {
     if (!autoOpenView || !submission || loading || showCustomFormView || customFormLoading) return;
     handleViewSubmission();
@@ -385,17 +447,20 @@ export default function TemplateSubmissionDetail() {
     }
   };
 
-  const renderCustomForm = () => {
+  const renderCustomForm = (
+    formData: Record<string, any> = customFormData,
+    onSave: (patch: Record<string, any>) => void = handleCustomFormPatch,
+  ) => {
     if (!submission || !template?.id) return null;
 
     const commonProps = {
       proposalId: 0,
-      protocolCode: customFormData.protocolCodeValue || customFormData.controlNo || '',
-      researcherName: customFormData.nameResearcher || customFormData.principalInvestigator || submission.submitted_by,
-      proposalTitle: customFormData.titleOfStudy || customFormData.studyProtocolTitle || submission.template_type,
+      protocolCode: formData.protocolCodeValue || formData.controlNo || '',
+      researcherName: formData.nameResearcher || formData.principalInvestigator || submission.submitted_by,
+      proposalTitle: formData.titleOfStudy || formData.studyProtocolTitle || submission.template_type,
       formName: submission.original_filename,
-      savedData: customFormData,
-      onSave: handleCustomFormPatch,
+      savedData: formData,
+      onSave,
     };
 
     if (template.id === 'progress-report') {
@@ -554,8 +619,8 @@ export default function TemplateSubmissionDetail() {
 
   if (showCustomFormView && submission) {
     return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="text-sm font-medium text-gray-700">Submitted Form View: {submission.template_type}</div>
             <button
@@ -571,8 +636,8 @@ export default function TemplateSubmissionDetail() {
             </button>
           </div>
         </div>
-        <div className="py-6 px-2 sm:px-4">
-          <div className="max-w-7xl mx-auto">
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
             <div style={{ pointerEvents: 'none' }}>
               {renderCustomForm()}
             </div>
@@ -698,14 +763,13 @@ export default function TemplateSubmissionDetail() {
                   {customFormLoading ? 'Loading...' : isCustomJsonTemplate ? 'View File' : 'View PDF'}
                 </button>
                 
-                <a
-                  href={submission.file_url}
-                  download={submission.original_filename}
+                <button
+                  onClick={handleDownloadSubmission}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Download
-                </a>
+                </button>
               </div>
             </div>
 

@@ -81,12 +81,12 @@ export declare function getFinalReportAssignments(reportId: string): Promise<{
     error: any;
     assignments?: undefined;
 }>;
-export declare function submitAssignedFinalReportUpdate(reportId: string, file: File, comments?: string): Promise<{
-    success: true;
-    path: string;
-    error?: undefined;
-} | {
+export declare function submitAssignedFinalReportUpdate(reportId: string, file: File, comments?: string, overwritePath?: string, mergedFormData?: Record<string, any>): Promise<{
     success: false;
     error: any;
     path?: undefined;
+} | {
+    success: true;
+    path: string;
+    error?: undefined;
 }>;

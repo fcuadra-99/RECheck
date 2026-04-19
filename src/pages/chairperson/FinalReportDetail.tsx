@@ -47,10 +47,13 @@ const FinalReportDetail: React.FC = () => {
   const [editRemarks, setEditRemarks] = useState('');
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
+  const [activeAttachmentPath, setActiveAttachmentPath] = useState<string | null>(null);
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [showFinalReportFormFiller, setShowFinalReportFormFiller] = useState(false);
+  const [showFinalReportFormView, setShowFinalReportFormView] = useState(false);
   const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
   const [finalReportFormLoading, setFinalReportFormLoading] = useState(false);
+  const [printOnFormViewOpen, setPrintOnFormViewOpen] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
   const [assignableStaff, setAssignableStaff] = useState<AssignableStaffProfile[]>([]);
   const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
@@ -65,6 +68,20 @@ const FinalReportDetail: React.FC = () => {
   
   // Debug logging
   console.log('🔍 Chairperson FinalReportDetail - selectedPdfName:', selectedPdfName, 'template:', template?.id, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
+
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message) return error.message;
+    if (error && typeof error === 'object' && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Unknown error';
+    }
+  };
+
   useEffect(() => {
     if (id) {
       loadReport();
@@ -77,6 +94,29 @@ const FinalReportDetail: React.FC = () => {
     const validIds = new Set(assignableStaff.map((staff) => staff.id));
     setSelectedStaffIds((prev) => prev.filter((staffId) => validIds.has(staffId)));
   }, [assignableStaff]);
+
+  useEffect(() => {
+    if (!showFinalReportFormView || !printOnFormViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnFormViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showFinalReportFormView, printOnFormViewOpen]);
+
+  useEffect(() => {
+    if (showFinalReportFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showFinalReportFormView]);
 
   async function loadAssignableStaff() {
     const result = await getAssignableFinalReportStaff();
@@ -220,6 +260,37 @@ const FinalReportDetail: React.FC = () => {
 
   async function handleDownloadAttachment(filePath: string) {
     try {
+      const fileName = filePath.split('/').pop() || 'download';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json');
+
+      if (isFinalReportJson) {
+        const metadataFormData = report?.metadata?.staffSharedFormData;
+        if (metadataFormData && typeof metadataFormData === 'object') {
+          setFinalReportFormData(metadataFormData as Record<string, any>);
+          setSelectedPdfName(fileName);
+          setPrintOnFormViewOpen(true);
+          setShowFinalReportFormView(true);
+          return;
+        }
+
+        const { data } = await supabase.storage
+          .from('storage')
+          .download(filePath);
+
+        if (!data) {
+          throw new Error('Unable to load form file');
+        }
+
+        setFinalReportFormLoading(true);
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
+        setSelectedPdfName(fileName);
+        setPrintOnFormViewOpen(true);
+        setShowFinalReportFormView(true);
+        return;
+      }
+
       const { data, error } = await supabase.storage
         .from('storage')
         .download(filePath);
@@ -229,12 +300,14 @@ const FinalReportDetail: React.FC = () => {
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filePath.split('/').pop() || 'download';
+      link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading file:', error);
       alert('Failed to download file');
+    } finally {
+      setFinalReportFormLoading(false);
     }
   }
 
@@ -245,7 +318,8 @@ const FinalReportDetail: React.FC = () => {
         .getPublicUrl(filePath);
       
       if (data.publicUrl) {
-        setSelectedPdfUrl(data.publicUrl);
+        setSelectedPdfUrl(`${data.publicUrl}?v=${Date.now()}`);
+        setActiveAttachmentPath(filePath);
         // For final reports, use the template name to load predefined fields
         // Check if this is a final report by looking at the report title
         const templateName = report?.title.includes('Final Report') 
@@ -264,23 +338,28 @@ const FinalReportDetail: React.FC = () => {
 
   async function handleOpenFinalReportForm(filePath: string) {
     try {
+      const metadataFormData = report?.metadata?.staffSharedFormData;
+      if (metadataFormData && typeof metadataFormData === 'object') {
+        setFinalReportFormData(metadataFormData as Record<string, any>);
+        setActiveAttachmentPath(report?.metadata?.sharedFormPath || filePath);
+        setSelectedPdfName((report?.metadata?.sharedFormPath || filePath).split('/').pop() || 'final-report-filled.json');
+        setShowFinalReportFormFiller(true);
+        return;
+      }
+
       const { data } = await supabase.storage
         .from('storage')
-        .getPublicUrl(filePath);
+        .download(filePath);
 
-      if (!data.publicUrl) {
-        throw new Error('Unable to resolve file URL');
+      if (!data) {
+        throw new Error('Unable to load form file');
       }
 
       setFinalReportFormLoading(true);
-      const response = await fetch(data.publicUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
-      }
-
-      const text = await response.text();
+      const text = await data.text();
       const parsed = JSON.parse(text);
       setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setActiveAttachmentPath(filePath);
       setSelectedPdfName(filePath.split('/').pop() || 'final-report-filled.json');
       setShowFinalReportFormFiller(true);
     } catch (error) {
@@ -294,45 +373,73 @@ const FinalReportDetail: React.FC = () => {
   async function handleSaveFinalReportForm() {
     try {
       if (!report) return;
+      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.json')) {
+        throw new Error('No original final report form selected to update.');
+      }
 
       const json = JSON.stringify(finalReportFormData, null, 2);
       const jsonBlob = new Blob([json], { type: 'application/json' });
-      const jsonFile = new File(
-        [jsonBlob],
-        `${selectedPdfName.replace('.json', '')}_reviewed.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
 
-      const timestamp = Date.now();
-      const fileName = `final-reports/reviewed/${report.id}/filled_${timestamp}_${jsonFile.name}`;
-
+      // Keep storage sync as best-effort; chairperson + assigned pages now read metadata first.
       const { error: uploadError } = await supabase.storage
         .from('storage')
-        .upload(fileName, jsonFile, {
+        .upload(activeAttachmentPath, jsonBlob, {
           contentType: 'application/json',
           upsert: true,
         });
 
-      if (uploadError) throw uploadError;
+      const existingAttachments = report.attachments || [];
+      const updatedAttachments = existingAttachments.includes(activeAttachmentPath)
+        ? existingAttachments
+        : [...existingAttachments, activeAttachmentPath];
 
-      const updatedAttachments = [...(report.attachments || []), fileName];
+      const baseUpdatePayload: Record<string, any> = {
+        attachments: updatedAttachments,
+        last_updated_at: new Date().toISOString(),
+      };
 
-      const { error: updateError } = await supabase
+      let updateError: any = null;
+
+      const { error: updateWithMetadataError } = await supabase
         .from('final_reports')
         .update({
-          attachments: updatedAttachments,
-          last_updated_at: new Date().toISOString(),
+          ...baseUpdatePayload,
+          metadata: {
+            ...(report.metadata || {}),
+            sharedFormPath: activeAttachmentPath,
+            staffSharedFormData: finalReportFormData,
+          },
         })
         .eq('id', report.id);
 
+      if (updateWithMetadataError) {
+        const message = (updateWithMetadataError.message || '').toLowerCase();
+        const metadataColumnMissing = message.includes('metadata') && message.includes('does not exist');
+
+        if (metadataColumnMissing) {
+          const { error: fallbackUpdateError } = await supabase
+            .from('final_reports')
+            .update(baseUpdatePayload)
+            .eq('id', report.id);
+
+          updateError = fallbackUpdateError;
+        } else {
+          updateError = updateWithMetadataError;
+        }
+      }
+
       if (updateError) throw updateError;
 
-      alert('Reviewed form saved successfully!');
+      if (uploadError) {
+        alert(`Reviewed form saved successfully (DB). Storage sync warning: ${getErrorMessage(uploadError)}`);
+      } else {
+        alert('Reviewed form saved successfully!');
+      }
       setShowFinalReportFormFiller(false);
       loadReport();
     } catch (error) {
       console.error('Error saving reviewed form:', error);
-      alert(`Failed to save reviewed form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to save reviewed form: ${getErrorMessage(error)}`);
     }
   }
 
@@ -342,31 +449,27 @@ const FinalReportDetail: React.FC = () => {
     
     try {
       if (!report) return;
+      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.pdf')) {
+        throw new Error('No original PDF selected to update.');
+      }
 
       // Convert PDF bytes to File
       const pdfArray = Array.from(pdfBytes);
       const pdfBlob = new Blob([new Uint8Array(pdfArray)], { type: 'application/pdf' });
-      const pdfFile = new File(
-        [pdfBlob],
-        `${selectedPdfName.replace('.pdf', '')}_reviewed.pdf`,
-        { type: 'application/pdf', lastModified: Date.now() }
-      );
-
-      // Upload the reviewed PDF back to storage
-      const timestamp = Date.now();
-      const fileName = `final-reports/reviewed/${report.id}/filled_${timestamp}_${selectedPdfName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('storage')
-        .upload(fileName, pdfFile, {
+        .upload(activeAttachmentPath, pdfBlob, {
           contentType: 'application/pdf',
           upsert: true
         });
       
       if (uploadError) throw uploadError;
 
-      // Update the report's attachments array to include the new filled PDF
-      const updatedAttachments = [...(report.attachments || []), fileName];
+      const existingAttachments = report.attachments || [];
+      const updatedAttachments = existingAttachments.includes(activeAttachmentPath)
+        ? existingAttachments
+        : [...existingAttachments, activeAttachmentPath];
       
       const { error: updateError } = await supabase
         .from('final_reports')
@@ -527,6 +630,37 @@ const FinalReportDetail: React.FC = () => {
     );
   }
 
+  if (showFinalReportFormView) {
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {finalReportFormLoading ? 'Loading Form Preview...' : `Final Report Preview: ${selectedPdfName}`}
+            </div>
+            <button
+              onClick={() => setShowFinalReportFormView(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            {finalReportFormLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <div style={{ pointerEvents: 'none' }}>
+                <FinalReportForm savedData={finalReportFormData} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -637,7 +771,7 @@ const FinalReportDetail: React.FC = () => {
                   {report.attachments.map((filePath, index) => {
                     const fileName = filePath.split('/').pop() || 'Document';
                     const isPdf = fileName.toLowerCase().endsWith('.pdf');
-                    const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+                    const isFinalReportJson = fileName.toLowerCase().endsWith('.json');
                     
                     return (
                       <div

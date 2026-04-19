@@ -360,7 +360,13 @@ export async function getFinalReportAssignments(reportId: string) {
   }
 }
 
-export async function submitAssignedFinalReportUpdate(reportId: string, file: File, comments?: string) {
+export async function submitAssignedFinalReportUpdate(
+  reportId: string,
+  file: File,
+  comments?: string,
+  overwritePath?: string,
+  mergedFormData?: Record<string, any>
+) {
   try {
     const { data: authData } = await supabase.auth.getUser();
     const currentUserId = authData.user?.id;
@@ -398,14 +404,19 @@ export async function submitAssignedFinalReportUpdate(reportId: string, file: Fi
       return { success: false as const, error: 'You are not assigned to this report' };
     }
 
-    const path = `final-reports/assigned-updates/${reportId}/${currentUserId}_${Date.now()}_${file.name}`;
+    const path = overwritePath || `final-reports/assigned-updates/${reportId}/${currentUserId}_${Date.now()}_${file.name}`;
     const { error: uploadError } = await supabase.storage.from('storage').upload(path, file, { upsert: true });
     if (uploadError) {
       return { success: false as const, error: uploadError.message };
     }
 
     const currentAttachments = Array.isArray(report?.attachments) ? report.attachments : [];
-    const nextAttachments = [...currentAttachments, path];
+    const nextAttachments = currentAttachments.includes(path)
+      ? currentAttachments
+      : [...currentAttachments, path];
+
+    const currentMetadata: Record<string, any> = {};
+    const currentStaffSubmissions: Record<string, any> = {};
 
     const submittedAt = new Date().toISOString();
 
@@ -426,14 +437,59 @@ export async function submitAssignedFinalReportUpdate(reportId: string, file: Fi
       return { success: false as const, error: assignmentUpdateError.message };
     }
 
-    const { error: updateError } = await supabase
+    const nextMetadata: Record<string, any> = {
+      ...currentMetadata,
+      sharedFormPath: path,
+      staffSubmissions: {
+        ...currentStaffSubmissions,
+        [currentUserId]: {
+          staffId: currentUserId,
+          staffName: fullName || assignment.assignee_name || authData.user?.email || 'Assigned Staff',
+          role: role || assignment.assignee_role || null,
+          filePath: path,
+          fileName: file.name,
+          comments: comments || null,
+          submittedAt,
+        },
+      },
+    };
+
+    if (mergedFormData && typeof mergedFormData === 'object') {
+      nextMetadata.staffSharedFormData = mergedFormData;
+    }
+
+    const baseUpdatePayload: Record<string, any> = {
+      attachments: nextAttachments,
+      status: 'Under Review',
+      last_updated_at: new Date().toISOString()
+    };
+
+    let updateError: any = null;
+
+    // Prefer persisting shared-form state in metadata when column exists.
+    const { error: updateWithMetadataError } = await supabase
       .from(TABLE)
       .update({
-        attachments: nextAttachments,
-        status: 'Under Review',
-        last_updated_at: new Date().toISOString()
+        ...baseUpdatePayload,
+        metadata: nextMetadata,
       })
       .eq('id', reportId);
+
+    if (updateWithMetadataError) {
+      const message = (updateWithMetadataError.message || '').toLowerCase();
+      const metadataColumnMissing = message.includes('metadata') && message.includes('does not exist');
+
+      if (metadataColumnMissing) {
+        const { error: fallbackUpdateError } = await supabase
+          .from(TABLE)
+          .update(baseUpdatePayload)
+          .eq('id', reportId);
+
+        updateError = fallbackUpdateError;
+      } else {
+        updateError = updateWithMetadataError;
+      }
+    }
 
     if (updateError) {
       return { success: false as const, error: updateError.message };

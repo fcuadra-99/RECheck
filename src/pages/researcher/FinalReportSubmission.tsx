@@ -79,6 +79,7 @@ const FinalReportSubmission: React.FC = () => {
   const [showFinalReportPreview, setShowFinalReportPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
+  const [printOnPreviewOpen, setPrintOnPreviewOpen] = useState(false);
 
   async function loadReports() {
     setLoading(true);
@@ -124,6 +125,29 @@ const FinalReportSubmission: React.FC = () => {
     loadReports();
     loadProposals();
   }, []);
+
+  useEffect(() => {
+    if (!showFinalReportPreview || !printOnPreviewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnPreviewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showFinalReportPreview, printOnPreviewOpen]);
+
+  useEffect(() => {
+    if (showFinalReportPreview) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showFinalReportPreview]);
 
   const handleDocumentFileChange = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -283,6 +307,56 @@ const FinalReportSubmission: React.FC = () => {
     }
   }
 
+  async function handleDownloadAttachment(filePath: string) {
+    try {
+      const fileName = filePath.split('/').pop() || 'Document';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+
+      if (!isFinalReportJson) {
+        const { data, error } = await supabase.storage
+          .from('storage')
+          .download(filePath);
+
+        if (error) throw error;
+
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const { data } = await supabase.storage
+        .from('storage')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Unable to resolve file URL');
+      }
+
+      setPreviewLoading(true);
+      setPreviewTitle(fileName);
+
+      const response = await fetch(data.publicUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setFinalReportData(parsed && typeof parsed === 'object' ? parsed : {});
+      setPrintOnPreviewOpen(true);
+      setShowFinalReportPreview(true);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      alert(`Failed to download attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
   // Show Final Report React Form if using template (check this FIRST before submission form)
   if (showFinalReportForm) {
     return (
@@ -323,8 +397,8 @@ const FinalReportSubmission: React.FC = () => {
 
   if (showFinalReportPreview) {
     return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="text-sm font-medium text-gray-700">
               {previewLoading ? 'Loading Form Preview...' : `Final Report Preview: ${previewTitle}`}
@@ -337,8 +411,8 @@ const FinalReportSubmission: React.FC = () => {
             </button>
           </div>
         </div>
-        <div className="py-6 px-2 sm:px-4">
-          <div className="max-w-7xl mx-auto">
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
             {previewLoading ? (
               <div className="text-center py-10 text-gray-600">Loading form data...</div>
             ) : (
@@ -600,25 +674,7 @@ const FinalReportSubmission: React.FC = () => {
                               View
                             </button>
                             <button
-                              onClick={async () => {
-                                try {
-                                  const { data, error } = await supabase.storage
-                                    .from('storage')
-                                    .download(filePath);
-                                  
-                                  if (error) throw error;
-                                  
-                                  const url = URL.createObjectURL(data);
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = fileName;
-                                  link.click();
-                                  URL.revokeObjectURL(url);
-                                } catch (error) {
-                                  console.error('Error downloading file:', error);
-                                  alert('Failed to download file');
-                                }
-                              }}
+                              onClick={() => handleDownloadAttachment(filePath)}
                               className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-1"
                             >
                               <Download className="w-4 h-4" />
