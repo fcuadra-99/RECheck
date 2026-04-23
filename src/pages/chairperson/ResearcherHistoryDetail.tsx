@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { researcherHistoryService } from '../../services/researcherHistoryService';
 import type { ComprehensiveResearcherHistory } from '../../types/researcherHistory';
 import { supabase } from '../../DB';
+import { createRoot } from 'react-dom/client';
+import { DOC_COMPONENT_MAP } from '@/components/forms/FormViewer';
 import { 
   ArrowLeft, 
   FileText, 
@@ -26,6 +28,40 @@ import {
   FileCheck
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+
+const waitForRender = async (ms = 180) => {
+  await new Promise(resolve => setTimeout(resolve, ms));
+};
+
+const waitForAssets = async (container: HTMLElement) => {
+  try {
+    if ('fonts' in document) {
+      await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+    }
+  } catch {
+    // Ignore font readiness failures and continue rendering.
+  }
+
+  const images = Array.from(container.querySelectorAll('img'));
+  await Promise.all(
+    images.map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+    })
+  );
+
+  await waitForRender(120);
+};
+
+const copyDocumentStyles = (targetDoc: Document) => {
+  const styleNodes = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+  styleNodes.forEach((node) => {
+    targetDoc.head.appendChild(node.cloneNode(true));
+  });
+};
 
 export default function ResearcherHistoryDetail() {
   const { id } = useParams<{ id: string }>();
@@ -112,30 +148,204 @@ export default function ResearcherHistoryDetail() {
     }
   };
 
+  const resolveStoragePath = (rawPath: string): { bucket: string; path: string } | null => {
+    if (!rawPath) return null;
+
+    let path = rawPath.trim();
+    if (!path) return null;
+
+    // If this is already a URL, open directly.
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return null;
+    }
+
+    if (path.startsWith('/')) {
+      path = path.slice(1);
+    }
+
+    const lowered = path.toLowerCase();
+    if (lowered.startsWith('documents/')) {
+      return { bucket: 'documents', path: path.substring('documents/'.length) };
+    }
+    if (lowered.startsWith('storage/')) {
+      return { bucket: 'storage', path: path.substring('storage/'.length) };
+    }
+
+    if (lowered.includes('final-reports') || lowered.includes('final_reports')) {
+      return { bucket: 'storage', path };
+    }
+
+    return { bucket: 'documents', path };
+  };
+
   const downloadFile = async (fileUrl: string, fileName: string) => {
     try {
       console.log('Attempting to download file:', { fileUrl, fileName });
+
+      if (fileUrl.startsWith('form-data://')) {
+        const virtualPath = fileUrl.replace('form-data://', '');
+        const slashIndex = virtualPath.indexOf('/');
+        if (slashIndex <= 0) {
+          alert('Invalid form data path.');
+          return;
+        }
+
+        const proposalId = Number(virtualPath.slice(0, slashIndex));
+        const encodedFormName = virtualPath.slice(slashIndex + 1);
+        const formName = decodeURIComponent(encodedFormName);
+
+        const { data, error } = await supabase
+          .from('form_data')
+          .select('data, updated_at, form_name')
+          .eq('proposal_id', proposalId)
+          .eq('form_name', formName)
+          .single();
+
+        if (error || !data) {
+          alert(`Could not fetch saved data for ${formName}.`);
+          return;
+        }
+
+        const FormComponent = DOC_COMPONENT_MAP[formName];
+        if (!FormComponent) {
+          alert(`No form renderer found for ${formName}.`);
+          return;
+        }
+
+        const { data: proposalData } = await supabase
+          .from('proposals')
+          .select('protocol_id, proposal_title, review_type, researcher, advisor')
+          .eq('proposal_id', proposalId)
+          .single();
+
+        let researcherName = '';
+        if (proposalData?.researcher) {
+          const { data: researcherProfile } = await supabase
+            .from('profiles')
+            .select('fname, lname')
+            .eq('id', proposalData.researcher)
+            .single();
+
+          researcherName = researcherProfile
+            ? `${researcherProfile.fname || ''} ${researcherProfile.lname || ''}`.trim()
+            : '';
+        }
+
+        let advisorName = '';
+        if (proposalData?.advisor) {
+          const { data: advisorProfile } = await supabase
+            .from('profiles')
+            .select('fname, lname')
+            .eq('id', proposalData.advisor)
+            .single();
+
+          advisorName = advisorProfile
+            ? `${advisorProfile.fname || ''} ${advisorProfile.lname || ''}`.trim()
+            : '';
+        }
+
+        const printWindow = window.open('', '_blank', 'width=1200,height=900');
+        if (!printWindow) {
+          alert('Popup was blocked. Please allow popups and try again.');
+          return;
+        }
+
+        printWindow.document.open();
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>${(fileName || formName).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+              <style>
+                html, body {
+                  margin: 0;
+                  padding: 0;
+                  background: white;
+                }
+                @page {
+                  size: A4;
+                  margin: 10mm;
+                }
+                @media print {
+                  html, body {
+                    background: white;
+                  }
+                }
+                #print-root {
+                  width: 100%;
+                  display: block;
+                  box-sizing: border-box;
+                }
+              </style>
+            </head>
+            <body>
+              <div id="print-root"></div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+
+        copyDocumentStyles(printWindow.document);
+
+        const printRootEl = printWindow.document.getElementById('print-root');
+        if (!printRootEl) {
+          alert('Failed to prepare print view.');
+          return;
+        }
+
+        const root = createRoot(printRootEl);
+        root.render(
+          <FormComponent
+            proposalId={proposalId}
+            protocolCode={proposalData?.protocol_id || ''}
+            proposalTitle={proposalData?.proposal_title || ''}
+            reviewType={proposalData?.review_type || ''}
+            researcherName={researcherName}
+            advisorName={advisorName}
+            formName={formName}
+            savedData={data.data || {}}
+            readOnlyAdvisor={true}
+          />
+        );
+
+        await waitForRender(260);
+        await waitForAssets(printRootEl);
+
+        printWindow.focus();
+        printWindow.print();
+
+        setTimeout(() => {
+          root.unmount();
+          printWindow.close();
+        }, 800);
+        return;
+      }
       
       // Validate file URL
       if (!fileUrl || fileUrl.trim() === '') {
         alert('File path is missing. This file may not have been uploaded correctly.');
         return;
       }
-      
-      // Clean up the file path - remove any leading slashes
-      let cleanPath = fileUrl.trim();
-      if (cleanPath.startsWith('/')) {
-        cleanPath = cleanPath.substring(1);
+
+      // Some rows may already provide a fully accessible URL.
+      if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+        window.open(fileUrl, '_blank');
+        return;
       }
+      
+      const resolved = resolveStoragePath(fileUrl);
+      if (!resolved) {
+        alert('Could not determine file location for this attachment.');
+        return;
+      }
+
+      const cleanPath = resolved.path;
       
       console.log('Cleaned path:', cleanPath);
       
-      // Determine which bucket to use based on the file path
-      // Final reports are in 'storage' bucket, proposal documents are in 'documents' bucket
-      let bucketName = 'documents'; // default
-      if (cleanPath.includes('final-reports') || cleanPath.includes('final_reports')) {
-        bucketName = 'storage';
-      }
+      // Determine which bucket to use based on path and fallback if needed.
+      let bucketName = resolved.bucket;
       
       console.log('Using bucket:', bucketName);
       
@@ -153,7 +363,7 @@ export default function ResearcherHistoryDetail() {
         const retry = await supabase.storage.from(alternateBucket).createSignedUrl(cleanPath, 60);
         if (retry.error) {
           console.error('Retry also failed:', retry.error);
-          alert(`Failed to download file. The file may have been moved or deleted.\n\nPath: ${cleanPath}\nError: ${error.message}`);
+          alert(`Failed to download file. The file may have been moved or deleted.\n\nPath: ${cleanPath}\nFile: ${fileName}\nError: ${error.message}`);
           return;
         }
         if (!retry.data || !retry.data.signedUrl) {
@@ -205,6 +415,10 @@ export default function ResearcherHistoryDetail() {
     // Default to database status
     return { status: history.proposal.current_status, description: '' };
   };
+
+  const ungroupedFiles = history?.all_files.filter(
+    (file) => !history.phases.some((phase) => phase.files.some((phaseFile) => phaseFile.file_url === file.file_url && phaseFile.file_name === file.file_name))
+  ) || [];
 
   if (loading) {
     return (
@@ -460,7 +674,17 @@ export default function ResearcherHistoryDetail() {
                             <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                               <div className="flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-gray-400" />
-                                <span className="text-sm text-gray-900">{file.file_name}</span>
+                                {file.file_url && file.file_url.trim() !== '' ? (
+                                  <button
+                                    onClick={() => downloadFile(file.file_url, file.file_name)}
+                                    className="text-sm text-blue-700 hover:text-blue-900 hover:underline text-left"
+                                    title="Open or download file"
+                                  >
+                                    {file.file_name}
+                                  </button>
+                                ) : (
+                                  <span className="text-sm text-gray-900">{file.file_name}</span>
+                                )}
                                 {file.revision_number && file.revision_number > 0 && (
                                   <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-800 rounded">
                                     Rev. {file.revision_number}
@@ -473,7 +697,7 @@ export default function ResearcherHistoryDetail() {
                                   <button
                                     onClick={() => downloadFile(file.file_url, file.file_name)}
                                     className="p-1 hover:bg-gray-200 rounded"
-                                    title="Download file"
+                                    title="Open or download file"
                                   >
                                     <Download className="w-4 h-4 text-gray-600" />
                                   </button>
@@ -511,7 +735,17 @@ export default function ResearcherHistoryDetail() {
                       <div className="flex items-center gap-3 flex-1">
                         <FileText className="w-5 h-5 text-blue-600" />
                         <div className="flex-1">
-                          <p className="font-medium text-gray-900">{file.file_name}</p>
+                          {file.file_url && file.file_url.trim() !== '' ? (
+                            <button
+                              onClick={() => downloadFile(file.file_url, file.file_name)}
+                              className="font-medium text-blue-700 hover:text-blue-900 hover:underline text-left"
+                              title="Open or download file"
+                            >
+                              {file.file_name}
+                            </button>
+                          ) : (
+                            <p className="font-medium text-gray-900">{file.file_name}</p>
+                          )}
                           <div className="flex items-center gap-3 mt-1">
                             <span className="text-xs text-gray-500">{file.file_type}</span>
                             <span className="text-xs text-gray-500">•</span>
@@ -529,15 +763,50 @@ export default function ResearcherHistoryDetail() {
                       </div>
                       <div className="flex items-center gap-4">
                         <span className="text-sm text-gray-500">{formatDateShort(file.uploaded_at)}</span>
-                        <button
-                          onClick={() => downloadFile(file.file_url, file.file_name)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                        >
-                          <Eye className="w-5 h-5 text-gray-600" />
-                        </button>
+                        {file.file_url && file.file_url.trim() !== '' ? (
+                          <button
+                            onClick={() => downloadFile(file.file_url, file.file_name)}
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            title="Open or download file"
+                          >
+                            <Eye className="w-5 h-5 text-gray-600" />
+                          </button>
+                        ) : (
+                          <span className="text-xs text-orange-600">No file path</span>
+                        )}
                       </div>
                     </div>
                   ))}
+
+                  {ungroupedFiles.length > 0 && (
+                    <div className="mt-4 p-4 border border-amber-200 bg-amber-50 rounded-lg">
+                      <p className="text-sm font-medium text-amber-800 mb-2">Unassigned Phase Files</p>
+                      <p className="text-xs text-amber-700 mb-3">
+                        These files are uploaded by the researcher but could not be matched to a specific phase.
+                      </p>
+                      <div className="space-y-2">
+                        {ungroupedFiles.map((file, idx) => (
+                          <div key={`ungrouped-${idx}`} className="flex items-center justify-between bg-white border border-amber-200 rounded px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-amber-700" />
+                              <span className="text-sm text-gray-900">{file.file_name}</span>
+                            </div>
+                            {file.file_url && file.file_url.trim() !== '' ? (
+                              <button
+                                onClick={() => downloadFile(file.file_url, file.file_name)}
+                                className="p-1 hover:bg-amber-100 rounded"
+                                title="Open or download file"
+                              >
+                                <Download className="w-4 h-4 text-amber-700" />
+                              </button>
+                            ) : (
+                              <span className="text-xs text-orange-600">No file path</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

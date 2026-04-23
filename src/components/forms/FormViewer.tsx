@@ -42,9 +42,9 @@ export interface FormProps {
   readOnlyAdvisor?: boolean;
 }
 
-type FormComponent = React.ComponentType<FormProps>;
+export type FormComponent = React.ComponentType<FormProps>;
 
-const DOC_COMPONENT_MAP: Record<string, FormComponent> = {
+export const DOC_COMPONENT_MAP: Record<string, FormComponent> = {
   "REC_ENDORSMENT_FORM.pdf": RECEndorsementForm as FormComponent,
   "Progress_Report_Template.pdf": EthicsStudyProgressReport as FormComponent,
   "REC_FO_0019_Progress_Report.pdf": EthicsStudyProgressReport as FormComponent,
