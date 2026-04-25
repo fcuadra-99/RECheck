@@ -5,6 +5,7 @@ import { TemplateSubmissionService, type ReviewerProfile } from '../../services/
 import PDFFormFiller from '../../components/PDFFormFiller';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
 import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
+import EthicsStudyProtocolNonComplianceReport from '@/components/forms/REC_FO_0020';
 import EthicsStudyProtocolAmendmentForm from '@/components/forms/REC_FO_0018';
 import EthicsContinuingReviewApplicationForm from '@/components/forms/REC_FO_0023';
 import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_FO_0022';
@@ -76,7 +77,7 @@ export default function TemplateSubmissionDetail() {
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
   const isCustomJsonTemplate = Boolean(
     template?.id &&
-      ['progress-report', 'new-event-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
+      ['progress-report', 'new-event-report', 'non-compliance-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
   );
   const isStaffInputSubmitted = Boolean(
     submission?.original_filename?.toLowerCase().includes('_reviewed.') ||
@@ -469,6 +470,10 @@ export default function TemplateSubmissionDetail() {
 
     if (template.id === 'new-event-report') {
       return <EthicsStudyReportableNegativeEventReport {...commonProps} />;
+    }
+
+    if (template.id === 'non-compliance-report') {
+      return <EthicsStudyProtocolNonComplianceReport {...commonProps} />;
     }
 
     if (template.id === 'protocol-amendment') {

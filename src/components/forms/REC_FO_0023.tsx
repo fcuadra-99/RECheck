@@ -64,14 +64,25 @@ export default function EthicsContinuingReviewApplicationForm({
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
+    resizeTextarea(el);
+  };
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   };
 
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(resizeTextarea);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
   return (
     <div>
       <div style={pageContainer}>
-        {renderHeader(fields.controlNo || "")}
+        {renderHeader(fields.controlNo || "", (value) => updateField("controlNo", value))}
 
         <div style={titleStyle}>Ethics Continuing Review Application Form</div>
 
@@ -162,13 +173,75 @@ export default function EthicsContinuingReviewApplicationForm({
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>2. Action Requested:</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>2.1. Renewal: subject enrollment still ongoing</td></tr>
-            <tr><td colSpan={4} style={tdSub}>2.2. Renewal: randomized participants follow-up visits only</td></tr>
-            <tr><td colSpan={4} style={tdSub}>2.3. Early Termination: study protocol discontinued ahead of study indicated duration</td></tr>
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="actionRequested"
+                    style={radioStyle}
+                    checked={fields.actionRequested === "renewal-ongoing"}
+                    onChange={() => updateField("actionRequested", "renewal-ongoing")}
+                  />
+                  2.1. Renewal: subject enrollment still ongoing
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="actionRequested"
+                    style={radioStyle}
+                    checked={fields.actionRequested === "renewal-followup"}
+                    onChange={() => updateField("actionRequested", "renewal-followup")}
+                  />
+                  2.2. Renewal: randomized participants follow-up visits only
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="actionRequested"
+                    style={radioStyle}
+                    checked={fields.actionRequested === "early-termination"}
+                    onChange={() => updateField("actionRequested", "early-termination")}
+                  />
+                  2.3. Early Termination: study protocol discontinued ahead of study indicated duration
+                </label>
+              </td>
+            </tr>
 
             <tr><td colSpan={4} style={td}><strong>3. Have there been any amendments since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>3.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>3.2. - Yes (Describe briefly and indicate the date/s of Study Protocol Amendment Submission/s):
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasAmendments"
+                    style={radioStyle}
+                    checked={fields.hasAmendments === "no"}
+                    onChange={() => updateField("hasAmendments", "no")}
+                  />
+                  3.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasAmendments"
+                  style={radioStyle}
+                  checked={fields.hasAmendments === "yes"}
+                  onChange={() => updateField("hasAmendments", "yes")}
+                />
+                3.2. - Yes (Describe briefly and indicate the date/s of Study Protocol Amendment Submission/s):
+              </label>
               <textarea style={lineTextarea} value={fields.q32 || ""} onChange={(e) => updateField("q32", e.target.value)} onInput={autoExpand} rows={1} />
               <span style={smallItalic}> Please use additional pages if necessary</span>
             </td></tr>
@@ -188,15 +261,51 @@ export default function EthicsContinuingReviewApplicationForm({
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>5. Have there been any changes in the participant population, recruitment, or selection criteria since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>5.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>5.2. - Yes (Explain changes and indicate date/s of Study Protocol Amendment Submission/s)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasParticipantChanges"
+                    style={radioStyle}
+                    checked={fields.hasParticipantChanges === "no"}
+                    onChange={() => updateField("hasParticipantChanges", "no")}
+                  />
+                  5.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasParticipantChanges"
+                  style={radioStyle}
+                  checked={fields.hasParticipantChanges === "yes"}
+                  onChange={() => updateField("hasParticipantChanges", "yes")}
+                />
+                5.2. - Yes (Explain changes and indicate date/s of Study Protocol Amendment Submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q52 || ""} onChange={(e) => updateField("q52", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>6. Have there been any changes in the informed consent process or documentation since the last review/approval?</strong>
               <span style={smallItalic}> Attach the latest version of the participant information sheet and informed consent form/document</span>
             </td></tr>
-            <tr><td colSpan={4} style={tdSub}>6.1. - No</td></tr>
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasConsentChanges"
+                    style={radioStyle}
+                    checked={fields.hasConsentChanges === "no"}
+                    onChange={() => updateField("hasConsentChanges", "no")}
+                  />
+                  6.1. - No
+                </label>
+              </td>
+            </tr>
           </tbody>
         </table>
 
@@ -204,53 +313,224 @@ export default function EthicsContinuingReviewApplicationForm({
       </div>
 
       <div style={pageContainer}>
-        {renderHeader(fields.controlNo || "")}
+        {renderHeader(fields.controlNo || "", (value) => updateField("controlNo", value))}
 
         <table style={table}>
           <tbody>
-            <tr><td colSpan={4} style={tdSub}>6.2. - Yes (Explain changes and indicate date/s of Study Protocol Amendment Submission/s)
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasConsentChanges"
+                  style={radioStyle}
+                  checked={fields.hasConsentChanges === "yes"}
+                  onChange={() => updateField("hasConsentChanges", "yes")}
+                />
+                6.2. - Yes (Explain changes and indicate date/s of Study Protocol Amendment Submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q62 || ""} onChange={(e) => updateField("q62", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>7. Has any information appeared in the literature or evolved from this or similar research participants that might affect the REC's evaluation of the risk/benefit assessment of human participants involved in this study protocol?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>7.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>7.2. - Yes (Describe briefly and provide copy of the literature cited, including the investigator's brochure if applicable)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasLiteratureInfo"
+                    style={radioStyle}
+                    checked={fields.hasLiteratureInfo === "no"}
+                    onChange={() => updateField("hasLiteratureInfo", "no")}
+                  />
+                  7.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasLiteratureInfo"
+                  style={radioStyle}
+                  checked={fields.hasLiteratureInfo === "yes"}
+                  onChange={() => updateField("hasLiteratureInfo", "yes")}
+                />
+                7.2. - Yes (Describe briefly and provide copy of the literature cited, including the investigator's brochure if applicable)
+              </label>
               <textarea style={lineTextarea} value={fields.q72 || ""} onChange={(e) => updateField("q72", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>8. Have any unexpected discomforts, complications, or side effects been noted since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>8.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>8.2. - Yes (Summarize and indicate date/s of SUSAR report submission/s)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasUnexpectedEffects"
+                    style={radioStyle}
+                    checked={fields.hasUnexpectedEffects === "no"}
+                    onChange={() => updateField("hasUnexpectedEffects", "no")}
+                  />
+                  8.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasUnexpectedEffects"
+                  style={radioStyle}
+                  checked={fields.hasUnexpectedEffects === "yes"}
+                  onChange={() => updateField("hasUnexpectedEffects", "yes")}
+                />
+                8.2. - Yes (Summarize and indicate date/s of SUSAR report submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q82 || ""} onChange={(e) => updateField("q82", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>9. Have any participants withdrawn from this study since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>9.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>9.2. - Yes (Explain the context surrounding withdrawal and documenting due diligence exerted by the study team in managing these withdrawals)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasWithdrawnParticipants"
+                    style={radioStyle}
+                    checked={fields.hasWithdrawnParticipants === "no"}
+                    onChange={() => updateField("hasWithdrawnParticipants", "no")}
+                  />
+                  9.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasWithdrawnParticipants"
+                  style={radioStyle}
+                  checked={fields.hasWithdrawnParticipants === "yes"}
+                  onChange={() => updateField("hasWithdrawnParticipants", "yes")}
+                />
+                9.2. - Yes (Explain the context surrounding withdrawal and documenting due diligence exerted by the study team in managing these withdrawals)
+              </label>
               <textarea style={lineTextarea} value={fields.q92 || ""} onChange={(e) => updateField("q92", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>10. Have there been any new intervention(s) or methods in the conduct of the study that is/are not in the approved protocol?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>10.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>10.2. - Yes (Describe use and indicate date/s of Study Protocol Deviation/Non-Compliance/Violation Report Submission/s)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasNewInterventions"
+                    style={radioStyle}
+                    checked={fields.hasNewInterventions === "no"}
+                    onChange={() => updateField("hasNewInterventions", "no")}
+                  />
+                  10.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasNewInterventions"
+                  style={radioStyle}
+                  checked={fields.hasNewInterventions === "yes"}
+                  onChange={() => updateField("hasNewInterventions", "yes")}
+                />
+                10.2. - Yes (Describe use and indicate date/s of Study Protocol Deviation/Non-Compliance/Violation Report Submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q102 || ""} onChange={(e) => updateField("q102", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>11. Have any investigators been added or deleted since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>11.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>11.2. - Yes (Enumerate personnel and indicate date/s of Study Protocol Amendment Submission/s. Append CV if not yet submitted to the UIC REC Review Panel)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasInvestigatorChanges"
+                    style={radioStyle}
+                    checked={fields.hasInvestigatorChanges === "no"}
+                    onChange={() => updateField("hasInvestigatorChanges", "no")}
+                  />
+                  11.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasInvestigatorChanges"
+                  style={radioStyle}
+                  checked={fields.hasInvestigatorChanges === "yes"}
+                  onChange={() => updateField("hasInvestigatorChanges", "yes")}
+                />
+                11.2. - Yes (Enumerate personnel and indicate date/s of Study Protocol Amendment Submission/s. Append CV if not yet submitted to the UIC REC Review Panel)
+              </label>
               <textarea style={lineTextarea} value={fields.q112 || ""} onChange={(e) => updateField("q112", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>12. Have any collaborating sites (institutions) been added or deleted since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>12.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>12.2. - Yes (Enumerate sites and indicate date/s of Study Protocol Amendment Submission/s)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasSiteChanges"
+                    style={radioStyle}
+                    checked={fields.hasSiteChanges === "no"}
+                    onChange={() => updateField("hasSiteChanges", "no")}
+                  />
+                  12.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasSiteChanges"
+                  style={radioStyle}
+                  checked={fields.hasSiteChanges === "yes"}
+                  onChange={() => updateField("hasSiteChanges", "yes")}
+                />
+                12.2. - Yes (Enumerate sites and indicate date/s of Study Protocol Amendment Submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q122 || ""} onChange={(e) => updateField("q122", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>13. Have any investigators developed an equity or consultative relationship with a party related to this study protocol that might be considered a conflict of interest since the last review/approval?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>13.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>13.2. - Yes (Append a statement of disclosure)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasConflictOfInterest"
+                    style={radioStyle}
+                    checked={fields.hasConflictOfInterest === "no"}
+                    onChange={() => updateField("hasConflictOfInterest", "no")}
+                  />
+                  13.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasConflictOfInterest"
+                  style={radioStyle}
+                  checked={fields.hasConflictOfInterest === "yes"}
+                  onChange={() => updateField("hasConflictOfInterest", "yes")}
+                />
+                13.2. - Yes (Append a statement of disclosure)
+              </label>
               <textarea style={lineTextarea} value={fields.q132 || ""} onChange={(e) => updateField("q132", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
@@ -264,8 +544,31 @@ export default function EthicsContinuingReviewApplicationForm({
             </td></tr>
 
             <tr><td colSpan={4} style={td}><strong>15. Have there been other changes not mentioned above since the last review/approval? Attach protocol synopsis?</strong></td></tr>
-            <tr><td colSpan={4} style={tdSub}>15.1. - No</td></tr>
-            <tr><td colSpan={4} style={tdSub}>15.2. - Yes (Describe changes and indicate date/s of Study Protocol Amendment Submission/s)
+            <tr>
+              <td colSpan={4} style={tdSub}>
+                <label>
+                  <input
+                    type="radio"
+                    name="hasOtherChanges"
+                    style={radioStyle}
+                    checked={fields.hasOtherChanges === "no"}
+                    onChange={() => updateField("hasOtherChanges", "no")}
+                  />
+                  15.1. - No
+                </label>
+              </td>
+            </tr>
+            <tr><td colSpan={4} style={tdSub}>
+              <label>
+                <input
+                  type="radio"
+                  name="hasOtherChanges"
+                  style={radioStyle}
+                  checked={fields.hasOtherChanges === "yes"}
+                  onChange={() => updateField("hasOtherChanges", "yes")}
+                />
+                15.2. - Yes (Describe changes and indicate date/s of Study Protocol Amendment Submission/s)
+              </label>
               <textarea style={lineTextarea} value={fields.q152 || ""} onChange={(e) => updateField("q152", e.target.value)} onInput={autoExpand} rows={1} />
             </td></tr>
 
@@ -291,7 +594,7 @@ export default function EthicsContinuingReviewApplicationForm({
       </div>
 
       <div style={pageContainer}>
-        {renderHeader(fields.staffControlNo || "")}
+        {renderHeader(fields.staffControlNo || "", (value) => updateField("staffControlNo", value))}
 
         <table style={table}>
           <tbody>
@@ -340,7 +643,7 @@ export default function EthicsContinuingReviewApplicationForm({
   );
 }
 
-function renderHeader(controlNo: string) {
+function renderHeader(controlNo: string, onControlNoChange: (value: string) => void) {
   return (
     <table style={headerTable}>
       <tbody>
@@ -369,7 +672,11 @@ function renderHeader(controlNo: string) {
                 </tr>
                 <tr>
                   <td style={controlInputCell}>Control No.:
-                    <input style={lineInputInline} value={controlNo} readOnly />
+                    <input
+                      style={lineInputInline}
+                      value={controlNo}
+                      onChange={(e) => onControlNoChange(e.target.value)}
+                    />
                   </td>
                 </tr>
               </tbody>

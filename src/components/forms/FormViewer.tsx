@@ -18,6 +18,7 @@ import EthicsAssentFormSample from "./REC_FO_0034";
 import EthicsMOAFormFullBoard from "./REC_FO_0036_FullBoard";
 import EthicsMOAForm from "./REC_FO_0036_Exempt";
 import EthicsStudyProgressReport from "./REC_FO_0019";
+import EthicsStudyProtocolNonComplianceReport from "./REC_FO_0020";
 
 export interface FormProps {
   /** Proposal ID — used as localStorage key namespace */
@@ -49,6 +50,8 @@ export const DOC_COMPONENT_MAP: Record<string, FormComponent> = {
   "Progress_Report_Template.pdf": EthicsStudyProgressReport as FormComponent,
   "REC_FO_0019_Progress_Report.pdf": EthicsStudyProgressReport as FormComponent,
   "REC_FO_0019_Progress Report.pdf": EthicsStudyProgressReport as FormComponent,
+  "Non_Compliance_Report_Template.pdf": EthicsStudyProtocolNonComplianceReport as FormComponent,
+  "REC_FO_0020_EthicsStudyProtocolNon-Compliance(DeviationorViolations)Report.pdf": EthicsStudyProtocolNonComplianceReport as FormComponent,
   "REC_FO_0026_EthicsProtocolChecklist.pdf": EthicsProtocolChecklist as FormComponent,
   "REC_FO_0027_EthicsApplicationProcedure.pdf": EthicsApplicationProcedure as FormComponent,
   "REC_FO_0028_EthicsStudyProtocolInformationForm.pdf": EthicsStudyProtocolInformationForm as FormComponent,

@@ -6,6 +6,7 @@ import { TemplateSubmissionService } from '../../services/templateSubmissionServ
 import { useTemplateFields } from '@/hooks/useTemplateFields';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
 import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
+import EthicsStudyProtocolNonComplianceReport from '@/components/forms/REC_FO_0020';
 import EthicsStudyProtocolAmendmentForm from '@/components/forms/REC_FO_0018';
 import EthicsContinuingReviewApplicationForm from '@/components/forms/REC_FO_0023';
 import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_FO_0022';
@@ -16,6 +17,7 @@ export default function FormsTemplates() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [progressReportData, setProgressReportData] = useState<Record<string, any>>({});
   const [newEventReportData, setNewEventReportData] = useState<Record<string, any>>({});
+  const [nonComplianceReportData, setNonComplianceReportData] = useState<Record<string, any>>({});
   const [protocolAmendmentData, setProtocolAmendmentData] = useState<Record<string, any>>({});
   const [continuingReviewData, setContinuingReviewData] = useState<Record<string, any>>({});
   const [earlyTerminationData, setEarlyTerminationData] = useState<Record<string, any>>({});
@@ -27,6 +29,7 @@ export default function FormsTemplates() {
   const { fields: predefinedFields } = useTemplateFields(templateDetails?.id || null);
   const isProgressReportTemplate = templateDetails?.id === 'progress-report';
   const isNewEventReportTemplate = templateDetails?.id === 'new-event-report';
+  const isNonComplianceReportTemplate = templateDetails?.id === 'non-compliance-report';
   const isProtocolAmendmentTemplate = templateDetails?.id === 'protocol-amendment';
   const isContinuingReviewTemplate = templateDetails?.id === 'continuing-review';
   const isEarlyTerminationTemplate = templateDetails?.id === 'early-termination';
@@ -38,6 +41,7 @@ export default function FormsTemplates() {
     setSelectedTemplate('');
     setProgressReportData({});
     setNewEventReportData({});
+    setNonComplianceReportData({});
     setProtocolAmendmentData({});
     setContinuingReviewData({});
     setEarlyTerminationData({});
@@ -49,6 +53,10 @@ export default function FormsTemplates() {
 
   const handleNewEventReportSave = (patch: Record<string, any>) => {
     setNewEventReportData((prev) => ({ ...prev, ...patch }));
+  };
+
+  const handleNonComplianceReportSave = (patch: Record<string, any>) => {
+    setNonComplianceReportData((prev) => ({ ...prev, ...patch }));
   };
 
   const handleProtocolAmendmentSave = (patch: Record<string, any>) => {
@@ -135,6 +143,44 @@ export default function FormsTemplates() {
       }
     } catch (error) {
       console.error('Error submitting reportable negative event form:', error);
+      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleNonComplianceReportSubmit = async () => {
+    if (!selectedTemplate || !templateDetails) return;
+
+    try {
+      const json = JSON.stringify(nonComplianceReportData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const file = new File(
+        [blob],
+        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
+        { type: 'application/json', lastModified: Date.now() }
+      );
+
+      const submissionData = {
+        submission_title: `${selectedTemplate} Submission`,
+        template_name: selectedTemplate,
+        template_category: templateDetails.category,
+        file,
+        description: `Completed form data for ${selectedTemplate}`,
+        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
+      };
+
+      const submissionService = new TemplateSubmissionService();
+      const result = await submissionService.createSubmission(submissionData);
+
+      if (result.success) {
+        alert('Form submitted successfully! Your submission will be reviewed.');
+        setSelectedAction(null);
+        setSelectedTemplate('');
+        setNonComplianceReportData({});
+      } else {
+        throw new Error(result.error || 'Unknown error during submission');
+      }
+    } catch (error) {
+      console.error('Error submitting non-compliance report form:', error);
       alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
@@ -371,6 +417,42 @@ export default function FormsTemplates() {
                 formName="Report_New_Event_Template.pdf"
                 savedData={newEventReportData}
                 onSave={handleNewEventReportSave}
+                proposalTitle={selectedTemplate}
+              />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (isNonComplianceReportTemplate) {
+      return (
+        <div className="min-h-screen bg-gray-100 py-6">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">{templateDetails.name}</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCancel}
+                  className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleNonComplianceReportSubmit}
+                  className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800"
+                >
+                  Submit Form
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
+              <EthicsStudyProtocolNonComplianceReport
+                proposalId={0}
+                formName="Non_Compliance_Report_Template.pdf"
+                savedData={nonComplianceReportData}
+                onSave={handleNonComplianceReportSave}
                 proposalTitle={selectedTemplate}
               />
             </div>

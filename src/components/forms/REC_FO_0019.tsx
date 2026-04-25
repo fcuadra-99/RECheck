@@ -87,9 +87,20 @@ export default function EthicsStudyProgressReport({
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
+    resizeTextarea(el);
+  };
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   };
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(resizeTextarea);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <div>

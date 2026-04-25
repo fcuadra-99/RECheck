@@ -25,7 +25,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [controlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
   const [studyProtocolTitle, setStudyProtocolTitle] = useState<string>(s.studyProtocolTitle ?? proposalTitle ?? "");
   const [approvalDate, setApprovalDate] = useState<string>(s.approvalDate ?? "");
   const [principalInvestigator, setPrincipalInvestigator] = useState<string>(s.principalInvestigator ?? researcherName ?? "");
@@ -50,7 +50,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
   const [researcherSignature, setResearcherSignature] = useState<string>(s.researcherSignature ?? "");
   const [dateOfApplication, setDateOfApplication] = useState<string>(s.dateOfApplication ?? today);
 
-  const [staffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [terminationJustifiable, setTerminationJustifiable] = useState<YesNo>(s.terminationJustifiable ?? "");
   const [studyAffectParticipants, setStudyAffectParticipants] = useState<YesNo>(s.studyAffectParticipants ?? "");
@@ -88,9 +88,20 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget;
+    resizeTextarea(el);
+  };
+
+  const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   };
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(resizeTextarea);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   const toggleRecommendedAction = (key: keyof RecommendedAction) => {
     const next = { ...recommendedAction, [key]: !recommendedAction[key] };
@@ -101,7 +112,10 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
   return (
     <div>
       <div style={pageContainer}>
-        {renderHeader(controlNo)}
+        {renderHeader(controlNo, (value) => {
+          setControlNo(value);
+          save({ controlNo: value });
+        })}
 
         <div style={pinkRule} />
         <div style={formTitle}>Ethics Early Study Termination Application Form</div>
@@ -222,7 +236,10 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
       </div>
 
       <div style={pageContainer}>
-        {renderHeader(staffControlNo)}
+        {renderHeader(staffControlNo, (value) => {
+          setStaffControlNo(value);
+          save({ staffControlNo: value });
+        })}
 
         <div style={pinkRule} />
 
@@ -292,7 +309,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
   );
 }
 
-function renderHeader(controlNo: string) {
+function renderHeader(controlNo: string, onControlNoChange: (value: string) => void) {
   return (
     <table style={headerTable}>
       <tbody>
@@ -320,7 +337,7 @@ function renderHeader(controlNo: string) {
                   <td style={controlLabelCell}>RPIC_FO_0022</td>
                 </tr>
                 <tr>
-                  <td style={controlInputCell}>Control No.: <input style={lineInputInline} value={controlNo} readOnly /></td>
+                  <td style={controlInputCell}>Control No.: <input style={lineInputInline} value={controlNo} onChange={(e) => onControlNoChange(e.target.value)} /></td>
                 </tr>
               </tbody>
             </table>

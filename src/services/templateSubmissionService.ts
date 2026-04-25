@@ -114,6 +114,7 @@ export class TemplateSubmissionService {
   private static readonly CUSTOM_JSON_TEMPLATE_IDS = [
     'progress-report',
     'new-event-report',
+    'non-compliance-report',
     'protocol-amendment',
     'continuing-review',
     'early-termination'
