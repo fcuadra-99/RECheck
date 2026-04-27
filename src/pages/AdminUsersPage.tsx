@@ -47,6 +47,7 @@ const ROLE_OPTIONS = [
   "Admin Assistant",
   "Researcher",
   "Reviewer",
+  "Advisor",
   "Chairperson",
 ];
 const CATEGORY_OPTIONS = ["Undergraduate", "Graduate", "External"];
@@ -562,7 +563,7 @@ export default function AdminUsersPage() {
 
 import {
   Shield, Users,
-  BookOpen, ClipboardCheck, Crown
+  BookOpen, ClipboardCheck, Crown, GraduationCap
 } from "lucide-react";
 
 // Role → Icon mapping
@@ -572,4 +573,5 @@ const ROLE_ICONS: Record<string, JSX.Element> = {
   Researcher: <BookOpen className="w-4 h-4 mr-2 text-green-500" />,
   Reviewer: <ClipboardCheck className="w-4 h-4 mr-2 text-purple-500" />,
   Chairperson: <Crown className="w-4 h-4 mr-2 text-yellow-500" />,
+  Advisor: <GraduationCap className="w-4 h-4 mr-2 text-orange-500" />,
 };
