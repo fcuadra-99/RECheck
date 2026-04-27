@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
-import { getFinalReport, updateFinalReport } from '../../services/finalReportService';
+import { assignFinalReportToStaff, getAssignableFinalReportStaff, getFinalReport, getFinalReportAssignments, updateFinalReport, type AssignableStaffProfile, type FinalReportAssignment } from '../../services/finalReportService';
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { useTemplateFields } from '@/hooks/useTemplateFields';
+import FinalReportForm from '@/components/forms/FinalReportForm';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -46,8 +47,18 @@ const FinalReportDetail: React.FC = () => {
   const [editRemarks, setEditRemarks] = useState('');
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
+  const [activeAttachmentPath, setActiveAttachmentPath] = useState<string | null>(null);
   const [showPdfFiller, setShowPdfFiller] = useState(false);
+  const [showFinalReportFormFiller, setShowFinalReportFormFiller] = useState(false);
+  const [showFinalReportFormView, setShowFinalReportFormView] = useState(false);
+  const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
+  const [finalReportFormLoading, setFinalReportFormLoading] = useState(false);
+  const [printOnFormViewOpen, setPrintOnFormViewOpen] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+  const [assignableStaff, setAssignableStaff] = useState<AssignableStaffProfile[]>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
+  const [assigningStaff, setAssigningStaff] = useState(false);
+  const [reportAssignments, setReportAssignments] = useState<FinalReportAssignment[]>([]);
   
   // Load predefined fields based on selected PDF
   const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
@@ -57,11 +68,62 @@ const FinalReportDetail: React.FC = () => {
   
   // Debug logging
   console.log('🔍 Chairperson FinalReportDetail - selectedPdfName:', selectedPdfName, 'template:', template?.id, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
+
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message) return error.message;
+    if (error && typeof error === 'object' && 'message' in error) {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.trim()) return message;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Unknown error';
+    }
+  };
+
   useEffect(() => {
     if (id) {
       loadReport();
+      loadAssignableStaff();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (assignableStaff.length === 0) return;
+    const validIds = new Set(assignableStaff.map((staff) => staff.id));
+    setSelectedStaffIds((prev) => prev.filter((staffId) => validIds.has(staffId)));
+  }, [assignableStaff]);
+
+  useEffect(() => {
+    if (!showFinalReportFormView || !printOnFormViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnFormViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showFinalReportFormView, printOnFormViewOpen]);
+
+  useEffect(() => {
+    if (showFinalReportFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showFinalReportFormView]);
+
+  async function loadAssignableStaff() {
+    const result = await getAssignableFinalReportStaff();
+    if (result.success) {
+      setAssignableStaff(result.staff || []);
+    }
+  }
 
   async function loadReport() {
     if (!id) return;
@@ -74,6 +136,15 @@ const FinalReportDetail: React.FC = () => {
         setEditStatus(reportData.status);
         setEditOutcome(reportData.outcome || '');
         setEditRemarks(reportData.remarks || '');
+
+        const assignmentResult = await getFinalReportAssignments(reportData.id);
+        if (assignmentResult.success) {
+          setReportAssignments(assignmentResult.assignments || []);
+          setSelectedStaffIds((assignmentResult.assignments || []).map((assignment) => assignment.assignee_id).slice(0, 4));
+        } else {
+          setReportAssignments([]);
+          setSelectedStaffIds([]);
+        }
 
         // Load proposal details
         if (reportData.proposal_date) {
@@ -96,6 +167,44 @@ const FinalReportDetail: React.FC = () => {
     }
   }
 
+  function toggleStaffSelection(staffId: string) {
+    setSelectedStaffIds((prev) => {
+      if (prev.includes(staffId)) {
+        return prev.filter((id) => id !== staffId);
+      }
+
+      if (prev.length >= 4) {
+        return prev;
+      }
+
+      return [...prev, staffId];
+    });
+  }
+
+  async function handleAssignStaff() {
+    if (!report) return;
+
+    if (selectedStaffIds.length < 1 || selectedStaffIds.length > 4) {
+      alert('Please select 1 to 4 staff members.');
+      return;
+    }
+
+    try {
+      setAssigningStaff(true);
+      const result = await assignFinalReportToStaff(report.id, selectedStaffIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to assign staff');
+      }
+      alert('Final report passed to assigned staff successfully.');
+      await loadReport();
+    } catch (error) {
+      console.error('Error assigning final report staff:', error);
+      alert(`Failed to assign staff: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setAssigningStaff(false);
+    }
+  }
+
   async function handleSave() {
     if (!report) return;
     
@@ -113,7 +222,7 @@ const FinalReportDetail: React.FC = () => {
     }
 
     // Type validation for editStatus - only allow specific statuses
-    const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved'];
+    const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved', 'Rejected'];
     if (!validStatuses.includes(editStatus as FinalReportStatus)) {
       alert('Invalid status selected');
       return;
@@ -132,6 +241,8 @@ const FinalReportDetail: React.FC = () => {
       // If status is being changed to Approved, show success message with certificate info
       if (newStatus === 'Approved') {
         alert('Final report approved! A certificate is now available for the researcher.');
+      } else if (newStatus === 'Rejected') {
+        alert('Final report rejected. The researcher will be notified of the decision.');
       } else if (newStatus === 'Requires Revision') {
         alert('Final report sent back for revision. The researcher will be able to resubmit.');
       } else {
@@ -149,6 +260,37 @@ const FinalReportDetail: React.FC = () => {
 
   async function handleDownloadAttachment(filePath: string) {
     try {
+      const fileName = filePath.split('/').pop() || 'download';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json');
+
+      if (isFinalReportJson) {
+        const metadataFormData = report?.metadata?.staffSharedFormData;
+        if (metadataFormData && typeof metadataFormData === 'object') {
+          setFinalReportFormData(metadataFormData as Record<string, any>);
+          setSelectedPdfName(fileName);
+          setPrintOnFormViewOpen(true);
+          setShowFinalReportFormView(true);
+          return;
+        }
+
+        const { data } = await supabase.storage
+          .from('storage')
+          .download(filePath);
+
+        if (!data) {
+          throw new Error('Unable to load form file');
+        }
+
+        setFinalReportFormLoading(true);
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
+        setSelectedPdfName(fileName);
+        setPrintOnFormViewOpen(true);
+        setShowFinalReportFormView(true);
+        return;
+      }
+
       const { data, error } = await supabase.storage
         .from('storage')
         .download(filePath);
@@ -158,12 +300,14 @@ const FinalReportDetail: React.FC = () => {
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = filePath.split('/').pop() || 'download';
+      link.download = fileName;
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading file:', error);
       alert('Failed to download file');
+    } finally {
+      setFinalReportFormLoading(false);
     }
   }
 
@@ -174,7 +318,8 @@ const FinalReportDetail: React.FC = () => {
         .getPublicUrl(filePath);
       
       if (data.publicUrl) {
-        setSelectedPdfUrl(data.publicUrl);
+        setSelectedPdfUrl(`${data.publicUrl}?v=${Date.now()}`);
+        setActiveAttachmentPath(filePath);
         // For final reports, use the template name to load predefined fields
         // Check if this is a final report by looking at the report title
         const templateName = report?.title.includes('Final Report') 
@@ -191,37 +336,140 @@ const FinalReportDetail: React.FC = () => {
     }
   }
 
+  async function handleOpenFinalReportForm(filePath: string) {
+    try {
+      const metadataFormData = report?.metadata?.staffSharedFormData;
+      if (metadataFormData && typeof metadataFormData === 'object') {
+        setFinalReportFormData(metadataFormData as Record<string, any>);
+        setActiveAttachmentPath(report?.metadata?.sharedFormPath || filePath);
+        setSelectedPdfName((report?.metadata?.sharedFormPath || filePath).split('/').pop() || 'final-report-filled.json');
+        setShowFinalReportFormFiller(true);
+        return;
+      }
+
+      const { data } = await supabase.storage
+        .from('storage')
+        .download(filePath);
+
+      if (!data) {
+        throw new Error('Unable to load form file');
+      }
+
+      setFinalReportFormLoading(true);
+      const text = await data.text();
+      const parsed = JSON.parse(text);
+      setFinalReportFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setActiveAttachmentPath(filePath);
+      setSelectedPdfName(filePath.split('/').pop() || 'final-report-filled.json');
+      setShowFinalReportFormFiller(true);
+    } catch (error) {
+      console.error('Error opening final report form:', error);
+      alert(`Failed to open final report form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setFinalReportFormLoading(false);
+    }
+  }
+
+  async function handleSaveFinalReportForm() {
+    try {
+      if (!report) return;
+      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.json')) {
+        throw new Error('No original final report form selected to update.');
+      }
+
+      const json = JSON.stringify(finalReportFormData, null, 2);
+      const jsonBlob = new Blob([json], { type: 'application/json' });
+
+      // Keep storage sync as best-effort; chairperson + assigned pages now read metadata first.
+      const { error: uploadError } = await supabase.storage
+        .from('storage')
+        .upload(activeAttachmentPath, jsonBlob, {
+          contentType: 'application/json',
+          upsert: true,
+        });
+
+      const existingAttachments = report.attachments || [];
+      const updatedAttachments = existingAttachments.includes(activeAttachmentPath)
+        ? existingAttachments
+        : [...existingAttachments, activeAttachmentPath];
+
+      const baseUpdatePayload: Record<string, any> = {
+        attachments: updatedAttachments,
+        last_updated_at: new Date().toISOString(),
+      };
+
+      let updateError: any = null;
+
+      const { error: updateWithMetadataError } = await supabase
+        .from('final_reports')
+        .update({
+          ...baseUpdatePayload,
+          metadata: {
+            ...(report.metadata || {}),
+            sharedFormPath: activeAttachmentPath,
+            staffSharedFormData: finalReportFormData,
+          },
+        })
+        .eq('id', report.id);
+
+      if (updateWithMetadataError) {
+        const message = (updateWithMetadataError.message || '').toLowerCase();
+        const metadataColumnMissing = message.includes('metadata') && message.includes('does not exist');
+
+        if (metadataColumnMissing) {
+          const { error: fallbackUpdateError } = await supabase
+            .from('final_reports')
+            .update(baseUpdatePayload)
+            .eq('id', report.id);
+
+          updateError = fallbackUpdateError;
+        } else {
+          updateError = updateWithMetadataError;
+        }
+      }
+
+      if (updateError) throw updateError;
+
+      if (uploadError) {
+        alert(`Reviewed form saved successfully (DB). Storage sync warning: ${getErrorMessage(uploadError)}`);
+      } else {
+        alert('Reviewed form saved successfully!');
+      }
+      setShowFinalReportFormFiller(false);
+      loadReport();
+    } catch (error) {
+      console.error('Error saving reviewed form:', error);
+      alert(`Failed to save reviewed form: ${getErrorMessage(error)}`);
+    }
+  }
+
   async function handlePdfSave(pdfBytes: Uint8Array, formData: Record<string, string | boolean>) {
     console.log('Chairperson filled PDF:', formData);
     console.log('PDF size:', pdfBytes.length, 'bytes');
     
     try {
       if (!report) return;
+      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.pdf')) {
+        throw new Error('No original PDF selected to update.');
+      }
 
       // Convert PDF bytes to File
       const pdfArray = Array.from(pdfBytes);
       const pdfBlob = new Blob([new Uint8Array(pdfArray)], { type: 'application/pdf' });
-      const pdfFile = new File(
-        [pdfBlob],
-        `${selectedPdfName.replace('.pdf', '')}_reviewed.pdf`,
-        { type: 'application/pdf', lastModified: Date.now() }
-      );
-
-      // Upload the reviewed PDF back to storage
-      const timestamp = Date.now();
-      const fileName = `final-reports/reviewed/${report.id}/filled_${timestamp}_${selectedPdfName}`;
       
       const { error: uploadError } = await supabase.storage
         .from('storage')
-        .upload(fileName, pdfFile, {
+        .upload(activeAttachmentPath, pdfBlob, {
           contentType: 'application/pdf',
           upsert: true
         });
       
       if (uploadError) throw uploadError;
 
-      // Update the report's attachments array to include the new filled PDF
-      const updatedAttachments = [...(report.attachments || []), fileName];
+      const existingAttachments = report.attachments || [];
+      const updatedAttachments = existingAttachments.includes(activeAttachmentPath)
+        ? existingAttachments
+        : [...existingAttachments, activeAttachmentPath];
       
       const { error: updateError } = await supabase
         .from('final_reports')
@@ -341,6 +589,78 @@ const FinalReportDetail: React.FC = () => {
     );
   }
 
+  if (showFinalReportFormFiller) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {finalReportFormLoading ? 'Loading Form...' : `Fill and Review: ${selectedPdfName}`}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFinalReportFormFiller(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFinalReportForm}
+                disabled={finalReportFormLoading}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+              >
+                Save Reviewed Form
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            {finalReportFormLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <FinalReportForm
+                savedData={finalReportFormData}
+                onSave={(patch) => setFinalReportFormData((prev) => ({ ...prev, ...patch }))}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFinalReportFormView) {
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {finalReportFormLoading ? 'Loading Form Preview...' : `Final Report Preview: ${selectedPdfName}`}
+            </div>
+            <button
+              onClick={() => setShowFinalReportFormView(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            {finalReportFormLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <div style={{ pointerEvents: 'none' }}>
+                <FinalReportForm savedData={finalReportFormData} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -451,6 +771,7 @@ const FinalReportDetail: React.FC = () => {
                   {report.attachments.map((filePath, index) => {
                     const fileName = filePath.split('/').pop() || 'Document';
                     const isPdf = fileName.toLowerCase().endsWith('.pdf');
+                    const isFinalReportJson = fileName.toLowerCase().endsWith('.json');
                     
                     return (
                       <div
@@ -462,6 +783,15 @@ const FinalReportDetail: React.FC = () => {
                           <span className="text-sm text-gray-700 font-medium">{fileName}</span>
                         </div>
                         <div className="flex items-center gap-2">
+                          {isFinalReportJson && (
+                            <button
+                              onClick={() => handleOpenFinalReportForm(filePath)}
+                              className="px-3 py-1 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center gap-1"
+                            >
+                              <Eye className="w-4 h-4" />
+                              View & Fill Form
+                            </button>
+                          )}
                           {isPdf && (
                             <button
                               onClick={() => handleOpenPdfFiller(filePath)}
@@ -538,10 +868,54 @@ const FinalReportDetail: React.FC = () => {
           {/* Right Column - Review Actions */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Pass to Assigned Staff</h2>
+              <p className="text-xs text-gray-600 mb-3">Select 1 to 4 reviewers or admin assistants.</p>
+
+              <div className="space-y-2 max-h-44 overflow-y-auto border border-gray-200 rounded p-2 mb-3">
+                {assignableStaff.length === 0 ? (
+                  <p className="text-xs text-gray-500">No assignable staff found.</p>
+                ) : (
+                  assignableStaff.map((staff) => (
+                    <label key={staff.id} className="flex items-start gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedStaffIds.includes(staff.id)}
+                        onChange={() => toggleStaffSelection(staff.id)}
+                        disabled={!selectedStaffIds.includes(staff.id) && selectedStaffIds.length >= 4}
+                      />
+                      <span>
+                        <span className="block font-medium text-gray-900">{staff.name}</span>
+                        <span className="block text-xs text-gray-500">
+                          {staff.email}{staff.role ? ` • ${staff.role}` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+              <button
+                onClick={handleAssignStaff}
+                disabled={assigningStaff || selectedStaffIds.length < 1}
+                className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition mb-6"
+              >
+                {assigningStaff ? 'Passing...' : 'Pass to Selected Staff'}
+              </button>
+
+              {reportAssignments.length > 0 && (
+                <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded p-2">
+                  <p className="text-xs text-indigo-900 font-medium">
+                    Assigned: {reportAssignments.length} staff member{reportAssignments.length > 1 ? 's' : ''}
+                  </p>
+                  {reportAssignments[0]?.assigned_at && (
+                    <p className="text-xs text-indigo-700">{formatDate(reportAssignments[0].assigned_at)}</p>
+                  )}
+                </div>
+              )}
+
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Update</h2>
               
-              {/* Show review form only for pending status */}
-              {report.status === 'Pending Review' ? (
+              {/* Show review form for chairperson while report is still in active review */}
+              {report.status === 'Pending Review' || report.status === 'Under Review' ? (
                 <div className="space-y-4">
                   {/* Status Selection */}
                   <div>
@@ -556,6 +930,7 @@ const FinalReportDetail: React.FC = () => {
                       <option value="Pending Review">Pending Review</option>
                       <option value="Requires Revision">Requires Revision</option>
                       <option value="Approved">Approved</option>
+                      <option value="Rejected">Rejected</option>
                     </select>
                   </div>
 
@@ -641,7 +1016,7 @@ const FinalReportDetail: React.FC = () => {
               )}
 
               {/* Always show the current outcome for reference if it exists */}
-              {report.outcome && report.status === 'Pending Review' && (
+              {report.outcome && (report.status === 'Pending Review' || report.status === 'Under Review') && (
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Current Outcome

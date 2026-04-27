@@ -41,6 +41,16 @@ export const formTemplates: FormTemplate[] = [
     fileName: 'Report_New_Event_Template.pdf'
   },
   {
+    id: 'non-compliance-report',
+    name: 'Non-Compliance (Deviation or Violations) Report',
+    description: 'Template for reporting study protocol non-compliance, deviations, or violations',
+    templateUrl: '/templates/Non_Compliance_Report_Template.pdf',
+    category: 'report',
+    fileType: 'pdf',
+    version: '1.0',
+    fileName: 'Non_Compliance_Report_Template.pdf'
+  },
+  {
     id: 'protocol-amendment',
     name: 'Protocol Amendment',
     description: 'Template for protocol amendment requests and modifications',

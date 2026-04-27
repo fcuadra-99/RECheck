@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { Eye, FileText, Calendar, User, CheckCircle, Clock, AlertCircle, Search, Filter } from 'lucide-react';
 
 interface TemplateSubmission {
@@ -11,7 +12,7 @@ interface TemplateSubmission {
   file_url: string;
   submitted_by: string;
   submitted_at: string;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'needs_revision';
+  status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'needs_revision' | 'revision_requested';
   reviewer_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -25,9 +26,27 @@ export default function TemplateSubmissions() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [templateTypeFilter, setTemplateTypeFilter] = useState<string>('all');
+  const navigate = useNavigate();
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  const isCustomJsonTemplate = (templateType: string) => {
+    const template = TemplateDownloadService.getTemplateByName(templateType);
+    return Boolean(
+      template?.id &&
+        ['progress-report', 'new-event-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
+    );
+  };
+
+  const handleViewSubmissionFile = (submission: TemplateSubmission) => {
+    if (isCustomJsonTemplate(submission.template_type)) {
+      navigate(`/chairperson/template-submissions/${submission.id}?view=1`);
+      return;
+    }
+
+    window.open(submission.file_url, '_blank');
+  };
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -121,18 +140,22 @@ export default function TemplateSubmissions() {
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      in_review: 'bg-sky-100 text-sky-800 border-sky-200',
       under_review: 'bg-blue-100 text-blue-800 border-blue-200',
       approved: 'bg-green-100 text-green-800 border-green-200',
       rejected: 'bg-red-100 text-red-800 border-red-200',
-      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200'
+      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200',
+      revision_requested: 'bg-orange-100 text-orange-800 border-orange-200'
     };
 
     const icons = {
       pending: <Clock className="w-3 h-3" />,
+      in_review: <Eye className="w-3 h-3" />,
       under_review: <Eye className="w-3 h-3" />,
       approved: <CheckCircle className="w-3 h-3" />,
       rejected: <AlertCircle className="w-3 h-3" />,
-      needs_revision: <AlertCircle className="w-3 h-3" />
+      needs_revision: <AlertCircle className="w-3 h-3" />,
+      revision_requested: <AlertCircle className="w-3 h-3" />
     };
 
     return (
@@ -325,11 +348,11 @@ export default function TemplateSubmissions() {
                           Review
                         </Link>
                         <button
-                          onClick={() => window.open(submission.file_url, '_blank')}
+                          onClick={() => handleViewSubmissionFile(submission)}
                           className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                         >
                           <FileText className="w-4 h-4 mr-1" />
-                          View PDF
+                          {isCustomJsonTemplate(submission.template_type) ? 'View Form' : 'View PDF'}
                         </button>
                       </div>
                     </td>

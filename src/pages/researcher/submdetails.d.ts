@@ -1,10 +1,12 @@
 interface Submission {
     proposal_id: number;
+    protocol_id?: string | null;
     proposal_title: string;
     description: string;
     category: string;
     review_type: string | null;
     researcher: string | null;
+    advisor_id?: string | null;
     status: string;
     date: string;
 }

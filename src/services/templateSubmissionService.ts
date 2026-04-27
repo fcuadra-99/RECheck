@@ -16,7 +16,7 @@ export interface TemplateSubmission {
   file_type: string;
   description?: string;
   submission_date: string;
-  status: 'pending' | 'in_review' | 'approved' | 'rejected' | 'revision_requested';
+  status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'revision_requested' | 'needs_revision';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   reviewer_id?: string;
   reviewer_name?: string;
@@ -35,6 +35,66 @@ export interface TemplateSubmission {
   metadata?: any;
 }
 
+interface ReviewerAssignmentMetadata {
+  assignedReviewerIds?: string[];
+  assignedById?: string;
+  assignedByName?: string;
+  assignedAt?: string;
+  reviewerSubmissions?: Record<string, {
+    reviewerId: string;
+    reviewerName: string;
+    fileUrl: string;
+    fileName: string;
+    comments?: string;
+    submittedAt: string;
+  }>;
+}
+
+export interface ReviewerProfile {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+}
+
+interface ReviewerCandidate {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  source: 'users' | 'profiles';
+}
+
+const normalizeRoleLabel = (value?: string | null) => {
+  return (value || '').trim().toLowerCase().replace(/[_\-]+/g, ' ');
+};
+
+const isAssignableRoleLike = (value?: string | null) => {
+  const normalized = normalizeRoleLabel(value);
+  if (!normalized) return false;
+  return normalized === 'reviewer' || normalized.includes('reviewer') || normalized === 'admin assistant' || normalized.includes('admin assistant');
+};
+
+const toDisplayRole = (value?: string | null) => {
+  const normalized = normalizeRoleLabel(value);
+  if (normalized.includes('admin assistant')) return 'Admin Assistant';
+  if (normalized.includes('reviewer')) return 'Reviewer';
+  return value || '';
+};
+
+const normalizeEmail = (value?: string | null) => (value || '').trim().toLowerCase();
+
+const pickPreferredReviewer = (current: ReviewerCandidate | undefined, incoming: ReviewerCandidate) => {
+  if (!current) return incoming;
+  if (current.source !== 'profiles' && incoming.source === 'profiles') return incoming;
+
+  const currentNameQuality = current.name && current.name !== 'Reviewer';
+  const incomingNameQuality = incoming.name && incoming.name !== 'Reviewer';
+  if (!currentNameQuality && incomingNameQuality) return incoming;
+
+  return current;
+};
+
 export interface CreateTemplateSubmissionData {
   submission_title: string;
   template_name: string;
@@ -45,12 +105,21 @@ export interface CreateTemplateSubmissionData {
 }
 
 export interface ReviewTemplateSubmissionData {
-  status: 'approved' | 'rejected' | 'revision_requested';
+  status: 'approved' | 'rejected' | 'revision_requested' | 'needs_revision';
   review_comments?: string;
   reviewer_name: string;
 }
 
 export class TemplateSubmissionService {
+  private static readonly CUSTOM_JSON_TEMPLATE_IDS = [
+    'progress-report',
+    'new-event-report',
+    'non-compliance-report',
+    'protocol-amendment',
+    'continuing-review',
+    'early-termination'
+  ];
+
   /**
    * Create a new template submission with file upload
    */
@@ -253,6 +322,292 @@ export class TemplateSubmissionService {
       return { success: true, submissions: data };
     } catch (error) {
       console.error('Error fetching researcher submissions:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Get all reviewers for chairperson assignment
+   */
+  async getReviewerProfiles(): Promise<{ success: boolean; reviewers?: ReviewerProfile[]; error?: string }> {
+    try {
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('id, name, email, role')
+        .order('name', { ascending: true });
+
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, fname, lname, email, role, category');
+
+      if (usersError && profilesError) {
+        return { success: false, error: `Failed to load reviewers: ${usersError.message}` };
+      }
+
+      const identityMap = new Map<string, ReviewerCandidate>();
+
+      (usersData || []).forEach((item: any) => {
+        if (!isAssignableRoleLike(item.role)) return;
+        const email = normalizeEmail(item.email);
+        const key = email || String(item.id);
+        const candidate: ReviewerCandidate = {
+          id: item.id,
+          name: item.name || item.email || 'Reviewer',
+          email: item.email || '',
+          role: toDisplayRole(item.role),
+          source: 'users'
+        };
+        identityMap.set(key, pickPreferredReviewer(identityMap.get(key), candidate));
+      });
+
+      (profilesData || []).forEach((item: any) => {
+        const isReviewer = isAssignableRoleLike(item.role) || isAssignableRoleLike(item.category);
+        if (!isReviewer) return;
+
+        const fullName = `${item.fname || ''} ${item.lname || ''}`.trim();
+        const email = normalizeEmail(item.email);
+        const key = email || String(item.id);
+        const existing = identityMap.get(key);
+        const candidate: ReviewerCandidate = {
+          id: item.id,
+          name: fullName || existing?.name || item.email || 'Reviewer',
+          email: item.email || existing?.email || '',
+          role: toDisplayRole(item.role || item.category || existing?.role),
+          source: 'profiles'
+        };
+        identityMap.set(key, pickPreferredReviewer(existing, candidate));
+      });
+
+      const reviewers = Array.from(identityMap.values())
+        .map((item) => ({ id: item.id, name: item.name, email: item.email, role: item.role }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return { success: true, reviewers };
+    } catch (error) {
+      console.error('Error getting reviewer profiles:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Assign one to four staff members to a submission
+   */
+  async assignReviewers(
+    submissionId: string,
+    reviewerIds: string[]
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const uniqueReviewerIds = Array.from(new Set(reviewerIds.filter(Boolean)));
+      if (uniqueReviewerIds.length < 1 || uniqueReviewerIds.length > 4) {
+        return { success: false, error: 'Please assign 1 to 4 staff members' };
+      }
+
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      const { data: chairpersonProfile } = await supabase
+        .from('users')
+        .select('name, email')
+        .eq('id', user.user.id)
+        .single();
+
+      const now = new Date().toISOString();
+
+      const { data: submission, error: submissionError } = await supabase
+        .from('template_submissions')
+        .select('metadata')
+        .eq('id', submissionId)
+        .single();
+
+      if (submissionError) {
+        return { success: false, error: `Failed to fetch submission: ${submissionError.message}` };
+      }
+
+      const existingMetadata = (submission?.metadata || {}) as ReviewerAssignmentMetadata;
+      const mergedMetadata: ReviewerAssignmentMetadata = {
+        ...existingMetadata,
+        assignedReviewerIds: uniqueReviewerIds,
+        assignedById: user.user.id,
+        assignedByName: chairpersonProfile?.name || chairpersonProfile?.email || user.user.email || 'Chairperson',
+        assignedAt: now
+      };
+
+      const updatePayload: any = {
+        status: 'under_review',
+        metadata: mergedMetadata,
+        updated_at: now
+      };
+
+      if (uniqueReviewerIds.length === 1) {
+        updatePayload.reviewer_id = uniqueReviewerIds[0];
+      }
+
+      const { error: updateError } = await supabase
+        .from('template_submissions')
+        .update(updatePayload)
+        .eq('id', submissionId);
+
+      if (updateError) {
+        return { success: false, error: `Failed to assign reviewers: ${updateError.message}` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error assigning reviewers:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Get submissions assigned to currently logged-in reviewer
+   */
+  async getAssignedSubmissionsForReviewer(): Promise<{ success: boolean; submissions?: TemplateSubmission[]; error?: string }> {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      const aliasIds = new Set<string>([user.user.id]);
+      const currentEmail = normalizeEmail(user.user.email);
+
+      if (currentEmail) {
+        const { data: profileAliases } = await supabase
+          .from('profiles')
+          .select('id, email')
+          .ilike('email', currentEmail);
+
+        (profileAliases || []).forEach((row: any) => {
+          if (row?.id) aliasIds.add(row.id);
+        });
+
+        const { data: userAliases } = await supabase
+          .from('users')
+          .select('id, email')
+          .ilike('email', currentEmail);
+
+        (userAliases || []).forEach((row: any) => {
+          if (row?.id) aliasIds.add(row.id);
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('template_submissions')
+        .select('*')
+        .in('status', ['under_review', 'in_review', 'pending'])
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        return { success: false, error: `Failed to fetch reviewer assignments: ${error.message}` };
+      }
+
+      const reviewerSubmissions = (data || []).filter((submission: any) => {
+        const metadata = (submission.metadata || {}) as ReviewerAssignmentMetadata;
+        const assignedReviewerIds = metadata.assignedReviewerIds || [];
+        return assignedReviewerIds.some((assignedId) => aliasIds.has(assignedId));
+      });
+
+      return { success: true, submissions: reviewerSubmissions };
+    } catch (error) {
+      console.error('Error getting reviewer submissions:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Submit reviewer-filled form and attach to submission metadata
+   */
+  async submitReviewerUpdate(
+    submissionId: string,
+    file: File,
+    comments?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      const { data: reviewerProfile } = await supabase
+        .from('users')
+        .select('name, email')
+        .eq('id', user.user.id)
+        .single();
+
+      const { data: submission, error: submissionError } = await supabase
+        .from('template_submissions')
+        .select('template_name, metadata')
+        .eq('id', submissionId)
+        .single();
+
+      if (submissionError) {
+        return { success: false, error: `Failed to fetch submission: ${submissionError.message}` };
+      }
+
+      const metadata = (submission?.metadata || {}) as ReviewerAssignmentMetadata;
+      const assignedReviewerIds = metadata.assignedReviewerIds || [];
+      if (!assignedReviewerIds.includes(user.user.id)) {
+        return { success: false, error: 'You are not assigned to this submission' };
+      }
+
+      const uploadPath = `${submissionId}/reviewer_${user.user.id}_${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('storage')
+        .upload(uploadPath, file);
+
+      if (uploadError) {
+        return { success: false, error: `Failed to upload reviewer file: ${uploadError.message}` };
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('storage')
+        .getPublicUrl(uploadPath);
+
+      const reviewerSubmissions = {
+        ...(metadata.reviewerSubmissions || {}),
+        [user.user.id]: {
+          reviewerId: user.user.id,
+          reviewerName: reviewerProfile?.name || reviewerProfile?.email || user.user.email || 'Reviewer',
+          fileUrl: publicUrlData.publicUrl,
+          fileName: file.name,
+          comments,
+          submittedAt: new Date().toISOString()
+        }
+      };
+
+      const allAssignedSubmitted = assignedReviewerIds.every((reviewerId) => Boolean(reviewerSubmissions[reviewerId]));
+      const normalizedTemplateName = (submission?.template_name || '').toLowerCase();
+      const isJsonTemplate = TemplateSubmissionService.CUSTOM_JSON_TEMPLATE_IDS.some((templateId) => normalizedTemplateName.includes(templateId.replace('-', ' ')));
+
+      const updatedMetadata: ReviewerAssignmentMetadata = {
+        ...metadata,
+        reviewerSubmissions
+      };
+
+      const { error: updateError } = await supabase
+        .from('template_submissions')
+        .update({
+          file_url: publicUrlData.publicUrl,
+          file_name: file.name,
+          status: allAssignedSubmitted ? 'under_review' : 'in_review',
+          review_comments: comments || null,
+          review_date: new Date().toISOString(),
+          metadata: updatedMetadata,
+          updated_at: new Date().toISOString(),
+          file_type: file.type || (isJsonTemplate ? 'application/json' : 'application/pdf'),
+          file_size: file.size
+        })
+        .eq('id', submissionId);
+
+      if (updateError) {
+        return { success: false, error: `Failed to update submission: ${updateError.message}` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error submitting reviewer update:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   }

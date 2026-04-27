@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../DB';
 import AttachmentList from '../../components/AttachmentList';
+import { TemplateDownloadService } from '../../services/templateDownloadService';
+import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
+import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
+import EthicsStudyProtocolNonComplianceReport from '@/components/forms/REC_FO_0020';
+import EthicsStudyProtocolAmendmentForm from '@/components/forms/REC_FO_0018';
+import EthicsContinuingReviewApplicationForm from '@/components/forms/REC_FO_0023';
+import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_FO_0022';
 import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, AlertCircle, Download, Eye } from 'lucide-react';
 
 interface TemplateSubmission {
@@ -11,7 +18,7 @@ interface TemplateSubmission {
   file_url: string;
   submitted_by: string;
   submitted_at: string;
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'needs_revision';
+  status: 'pending' | 'in_review' | 'under_review' | 'approved' | 'rejected' | 'needs_revision' | 'revision_requested';
   reviewer_notes?: string;
   reviewed_by?: string;
   reviewed_at?: string;
@@ -26,9 +33,17 @@ export default function TemplateSubmissionDetail() {
   const navigate = useNavigate();
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editNotes, setEditNotes] = useState('');
-  const [editFile, setEditFile] = useState<File | null>(null);
-  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [showCustomFormView, setShowCustomFormView] = useState(false);
+  const [customFormLoading, setCustomFormLoading] = useState(false);
+  const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
+  const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
+  const isResearcherLocked = Boolean(submission);
+
+  const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
+  const isCustomJsonTemplate = Boolean(
+    template?.id &&
+      ['progress-report', 'new-event-report', 'non-compliance-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
+  );
 
   useEffect(() => {
     fetchSubmission();
@@ -86,7 +101,6 @@ export default function TemplateSubmissionDetail() {
           signature_image: signatureImage
         };
         setSubmission(transformedSubmission);
-        setEditNotes(data.description || '');
       }
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -98,18 +112,22 @@ export default function TemplateSubmissionDetail() {
   const getStatusBadge = (status: string) => {
     const styles = {
       pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      in_review: 'bg-sky-100 text-sky-800 border-sky-200',
       under_review: 'bg-blue-100 text-blue-800 border-blue-200',
       approved: 'bg-green-100 text-green-800 border-green-200',
       rejected: 'bg-red-100 text-red-800 border-red-200',
-      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200'
+      needs_revision: 'bg-orange-100 text-orange-800 border-orange-200',
+      revision_requested: 'bg-orange-100 text-orange-800 border-orange-200'
     };
 
     const icons = {
       pending: <AlertCircle className="w-4 h-4" />,
+      in_review: <Eye className="w-4 h-4" />,
       under_review: <Eye className="w-4 h-4" />,
       approved: <CheckCircle className="w-4 h-4" />,
       rejected: <XCircle className="w-4 h-4" />,
-      needs_revision: <AlertCircle className="w-4 h-4" />
+      needs_revision: <AlertCircle className="w-4 h-4" />,
+      revision_requested: <AlertCircle className="w-4 h-4" />
     };
 
     return (
@@ -130,53 +148,132 @@ export default function TemplateSubmissionDetail() {
     });
   };
 
-  // Handle edit submit
-  const handleEditSubmit = async () => {
+  const handleViewSubmission = async () => {
     if (!submission) return;
-    setSubmittingEdit(true);
+
+    if (!isCustomJsonTemplate) {
+      window.open(submission.file_url, '_blank');
+      return;
+    }
+
     try {
-      let file_url = submission.file_url;
-      let original_filename = submission.original_filename;
-      // If file changed, upload new file
-      if (editFile) {
-        const fileExt = editFile.name.split('.').pop();
-        const filePath = `submissions/${submission.id}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('storage')
-          .upload(filePath, editFile);
-        if (uploadError) {
-          alert('File upload failed.');
-          setSubmittingEdit(false);
-          return;
-        }
-        // Get public URL
-        const { data: urlData } = supabase.storage.from('storage').getPublicUrl(filePath);
-        file_url = urlData.publicUrl;
-        original_filename = editFile.name;
+      setCustomFormLoading(true);
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
       }
-      // Update submission
-      const { error } = await supabase
-        .from('template_submissions')
-        .update({
-          file_url,
-          file_name: original_filename,
-          description: editNotes,
-          status: 'pending'
-          // Do not reset researcher_signed_at, keep previous signature
-        })
-        .eq('id', submission.id);
-      if (error) {
-        alert('Failed to update submission.');
-        setSubmittingEdit(false);
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setShowCustomFormView(true);
+    } catch (error) {
+      console.error('Error loading submitted form:', error);
+      alert(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCustomFormLoading(false);
+    }
+  };
+
+  const handleDownloadSubmission = async () => {
+    if (!submission) return;
+
+    try {
+      if (!isCustomJsonTemplate) {
+        const response = await fetch(submission.file_url);
+        if (!response.ok) {
+          throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const fileName = submission.original_filename || 'download';
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
         return;
       }
-      alert('Submission updated!');
-      fetchSubmission();
-    } catch (err) {
-      alert('Error updating submission.');
-    } finally {
-      setSubmittingEdit(false);
+
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setPrintOnViewOpen(true);
+      setShowCustomFormView(true);
+    } catch (error) {
+      console.error('Error downloading submission:', error);
+      alert(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  useEffect(() => {
+    if (!showCustomFormView || !printOnViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showCustomFormView, printOnViewOpen]);
+
+  useEffect(() => {
+    if (showCustomFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showCustomFormView]);
+
+  const renderCustomForm = (formData: Record<string, any> = customFormData) => {
+    if (!submission || !template?.id) return null;
+
+    const commonProps = {
+      proposalId: 0,
+      protocolCode: formData.protocolCodeValue || formData.controlNo || '',
+      researcherName: formData.nameResearcher || formData.principalInvestigator || submission.submitted_by,
+      proposalTitle: formData.titleOfStudy || formData.studyProtocolTitle || submission.template_type,
+      formName: submission.original_filename,
+      savedData: formData,
+      onSave: undefined,
+    };
+
+    if (template.id === 'progress-report') {
+      return <EthicsStudyProgressReport {...commonProps} />;
+    }
+
+    if (template.id === 'new-event-report') {
+      return <EthicsStudyReportableNegativeEventReport {...commonProps} />;
+    }
+
+    if (template.id === 'non-compliance-report') {
+      return <EthicsStudyProtocolNonComplianceReport {...commonProps} />;
+    }
+
+    if (template.id === 'protocol-amendment') {
+      return <EthicsStudyProtocolAmendmentForm {...commonProps} />;
+    }
+
+    if (template.id === 'continuing-review') {
+      return <EthicsContinuingReviewApplicationForm {...commonProps} />;
+    }
+
+    if (template.id === 'early-termination') {
+      return <EthicsEarlyStudyTerminationApplicationForm {...commonProps} />;
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -200,6 +297,31 @@ export default function TemplateSubmissionDetail() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to My Submissions
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (showCustomFormView && submission) {
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Submitted Form View: {submission.template_type}</div>
+            <button
+              onClick={() => setShowCustomFormView(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            <div style={{ pointerEvents: 'none' }}>
+              {renderCustomForm()}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -262,55 +384,29 @@ export default function TemplateSubmissionDetail() {
               <h2 className="text-lg font-medium text-gray-900 mb-4">Document Actions</h2>
               <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={() => window.open(submission.file_url, '_blank')}
+                  onClick={handleViewSubmission}
+                  disabled={customFormLoading}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
                 >
                   <Eye className="w-4 h-4 mr-2" />
-                  View PDF
+                  {customFormLoading ? 'Loading...' : isCustomJsonTemplate ? 'View Form' : 'View PDF'}
                 </button>
-                <a
-                  href={submission.file_url}
-                  download={submission.original_filename}
+                <button
+                  onClick={handleDownloadSubmission}
                   className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Download
-                </a>
+                </button>
               </div>
             </div>
 
-            {/* Inline Edit Section */}
-            {submission.status === 'needs_revision' && (
+            {isResearcherLocked && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-                <h2 className="text-lg font-medium text-yellow-900 mb-4">Edit & Resubmit</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Update File</label>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={e => setEditFile(e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-700 border border-gray-300 rounded-md"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Update Notes</label>
-                    <textarea
-                      value={editNotes}
-                      onChange={e => setEditNotes(e.target.value)}
-                      rows={4}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                      placeholder="Update your submission notes..."
-                    />
-                  </div>
-                  <button
-                    onClick={handleEditSubmit}
-                    disabled={submittingEdit}
-                    className="w-full px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400"
-                  >
-                    {submittingEdit ? 'Submitting...' : 'Resubmit'}
-                  </button>
-                </div>
+                <h2 className="text-lg font-medium text-yellow-900 mb-2">Editing Locked</h2>
+                <p className="text-sm text-yellow-800">
+                  You have already submitted your input. This form is now view-only.
+                </p>
               </div>
             )}
 

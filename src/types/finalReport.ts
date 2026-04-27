@@ -12,6 +12,23 @@ export interface FinalReport {
   last_updated_at: string; // ISO timestamp
   attachments: string[]; // storage object paths
   remarks?: string | null; // internal chairperson remarks
+  metadata?: {
+    assignedStaffIds?: string[];
+    assignedById?: string;
+    assignedByName?: string;
+    assignedAt?: string;
+    sharedFormPath?: string;
+    staffSharedFormData?: Record<string, any>;
+    staffSubmissions?: Record<string, {
+      staffId: string;
+      staffName: string;
+      role?: string;
+      filePath: string;
+      fileName: string;
+      comments?: string;
+      submittedAt: string;
+    }>;
+  };
 }
 
 export type FinalReportStatus =

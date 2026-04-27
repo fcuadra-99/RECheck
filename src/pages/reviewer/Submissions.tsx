@@ -23,6 +23,10 @@ import { toast } from "sonner";
 import { Label } from "recharts";
 import PDFFormFiller from "@/components/PDFFormFiller";
 import { useTemplateFields } from "@/hooks/useTemplateFields";
+import ProtocolReviewerAssessmentForm from "@/components/forms/ProtocolReviewerAssessmentForm";
+import InformedConsentAssessmentForm from "@/components/forms/InformedConsentAssessmentForm";
+import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
+import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
 
 /* ----------------- types ----------------- */
 interface RevisionRequirement {
@@ -49,6 +53,7 @@ interface DocumentSelection {
 interface Submission {
     proposal_id: number;
     protocol_id?: string | null;
+    protocol_code?: string | null;
     proposal_title: string;
     description: string;
     category: string;
@@ -119,11 +124,19 @@ export default function ReviewerPage() {
     const [previewOpen, setPreviewOpen] = useState(false);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
+    const [showAssessmentPreview, setShowAssessmentPreview] = useState(false);
+    const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
+    const [assessmentPreviewTitle, setAssessmentPreviewTitle] = useState<string>("");
+    const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
     const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | null>(null);
     const [templateUrl, setTemplateUrl] = useState<string>('');
+    const [ethicalClearanceData, setEthicalClearanceData] = useState<Record<string, any>>({});
+    const [decisionLetterData, setDecisionLetterData] = useState<Record<string, any>>({});
+    const [reviewerAssessmentData, setReviewerAssessmentData] = useState<Record<string, any>>({});
+    const [informedConsentData, setInformedConsentData] = useState<Record<string, any>>({});
     
     // Preload template fields based on current template type
     const templateId = templateType === 'reviewer_assessment' ? 'protocol-reviewer-assessment'
@@ -526,6 +539,34 @@ export default function ReviewerPage() {
         setPreviewOpen(true);
     };
 
+    const openAssessmentPreview = async (url: string, filename: string) => {
+        const lowerName = filename.toLowerCase();
+        const isReviewerAssessment = lowerName.includes('reviewer_assessment');
+        const isInformedConsent = lowerName.includes('informed_consent_assessment');
+
+        if (!isReviewerAssessment && !isInformedConsent) {
+            openPreview(url, filename);
+            return;
+        }
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+
+            const text = await response.text();
+            const parsed = JSON.parse(text);
+            if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
+
+            setAssessmentPreviewData(parsed);
+            setAssessmentPreviewTitle(filename);
+            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setShowAssessmentPreview(true);
+        } catch {
+            // Legacy submissions are PDFs; keep existing preview behavior.
+            openPreview(url, filename);
+        }
+    };
+
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
         if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
@@ -681,12 +722,27 @@ export default function ReviewerPage() {
         return config[phase];
     };
 
+    const getSubmissionProtocolCode = (submission: Submission | null) => {
+        if (!submission) return "-";
+        return submission.protocol_id || submission.protocol_code || "-";
+    };
+
     // Check if current user has submitted a recommendation for active submission
     const hasUserSubmittedRecommendation = existingRecommendations.some(rec => rec.reviewer_id === userId);
 
     /* Open PDF Template Handler */
     const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
         try {
+            if (type === 'reviewer_assessment' && hasSubmittedProtocolAssessment) {
+                toast.info('Protocol Reviewer Assessment already submitted. Editing is locked.');
+                return;
+            }
+
+            if (type === 'informed_consent' && hasSubmittedInformedConsent) {
+                toast.info('Informed Consent Assessment already submitted. Editing is locked.');
+                return;
+            }
+
             let templateFilename = '';
             
             if (type === 'ethical_clearance') {
@@ -708,6 +764,252 @@ export default function ReviewerPage() {
         } catch (error) {
             console.error('Error loading template:', error);
             toast.error('Failed to load template');
+        }
+    };
+
+    const handleSubmitReviewerAssessment = async () => {
+        if (!activeSubmission || !userId) return;
+
+        if (hasSubmittedProtocolAssessment) {
+            toast.info('Protocol Reviewer Assessment already submitted. Editing is locked.');
+            return;
+        }
+
+        try {
+            const loadingId = toast.loading("Submitting protocol reviewer assessment...");
+
+            const filename = `Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+            const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+            const json = JSON.stringify(reviewerAssessmentData, null, 2);
+
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+
+            const historyData = {
+                history_type: 'reviewer_assessment_submitted',
+                paper_id: activeSubmission.proposal_id,
+                comment: 'Reviewer assessment form submitted',
+                actor: userId,
+                action: 'REVIEWER_ASSESSMENT_SUBMITTED',
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            setHasSubmittedProtocolAssessment(true);
+            await loadAssessmentForms();
+
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+
+            toast.success('Protocol reviewer assessment submitted successfully', { id: loadingId });
+        } catch (error: any) {
+            console.error('Error submitting reviewer assessment:', error);
+            toast.error(`Failed to submit assessment: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleSubmitEthicalClearance = async () => {
+        if (!activeSubmission || !userId) return;
+
+        try {
+            const loadingId = toast.loading("Sending ethical clearance...");
+
+            const filename = `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.json`;
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
+            const json = JSON.stringify(ethicalClearanceData, null, 2);
+
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+
+            const historyData = {
+                history_type: 'ethical_clearance_sent',
+                paper_id: activeSubmission.proposal_id,
+                comment: 'Ethical Clearance sent to researcher',
+                actor: userId,
+                action: 'ETHICAL_CLEARANCE_SENT',
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({
+                    status: "Data Collection",
+                    updated_on: new Date().toISOString()
+                })
+                .eq("proposal_id", activeSubmission.proposal_id);
+
+            if (statusError) throw statusError;
+
+            const decisionHistoryData = {
+                history_type: "review_decision",
+                paper_id: activeSubmission.proposal_id,
+                comment: "Chairperson approved proposal and sent Ethical Clearance",
+                actor: userId,
+                action: "CHAIRPERSON_DECISION_APPROVE",
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
+            if (decisionError) throw decisionError;
+
+            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+
+            if (submissions.length > 1) {
+                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
+                setActiveSubmission(nextSubmission || null);
+            } else {
+                setActiveSubmission(null);
+            }
+
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+
+            toast.success('Ethical Clearance sent - Proposal approved and moved to Data Collection', { id: loadingId });
+        } catch (error: any) {
+            console.error('Error sending ethical clearance:', error);
+            toast.error(`Failed to send ethical clearance: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleSubmitInformedConsentAssessment = async () => {
+        if (!activeSubmission || !userId) return;
+
+        if (hasSubmittedInformedConsent) {
+            toast.info('Informed Consent Assessment already submitted. Editing is locked.');
+            return;
+        }
+
+        try {
+            const loadingId = toast.loading("Submitting informed consent assessment...");
+
+            const filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+            const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+            const json = JSON.stringify(informedConsentData, null, 2);
+
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+
+            const historyData = {
+                history_type: 'informed_consent_assessment_submitted',
+                paper_id: activeSubmission.proposal_id,
+                comment: 'Informed consent assessment form submitted',
+                actor: userId,
+                action: 'INFORMED_CONSENT_ASSESSMENT_SUBMITTED',
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            setHasSubmittedInformedConsent(true);
+            await loadAssessmentForms();
+
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+
+            toast.success('Informed consent assessment submitted successfully', { id: loadingId });
+        } catch (error: any) {
+            console.error('Error submitting informed consent assessment:', error);
+            toast.error(`Failed to submit assessment: ${error.message || 'Unknown error'}`);
+        }
+    };
+
+    const handleSubmitDecisionLetter = async () => {
+        if (!activeSubmission || !userId) return;
+
+        try {
+            const loadingId = toast.loading("Sending decision letter...");
+
+            const filename = `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.json`;
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
+            const json = JSON.stringify(decisionLetterData, null, 2);
+
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: false
+                });
+
+            if (uploadError) throw uploadError;
+
+            const historyData = {
+                history_type: 'decision_letter_sent',
+                paper_id: activeSubmission.proposal_id,
+                comment: 'Decision Letter sent to researcher',
+                actor: userId,
+                action: 'DECISION_LETTER_SENT',
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            const { error: statusError } = await supabase
+                .from("proposals")
+                .update({
+                    status: "Revise Proposal",
+                    updated_on: new Date().toISOString()
+                })
+                .eq("proposal_id", activeSubmission.proposal_id);
+
+            if (statusError) throw statusError;
+
+            const decisionHistoryData = {
+                history_type: "review_decision",
+                paper_id: activeSubmission.proposal_id,
+                comment: "Chairperson requested revisions for proposal and sent Decision Letter",
+                actor: userId,
+                action: "CHAIRPERSON_DECISION_REVISIONS",
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
+            if (decisionError) throw decisionError;
+
+            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
+
+            if (submissions.length > 1) {
+                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
+                setActiveSubmission(nextSubmission || null);
+            } else {
+                setActiveSubmission(null);
+            }
+
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+
+            toast.success('Decision Letter sent - Proposal moved to Revise Proposal', { id: loadingId });
+        } catch (error: any) {
+            console.error('Error sending decision letter:', error);
+            toast.error(`Failed to send decision letter: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -870,6 +1172,7 @@ export default function ReviewerPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="border min-w-[200px]">Title</TableHead>
+                            <TableHead className="border min-w-[120px]">Protocol Code</TableHead>
                             <TableHead className="border min-w-[120px]">Researcher</TableHead>
                             <TableHead className="border min-w-[100px]">Category</TableHead>
                             <TableHead className="border min-w-[100px]">Date</TableHead>
@@ -883,6 +1186,7 @@ export default function ReviewerPage() {
                             Array.from({ length: 3 }).map((_, i) => (
                                 <TableRow key={i}>
                                     <TableCell><Skeleton className="h-4 w-[150px]" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
@@ -906,6 +1210,11 @@ export default function ReviewerPage() {
                                                 <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                                 <span className="font-medium truncate min-w-0">{submission.proposal_title}</span>
                                             </div>
+                                        </TableCell>
+                                        <TableCell className="border">
+                                            <span className="font-mono text-xs text-gray-700">
+                                                {getSubmissionProtocolCode(submission)}
+                                            </span>
                                         </TableCell>
                                         <TableCell className="border">
                                             <div className="flex items-center gap-2">
@@ -964,6 +1273,7 @@ export default function ReviewerPage() {
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
+                                        <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border w-1 whitespace-nowrap text-center">
                                             <Badge variant="outline" className="text-gray-400 border-gray-200">
                                                 Empty
@@ -990,6 +1300,10 @@ export default function ReviewerPage() {
                                 <h2 className="text-lg font-semibold break-words pr-2">{activeSubmission.proposal_title}</h2>
                                 <div className="text-sm text-gray-600 mt-1 mb-3">
                                     {getProfileName(activeSubmission.researcher)} • <span className="text-muted-foreground">{activeSubmission.category}</span>
+                                </div>
+                                <div className="text-sm text-gray-700 mb-2">
+                                    <span className="font-semibold">Protocol Code:</span>{" "}
+                                    <span className="font-mono">{getSubmissionProtocolCode(activeSubmission)}</span>
                                 </div>
                             </div>
 
@@ -1135,7 +1449,7 @@ export default function ReviewerPage() {
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
-                                                                onClick={() => openPreview(form.url, form.name)}
+                                                                onClick={() => openAssessmentPreview(form.url, form.name)}
                                                             >
                                                                 <Eye className="h-4 w-4 mr-2" />
                                                                 View
@@ -1363,6 +1677,7 @@ export default function ReviewerPage() {
                                             <div className="relative">
                                                 <Button
                                                     onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
+                                                    disabled={hasSubmittedProtocolAssessment}
                                                     className={cn(
                                                         "w-full flex items-center justify-center gap-2",
                                                         hasSubmittedProtocolAssessment 
@@ -1383,6 +1698,7 @@ export default function ReviewerPage() {
                                             <div className="relative">
                                                 <Button
                                                     onClick={() => handleOpenPDFTemplate('informed_consent')}
+                                                    disabled={hasSubmittedInformedConsent}
                                                     className={cn(
                                                         "w-full flex items-center justify-center gap-2",
                                                         hasSubmittedInformedConsent 
@@ -1549,27 +1865,164 @@ export default function ReviewerPage() {
                 </div>
             )}
 
+            {/* Assessment React Preview (Chairperson) */}
+            {showAssessmentPreview && assessmentPreviewType && (
+                <div className="fixed inset-0 z-50 bg-gray-100 overflow-auto p-4">
+                    <div className="max-w-[1000px] mx-auto">
+                        <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                            <div className="text-sm font-medium text-gray-700">Assessment Preview: {assessmentPreviewTitle}</div>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setShowAssessmentPreview(false);
+                                    setAssessmentPreviewType(null);
+                                    setAssessmentPreviewTitle("");
+                                    setAssessmentPreviewData({});
+                                }}
+                            >
+                                Close
+                            </Button>
+                        </div>
+
+                        <div style={{ pointerEvents: 'none' }}>
+                            {assessmentPreviewType === 'reviewer_assessment' ? (
+                                <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
+                            ) : (
+                                <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* PDF Template Modal - Full Screen */}
             {showPDFTemplate && templateUrl && (
                 <div className="fixed inset-0 z-50 bg-white">
-                    {fieldsLoading && (templateType === 'reviewer_assessment' || templateType === 'informed_consent') ? (
-                        <div className="flex items-center justify-center h-full">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                                <p>Loading template fields...</p>
+                    {templateType === 'ethical_clearance' ? (
+                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                    <div className="text-sm font-medium text-gray-700">Ethical Clearance</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button onClick={handleSubmitEthicalClearance}>
+                                            Send Ethical Clearance
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <EthicalClearanceForm
+                                    savedData={ethicalClearanceData}
+                                    onSave={(patch) => setEthicalClearanceData((prev) => ({ ...prev, ...patch }))}
+                                />
+                            </div>
+                        </div>
+                    ) : templateType === 'decision_letter' ? (
+                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                    <div className="text-sm font-medium text-gray-700">Decision Letter</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button onClick={handleSubmitDecisionLetter}>
+                                            Send Decision Letter
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <DecisionLetterForm
+                                    savedData={decisionLetterData}
+                                    onSave={(patch) => setDecisionLetterData((prev) => ({ ...prev, ...patch }))}
+                                />
+                            </div>
+                        </div>
+                    ) : templateType === 'reviewer_assessment' ? (
+                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                    <div className="text-sm font-medium text-gray-700">Protocol Reviewer Assessment Form</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleSubmitReviewerAssessment}
+                                            disabled={hasSubmittedProtocolAssessment}
+                                        >
+                                            Submit Form
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <ProtocolReviewerAssessmentForm
+                                    savedData={reviewerAssessmentData}
+                                    onSave={(patch) => setReviewerAssessmentData((prev) => ({ ...prev, ...patch }))}
+                                />
+                            </div>
+                        </div>
+                    ) : templateType === 'informed_consent' ? (
+                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                    <div className="text-sm font-medium text-gray-700">Informed Consent Assessment Form</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleSubmitInformedConsentAssessment}
+                                            disabled={hasSubmittedInformedConsent}
+                                        >
+                                            Submit Form
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <InformedConsentAssessmentForm
+                                    savedData={informedConsentData}
+                                    onSave={(patch) => setInformedConsentData((prev) => ({ ...prev, ...patch }))}
+                                />
                             </div>
                         </div>
                     ) : (
                         <PDFFormFiller
                             templateUrl={templateUrl}
                             templateName={
-                                templateType === 'ethical_clearance' 
-                                    ? 'Ethical_Clearance' 
-                                    : templateType === 'decision_letter'
+                                templateType === 'decision_letter'
                                         ? 'Decision_Letter'
-                                        : templateType === 'reviewer_assessment'
-                                            ? 'Protocol Reviewer Assessment'
-                                            : 'Informed Consent Assessment'
+                                        : 'Informed Consent Assessment'
                             }
                             onSave={handleSavePDFTemplate}
                             onCancel={() => {

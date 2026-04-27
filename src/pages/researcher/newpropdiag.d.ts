@@ -3,6 +3,8 @@ interface Profile {
     fname: string | null;
     lname: string | null;
     category?: string | null;
+    role?: string | null;
+    email?: string | null;
 }
 interface NewProposalDialogProps {
     open: boolean;
@@ -11,5 +13,5 @@ interface NewProposalDialogProps {
     userId: string | null;
     onProposalCreated: (proposal: any) => void;
 }
-export default function NewProposalDialog({ open, onOpenChange, profiles, userId, onProposalCreated }: NewProposalDialogProps): import("react/jsx-runtime").JSX.Element;
+export default function NewProposalDialog({ open, onOpenChange, profiles, onProposalCreated }: NewProposalDialogProps): import("react/jsx-runtime").JSX.Element;
 export {};

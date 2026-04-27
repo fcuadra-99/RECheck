@@ -1,4 +1,5 @@
-export default function SDashboard({ user, profile }: {
+declare const _default: import("react").NamedExoticComponent<{
     user: any;
     profile: any;
-}): import("react/jsx-runtime").JSX.Element;
+}>;
+export default _default;

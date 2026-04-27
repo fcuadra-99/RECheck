@@ -16,8 +16,7 @@ import {
   Edit3,
   Award
 } from 'lucide-react';
-import PDFFormFiller from '../../components/PDFFormFiller';
-import { useTemplateFields } from '@/hooks/useTemplateFields';
+import FinalReportForm from '@/components/forms/FinalReportForm';
 
 interface Proposal {
   date: string;
@@ -74,14 +73,13 @@ const FinalReportSubmission: React.FC = () => {
     { id: '5', label: 'Upload any additional supporting documents', file: null, required: false },
   ]);
   const [submitting, setSubmitting] = useState(false);
-  const [showPdfFiller, setShowPdfFiller] = useState(false);
+  const [showFinalReportForm, setShowFinalReportForm] = useState(false);
   const [currentFillingDocId, setCurrentFillingDocId] = useState<string | null>(null);
-  
-  // Load predefined fields for Final Report template
-  const { fields: predefinedFields } = useTemplateFields('protocol-final-report');
-  
-  // Final report template URL
-  const FINAL_REPORT_TEMPLATE_URL = '/templates/Protocol_Final_Report_Template.pdf';
+  const [finalReportData, setFinalReportData] = useState<Record<string, any>>({});
+  const [showFinalReportPreview, setShowFinalReportPreview] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState('');
+  const [printOnPreviewOpen, setPrintOnPreviewOpen] = useState(false);
 
   async function loadReports() {
     setLoading(true);
@@ -128,6 +126,29 @@ const FinalReportSubmission: React.FC = () => {
     loadProposals();
   }, []);
 
+  useEffect(() => {
+    if (!showFinalReportPreview || !printOnPreviewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnPreviewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showFinalReportPreview, printOnPreviewOpen]);
+
+  useEffect(() => {
+    if (showFinalReportPreview) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showFinalReportPreview]);
+
   const handleDocumentFileChange = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setDocuments(prev => 
@@ -138,24 +159,20 @@ const FinalReportSubmission: React.FC = () => {
 
   const handleUseTemplate = (docId: string) => {
     setCurrentFillingDocId(docId);
-    setShowPdfFiller(true);
+    setShowFinalReportForm(true);
   };
 
-  const handlePdfSave = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
-    console.log('PDF filled with data:', formData);
-    
+  const handleFinalReportFormSave = async () => {
     if (!currentFillingDocId) return;
+    const json = JSON.stringify(finalReportData, null, 2);
+    const jsonBlob = new Blob([json], { type: 'application/json' });
+    const jsonFile = new File([jsonBlob], 'final-report-filled.json', { type: 'application/json' });
     
-    // Convert PDF bytes to File object
-    const pdfBlob = new Blob([pdfBytes as BlobPart], { type: 'application/pdf' });
-    const pdfFile = new File([pdfBlob], 'final-report-filled.pdf', { type: 'application/pdf' });
-    
-    // Update the document in the list
     setDocuments(prev => 
-      prev.map(doc => doc.id === currentFillingDocId ? { ...doc, file: pdfFile } : doc)
+      prev.map(doc => doc.id === currentFillingDocId ? { ...doc, file: jsonFile } : doc)
     );
     
-    setShowPdfFiller(false);
+    setShowFinalReportForm(false);
     setCurrentFillingDocId(null);
     alert('Template filled successfully! You can now submit your form.');
   };
@@ -252,19 +269,160 @@ const FinalReportSubmission: React.FC = () => {
     });
   };
 
-  // Show PDF Form Filler if using template (check this FIRST before submission form)
-  if (showPdfFiller) {
+  async function handleViewAttachment(filePath: string) {
+    try {
+      const fileName = filePath.split('/').pop() || 'Document';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+
+      const { data } = await supabase.storage
+        .from('storage')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Unable to resolve file URL');
+      }
+
+      if (!isFinalReportJson) {
+        window.open(data.publicUrl, '_blank');
+        return;
+      }
+
+      setPreviewLoading(true);
+      setPreviewTitle(fileName);
+
+      const response = await fetch(data.publicUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setFinalReportData(parsed && typeof parsed === 'object' ? parsed : {});
+      setShowFinalReportPreview(true);
+    } catch (error) {
+      console.error('Error viewing attachment:', error);
+      alert(`Failed to view attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function handleDownloadAttachment(filePath: string) {
+    try {
+      const fileName = filePath.split('/').pop() || 'Document';
+      const isFinalReportJson = fileName.toLowerCase().endsWith('.json') && fileName.toLowerCase().includes('final-report');
+
+      if (!isFinalReportJson) {
+        const { data, error } = await supabase.storage
+          .from('storage')
+          .download(filePath);
+
+        if (error) throw error;
+
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const { data } = await supabase.storage
+        .from('storage')
+        .getPublicUrl(filePath);
+
+      if (!data?.publicUrl) {
+        throw new Error('Unable to resolve file URL');
+      }
+
+      setPreviewLoading(true);
+      setPreviewTitle(fileName);
+
+      const response = await fetch(data.publicUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to load form: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setFinalReportData(parsed && typeof parsed === 'object' ? parsed : {});
+      setPrintOnPreviewOpen(true);
+      setShowFinalReportPreview(true);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      alert(`Failed to download attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  // Show Final Report React Form if using template (check this FIRST before submission form)
+  if (showFinalReportForm) {
     return (
-      <PDFFormFiller
-        templateUrl={FINAL_REPORT_TEMPLATE_URL}
-        templateName="Final Report Template"
-        onSave={handlePdfSave}
-        onCancel={() => {
-          setShowPdfFiller(false);
-          setCurrentFillingDocId(null);
-        }}
-        predefinedFields={predefinedFields}
-      />
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Fill Final Report Form</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setShowFinalReportForm(false);
+                  setCurrentFillingDocId(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFinalReportFormSave}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Save Form
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            <FinalReportForm
+              savedData={finalReportData}
+              onSave={(patch) => setFinalReportData((prev) => ({ ...prev, ...patch }))}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showFinalReportPreview) {
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              {previewLoading ? 'Loading Form Preview...' : `Final Report Preview: ${previewTitle}`}
+            </div>
+            <button
+              onClick={() => setShowFinalReportPreview(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            {previewLoading ? (
+              <div className="text-center py-10 text-gray-600">Loading form data...</div>
+            ) : (
+              <div style={{ pointerEvents: 'none' }}>
+                <FinalReportForm savedData={finalReportData} />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -509,40 +667,14 @@ const FinalReportSubmission: React.FC = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={async () => {
-                                const { data } = await supabase.storage
-                                  .from('storage')
-                                  .getPublicUrl(filePath);
-                                
-                                if (data?.publicUrl) {
-                                  window.open(data.publicUrl, '_blank');
-                                }
-                              }}
+                              onClick={() => handleViewAttachment(filePath)}
                               className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
                             >
                               <Eye className="w-4 h-4" />
                               View
                             </button>
                             <button
-                              onClick={async () => {
-                                try {
-                                  const { data, error } = await supabase.storage
-                                    .from('storage')
-                                    .download(filePath);
-                                  
-                                  if (error) throw error;
-                                  
-                                  const url = URL.createObjectURL(data);
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.download = fileName;
-                                  link.click();
-                                  URL.revokeObjectURL(url);
-                                } catch (error) {
-                                  console.error('Error downloading file:', error);
-                                  alert('Failed to download file');
-                                }
-                              }}
+                              onClick={() => handleDownloadAttachment(filePath)}
                               className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-1"
                             >
                               <Download className="w-4 h-4" />

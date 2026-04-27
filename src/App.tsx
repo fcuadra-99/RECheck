@@ -33,6 +33,10 @@ import TemplateSubmissions from "./pages/researcher/TemplateSubmissions";
 import TemplateSubmissionDetail from "./pages/researcher/TemplateSubmissionDetail";
 import FinalReportSubmission from "./pages/researcher/FinalReportSubmission";
 import ReviewerPage from "./pages/reviewer/Submissions";
+import ReviewerTemplateSubmissions from "./pages/reviewer/TemplateSubmissions";
+import ReviewerTemplateSubmissionDetail from "./pages/reviewer/TemplateSubmissionDetail";
+import AssignedFinalReports from "./pages/reviewer/AssignedFinalReports";
+import AssignedFinalReportDetail from "./pages/reviewer/AssignedFinalReportDetail";
 import AdvisorSubmissions from "./pages/advisor/AdvisorSubmissions";
 import AdminUsersPage from "./pages/AdminUsersPage";
 import DocumentManagement from "./pages/admin/DocumentManagement";
@@ -295,6 +299,14 @@ export default function App() {
             <Route path="/chairperson/resolution-detail/:id" element={<ResolutionDetail />} />
             <Route path="/chairperson/template-submissions" element={<ChairpersonTemplateSubmissions />} />
             <Route path="/chairperson/template-submissions/:id" element={<ChairpersonTemplateSubmissionDetail />} />
+            <Route path="/reviewer/template-submissions" element={<ReviewerTemplateSubmissions />} />
+            <Route path="/reviewer/template-submissions/:id" element={<ReviewerTemplateSubmissionDetail />} />
+            <Route path="/staff/template-submissions" element={<ReviewerTemplateSubmissions />} />
+            <Route path="/staff/template-submissions/:id" element={<ReviewerTemplateSubmissionDetail />} />
+            <Route path="/reviewer/final-reports" element={<AssignedFinalReports />} />
+            <Route path="/reviewer/final-reports/:id" element={<AssignedFinalReportDetail />} />
+            <Route path="/staff/final-reports" element={<AssignedFinalReports />} />
+            <Route path="/staff/final-reports/:id" element={<AssignedFinalReportDetail />} />
             <Route path="/chairperson/final-reports" element={<ManageFinalReports />} />
             <Route path="/chairperson/final-reports/:id" element={<FinalReportDetail />} />
             <Route path="/chairperson/researcher-history" element={<ResearcherHistory />} />

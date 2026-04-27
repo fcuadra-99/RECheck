@@ -57,6 +57,7 @@ interface PhaseContentProps {
     onSetSignatureDialogOpen: (open: boolean) => void;
     onSetAnswerDialogOpen: (open: boolean) => void;
     onSetActiveDocument: (doc: string) => void;
+    onSetPreviewPrintRequested: (requested: boolean) => void;
 }
 
 export default function PhaseContent({
@@ -77,7 +78,8 @@ export default function PhaseContent({
     onSetPreviewTitle,
     onSetSignatureDialogOpen,
     onSetAnswerDialogOpen,
-    onSetActiveDocument
+    onSetActiveDocument,
+    onSetPreviewPrintRequested
 }: PhaseContentProps) {
     const [isDragOver, setIsDragOver] = useState<string | null>(null);
     const [studyReportUploadOpen, setStudyReportUploadOpen] = useState(false);
@@ -1216,7 +1218,17 @@ export default function PhaseContent({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                        onSetPreviewUrl(doc.url);
+                                        const isEthicalClearanceJson =
+                                            doc.type === 'ethical_clearance' && doc.name.toLowerCase().endsWith('.json');
+                                        const isDecisionLetterJson =
+                                            doc.type === 'decision_letter' && doc.name.toLowerCase().endsWith('.json');
+                                        onSetPreviewUrl(
+                                            isEthicalClearanceJson
+                                                ? `json-ethical-clearance:${doc.url}`
+                                                : isDecisionLetterJson
+                                                    ? `json-decision-letter:${doc.url}`
+                                                    : doc.url
+                                        );
                                         onSetPreviewTitle(doc.type === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter');
                                         onOpenPreview(true);
                                     }}
@@ -1224,12 +1236,38 @@ export default function PhaseContent({
                                     <Eye className="h-4 w-4 mr-2" />
                                     View
                                 </Button>
-                                <a href={doc.url} download target="_blank" rel="noopener noreferrer">
-                                    <Button variant="outline" size="sm">
-                                        <Download className="h-4 w-4 mr-2" />
-                                        Download
-                                    </Button>
-                                </a>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        const isEthicalClearanceJson =
+                                            doc.type === 'ethical_clearance' && doc.name.toLowerCase().endsWith('.json');
+                                        const isDecisionLetterJson =
+                                            doc.type === 'decision_letter' && doc.name.toLowerCase().endsWith('.json');
+
+                                        if (isEthicalClearanceJson || isDecisionLetterJson) {
+                                            onSetPreviewUrl(
+                                                isEthicalClearanceJson
+                                                    ? `json-ethical-clearance:${doc.url}`
+                                                    : `json-decision-letter:${doc.url}`
+                                            );
+                                            onSetPreviewTitle(doc.type === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter');
+                                            onSetPreviewPrintRequested(true);
+                                            onOpenPreview(true);
+                                            return;
+                                        }
+
+                                        const link = document.createElement('a');
+                                        link.href = doc.url;
+                                        link.download = doc.name;
+                                        link.target = '_blank';
+                                        link.rel = 'noopener noreferrer';
+                                        link.click();
+                                    }}
+                                >
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download
+                                </Button>
                             </div>
                         </div>
                     </div>

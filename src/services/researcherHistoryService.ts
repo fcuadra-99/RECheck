@@ -210,17 +210,38 @@ export class ResearcherHistoryService {
         .eq('proposal_id', proposalId)
         .order('uploaded_at', { ascending: true });
 
+      const { data: formDataRows } = await supabase
+        .from('form_data')
+        .select('form_name')
+        .eq('proposal_id', proposalId);
+
       if (!documents) return [];
+
+      const formDataNameSet = new Set(
+        (formDataRows || [])
+          .map(row => (row.form_name || '').trim().toLowerCase())
+          .filter(Boolean)
+      );
 
       console.log(`📂 Raw documents from database for proposal ${proposalId}:`, documents.length);
       console.log('First 3 documents:', documents.slice(0, 3));
 
       const fileRecords = documents.map(doc => {
-        const phase = this.getPhaseFromDocType(doc.doc_type);
+        const phaseFromType = this.getPhaseFromDocType(doc.doc_type);
+        const phase = phaseFromType === 'Unknown Phase'
+          ? this.getPhaseFromFilePath(doc.file_path)
+          : phaseFromType;
+
+        const normalizedDocType = (doc.doc_type || '').trim().toLowerCase();
+        const hasSavedFormData = formDataNameSet.has(normalizedDocType);
+        const resolvedFilePath = doc.file_path || (hasSavedFormData
+          ? this.buildFormDataVirtualPath(proposalId, doc.doc_type || this.extractFileName(doc.file_path || 'Form Data'))
+          : '');
+
         return {
           file_id: doc.document_id,
           file_name: doc.file_name || this.extractFileName(doc.file_path),
-          file_url: doc.file_path || '',
+          file_url: resolvedFilePath,
           file_type: doc.doc_type || 'Unknown',
           phase,
           uploaded_at: doc.uploaded_at || new Date().toISOString(),
@@ -317,7 +338,7 @@ export class ResearcherHistoryService {
       try {
         const { data: files, error } = await supabase.storage
           .from('documents')
-          .list(`${proposalId}/${folder}`);
+          .list(`${proposalId}/${folder}`, { limit: 1000, offset: 0 });
 
         if (error) {
           console.warn(`Could not list files for ${folder}:`, error);
@@ -325,17 +346,21 @@ export class ResearcherHistoryService {
         }
 
         if (files) {
-          const validFiles = files.filter(f => 
-            !f.name.startsWith('.') && 
-            !f.name.includes('emptyfolderplaceholder') &&
-            f.name.endsWith('.pdf')
-          );
+          const validFiles = files.filter(f => {
+            const lowerName = f.name.toLowerCase();
+            return (
+              !f.name.startsWith('.') &&
+              !lowerName.includes('emptyfolderplaceholder') &&
+              !lowerName.endsWith('/') &&
+              !!f.name.trim()
+            );
+          });
 
           for (const file of validFiles) {
             const fileRecord: FileRecord = {
-              file_name: file.name.replace('.pdf', ''),
+              file_name: this.extractFileName(file.name),
               file_url: `${proposalId}/${folder}/${file.name}`,
-              file_type: file.name.replace('.pdf', ''),
+              file_type: this.extractFileName(file.name),
               phase,
               uploaded_at: file.created_at || new Date().toISOString(),
               revision_number: 0
@@ -896,7 +921,39 @@ export class ResearcherHistoryService {
    * Helper: Extract filename from file path
    */
   private extractFileName(filePath: string): string {
-    return filePath.split('/').pop() || filePath;
+    const raw = filePath.split('/').pop() || filePath;
+    return raw.trim();
+  }
+
+  /**
+   * Helper: Derive phase from storage/file path when doc_type is missing or unclear
+   */
+  private getPhaseFromFilePath(filePath: string): string {
+    if (!filePath) return 'Unknown Phase';
+
+    const normalizedPath = filePath.toLowerCase();
+
+    if (normalizedPath.includes('/send manuscript/')) {
+      return 'Phase 1: Manuscript Submission';
+    }
+    if (normalizedPath.includes('/send forms/')) {
+      return 'Phase 3: Forms Submission';
+    }
+    if (normalizedPath.includes('/send revision/')) {
+      return 'Phase 4: Deployment Queue';
+    }
+    if (normalizedPath.includes('final-report') || normalizedPath.includes('final_report') || normalizedPath.includes('/final-reports/')) {
+      return 'Phase 7: Final Report Submission';
+    }
+
+    return 'Unknown Phase';
+  }
+
+  /**
+   * Helper: Build virtual path for form_data-backed (fillable) forms
+   */
+  private buildFormDataVirtualPath(proposalId: number, formName: string): string {
+    return `form-data://${proposalId}/${encodeURIComponent(formName)}`;
   }
 
   /**
