@@ -1,1 +1,1 @@
-export default function FormsTemplates(): import("react/jsx-runtime").JSX.Element | null;
+export default function FormsTemplates(): import("react/jsx-runtime").JSX.Element;

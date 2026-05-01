@@ -39,6 +39,7 @@ interface Submission {
     category: string;
     review_type: string | null;
     researcher: string;
+    advisor_id?: string | null;
     status: string;
     date: string;
     assigned_reviewer: string;
