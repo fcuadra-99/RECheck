@@ -22,6 +22,7 @@ import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
 import PDFFormFiller from "@/components/PDFFormFiller";
+import FormViewer from "@/components/forms/FormViewer";
 import { useTemplateFields } from "@/hooks/useTemplateFields";
 import ProtocolReviewerAssessmentForm from "@/components/forms/ProtocolReviewerAssessmentForm";
 import InformedConsentAssessmentForm from "@/components/forms/InformedConsentAssessmentForm";
@@ -29,27 +30,6 @@ import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
 import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
 
 /* ----------------- types ----------------- */
-interface RevisionRequirement {
-    manuscript: boolean;
-    ethics_form: boolean;
-    data_management_plan: boolean;
-    other_documents: boolean;
-    other_comments: string;
-}
-
-interface ProposalDocument {
-    document_id: number;
-    proposal_id: number;
-    doc_type: string;
-    file_path: string;
-    uploaded_at: string;
-    revision_number: number;
-}
-
-interface DocumentSelection {
-    [key: number]: boolean; // document_id -> selected
-}
-
 interface Submission {
     proposal_id: number;
     protocol_id?: string | null;
@@ -93,20 +73,6 @@ export default function ReviewerPage() {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [proposalDocuments, setProposalDocuments] = useState<ProposalDocument[]>([]);
-    const [selectedDocuments, setSelectedDocuments] = useState<DocumentSelection>({});
-
-    const [revisionRequirements, setRevisionRequirements] = useState<RevisionRequirement>({
-        manuscript: false,
-        ethics_form: false,
-        data_management_plan: false,
-        other_documents: false,
-        other_comments: ''
-    });
-
-    proposalDocuments;
-    selectedDocuments;
-    revisionRequirements;
 
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
@@ -152,27 +118,13 @@ export default function ReviewerPage() {
     const [hasSubmittedInformedConsent, setHasSubmittedInformedConsent] = useState(false);
     const [submittedAssessmentForms, setSubmittedAssessmentForms] = useState<DocumentItem[]>([]);
 
+    const [showFormPreview, setShowFormPreview] = useState(false);
+    const [activeFormName, setActiveFormName] = useState<string | null>(null);
+
     // user
     const [userId, setUserId] = useState<string | null>(null);
     const [userProfile, setUserProfile] = useState<Profile | null>(null);
     const [isChairperson, setIsChairperson] = useState(false);
-
-    /* Fetch proposal documents from proposal_documents table */
-    const fetchProposalDocuments = async (proposalId: number) => {
-        try {
-            const { data, error } = await supabase
-                .from("proposal_documents")
-                .select("*")
-                .eq("proposal_id", proposalId)
-                .order("uploaded_at", { ascending: false });
-
-            if (error) throw error;
-            return data || [];
-        } catch (err) {
-            console.error("Failed to fetch proposal documents:", err);
-            return [];
-        }
-    };
 
     /* fetch initial data - only proposals assigned to current reviewer */
     useEffect(() => {
@@ -275,22 +227,7 @@ export default function ReviewerPage() {
         }
 
         try {
-            const documents: DocumentItem[] = [];
-
-            // Load Phase 1 documents (Manuscript phase)
-            const phase1Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase1');
-            documents.push(...phase1Files.map(file => ({
-                ...file,
-                phase: 'phase1' as const
-            })));
-
-            // Load Phase 3 documents (Forms phase)
-            const phase3Files = await listStoredFilesForPhase(activeSubmission.proposal_id, 'phase3');
-            documents.push(...phase3Files.map(file => ({
-                ...file,
-                phase: 'phase3' as const
-            })));
-
+            const documents = await buildSubmissionDocuments(activeSubmission.proposal_id);
             setSubmissionDocuments(documents);
 
             // Load recommendations from history table - EXCLUDE current user's recommendations
@@ -383,17 +320,6 @@ export default function ReviewerPage() {
                     });
                 }
             }
-
-            // Load proposal documents for revision selection
-            const proposalDocs = await fetchProposalDocuments(activeSubmission.proposal_id);
-            setProposalDocuments(proposalDocs);
-
-            // Initialize selected documents state
-            const initialSelection: DocumentSelection = {};
-            proposalDocs.forEach(doc => {
-                initialSelection[doc.document_id] = false;
-            });
-            setSelectedDocuments(initialSelection);
 
             // Load submitted assessment forms
             await loadAssessmentForms();
@@ -521,22 +447,123 @@ export default function ReviewerPage() {
         }
     };
 
-    /* Reset revision requirements when submission changes */
-    useEffect(() => {
-        setRevisionRequirements({
-            manuscript: false,
-            ethics_form: false,
-            data_management_plan: false,
-            other_documents: false,
-            other_comments: ''
-        });
-    }, [activeSubmission]);
+    const extractFileName = (filePath: string) => {
+        const raw = filePath.split('/').pop() || filePath;
+        return raw.trim();
+    };
+
+    const buildFormDataVirtualPath = (proposalId: number, formName: string) =>
+        `form-data://${proposalId}/${encodeURIComponent(formName)}`;
+
+    const isFormDataUrl = (url: string) => url.startsWith('form-data://');
+
+    const getPhaseFromDocType = (docType: string, filePath?: string): 'phase1' | 'phase3' => {
+        const docLower = (docType || '').toLowerCase();
+        if (docLower.includes('manuscript')) return 'phase1';
+
+        const pathLower = (filePath || '').toLowerCase();
+        if (pathLower.includes('/send manuscript/')) return 'phase1';
+        if (pathLower.includes('/send forms/')) return 'phase3';
+
+        return 'phase3';
+    };
+
+    const buildSubmissionDocuments = async (proposalId: number): Promise<DocumentItem[]> => {
+        const documents: DocumentItem[] = [];
+        const seen = new Set<string>();
+
+        const [{ data: proposalDocs }, { data: formDataRows }, phase1Files, phase3Files] = await Promise.all([
+            supabase
+                .from("proposal_documents")
+                .select("*")
+                .eq("proposal_id", proposalId)
+                .order("uploaded_at", { ascending: false }),
+            supabase
+                .from("form_data")
+                .select("form_name")
+                .eq("proposal_id", proposalId),
+            listStoredFilesForPhase(proposalId, 'phase1'),
+            listStoredFilesForPhase(proposalId, 'phase3')
+        ]);
+
+        const formDataNameMap = new Map<string, string>();
+        for (const row of formDataRows || []) {
+            const raw = (row.form_name || '').trim();
+            if (!raw) continue;
+            formDataNameMap.set(raw.toLowerCase(), raw);
+        }
+
+        for (const doc of proposalDocs || []) {
+            const docName = (doc.doc_type || doc.file_name || extractFileName(doc.file_path || ''))?.trim();
+            if (!docName) continue;
+
+            const key = docName.toLowerCase();
+            if (seen.has(key)) continue;
+
+            let url = '';
+            if (doc.file_path) {
+                const { data: signed, error } = await supabase.storage
+                    .from("documents")
+                    .createSignedUrl(doc.file_path, 60 * 5);
+                if (!error && signed?.signedUrl) {
+                    url = signed.signedUrl;
+                }
+            }
+
+            const docKey = docName.toLowerCase();
+            if (!url && formDataNameMap.has(docKey)) {
+                url = buildFormDataVirtualPath(proposalId, formDataNameMap.get(docKey) || docName);
+            }
+
+            if (!url) continue;
+
+            documents.push({
+                name: docName,
+                url,
+                phase: getPhaseFromDocType(doc.doc_type || docName, doc.file_path)
+            });
+            seen.add(key);
+        }
+
+        for (const [key, formName] of formDataNameMap.entries()) {
+            if (seen.has(key)) continue;
+            documents.push({
+                name: formName,
+                url: buildFormDataVirtualPath(proposalId, formName),
+                phase: 'phase3'
+            });
+            seen.add(key);
+        }
+
+        for (const file of [...phase1Files, ...phase3Files]) {
+            const key = file.name.toLowerCase();
+            if (seen.has(key)) continue;
+            documents.push({
+                name: file.name,
+                url: file.url,
+                phase: phase1Files.includes(file) ? 'phase1' : 'phase3'
+            });
+            seen.add(key);
+        }
+
+        return documents;
+    };
 
     /* Open document preview */
     const openPreview = async (url: string, filename: string) => {
         setPreviewUrl(url);
         setPreviewTitle(filename);
         setPreviewOpen(true);
+    };
+
+    const openDocument = async (doc: DocumentItem) => {
+        if (isFormDataUrl(doc.url)) {
+            setActiveFormName(doc.name);
+            setShowFormPreview(true);
+            return;
+        }
+
+        openPreview(doc.url, doc.name);
     };
 
     const openAssessmentPreview = async (url: string, filename: string) => {
@@ -1350,6 +1377,7 @@ export default function ReviewerPage() {
                                 <div className="space-y-3">
                                     {submissionDocuments.map((doc, index) => {
                                         const phaseConfig = getPhaseBadge(doc.phase);
+                                        const isFormData = isFormDataUrl(doc.url);
                                         return (
                                             <div key={index} className="border rounded-lg p-4 bg-white shadow-sm">
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1366,17 +1394,19 @@ export default function ReviewerPage() {
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            onClick={() => openPreview(doc.url, doc.name)}
+                                                            onClick={() => openDocument(doc)}
                                                         >
                                                             <Eye className="h-4 w-4 mr-2" />
                                                             View
                                                         </Button>
-                                                        <a href={doc.url} download target="_blank" rel="noopener noreferrer">
-                                                            <RippleButton variant="outline" size="sm">
-                                                                <Download className="h-4 w-4 mr-2" />
-                                                                Download
-                                                            </RippleButton>
-                                                        </a>
+                                                        {!isFormData && (
+                                                            <a href={doc.url} download target="_blank" rel="noopener noreferrer">
+                                                                <RippleButton variant="outline" size="sm">
+                                                                    <Download className="h-4 w-4 mr-2" />
+                                                                    Download
+                                                                </RippleButton>
+                                                            </a>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1861,6 +1891,46 @@ export default function ReviewerPage() {
                                 </Button>
                             </a>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {showFormPreview && activeSubmission && activeFormName && (
+                <div className="fixed inset-0 bg-background z-50 flex flex-col">
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <div className="font-semibold text-lg truncate pr-4">{activeFormName}</div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                setShowFormPreview(false);
+                                setActiveFormName(null);
+                            }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+
+                    <div className="flex-1 overflow-auto bg-gray-100 p-4">
+                        <div className="max-w-[1000px] mx-auto bg-white rounded-md shadow-sm p-4">
+                            <FormViewer
+                                documentName={activeFormName}
+                                proposalId={activeSubmission.proposal_id}
+                                protocolCode={activeSubmission.protocol_id}
+                                proposalTitle={activeSubmission.proposal_title}
+                                reviewType={activeSubmission.review_type}
+                                researcherName={(() => {
+                                    const p = profiles.find((x) => x.id === activeSubmission.researcher);
+                                    return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                })()}
+                                advisorId={activeSubmission.advisor_id}
+                                readOnly
+                                onDone={() => {
+                                    setShowFormPreview(false);
+                                    setActiveFormName(null);
+                                }}
+                            />
+                        </div>
                     </div>
                 </div>
             )}
