@@ -5,7 +5,10 @@ import { memo } from 'react';
 const staffStatsLoader: StatsLoader = async () => {
   const [totalR, completedR] = await Promise.all([
     supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }),
-    supabase.from('final_reports').select('report_id', { count: 'exact', head: true }),
+    supabase
+      .from('final_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Approved'),
   ]);
   const total = totalR.count ?? 0;
   const completed = completedR.count ?? 0;

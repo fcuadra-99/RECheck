@@ -5,6 +5,7 @@ import type { ComprehensiveResearcherHistory } from '../../types/researcherHisto
 import { supabase } from '../../DB';
 import { createRoot } from 'react-dom/client';
 import { DOC_COMPONENT_MAP } from '@/components/forms/FormViewer';
+import FinalReportForm from '@/components/forms/FinalReportForm';
 import { 
   ArrowLeft, 
   FileText, 
@@ -320,6 +321,171 @@ export default function ResearcherHistoryDetail() {
           printWindow.close();
         }, 800);
         return;
+      }
+      // If this is a stored JSON (fillable form saved as JSON), fetch it, parse and render
+      if (fileUrl.toLowerCase().endsWith('.json')) {
+        try {
+          // Acquire a URL we can fetch (signed URL if stored in bucket)
+          let jsonFetchUrl = fileUrl;
+          if (!(jsonFetchUrl.startsWith('http://') || jsonFetchUrl.startsWith('https://'))) {
+            const resolvedForJson = resolveStoragePath(fileUrl);
+            if (resolvedForJson) {
+              const { data: signed, error: signErr } = await supabase.storage
+                .from(resolvedForJson.bucket)
+                .createSignedUrl(resolvedForJson.path, 60);
+              if (signErr) throw signErr;
+              if (signed && signed.signedUrl) jsonFetchUrl = signed.signedUrl;
+            }
+          }
+
+          const resp = await fetch(jsonFetchUrl);
+          if (!resp.ok) throw new Error('Failed to fetch JSON file');
+          const parsed = await resp.json();
+
+          // Prefer saved data under `data` or `form` keys, fallback to whole payload
+          const savedData = parsed.data || parsed.form || parsed;
+
+          // Determine the form name to pick a renderer
+          let formName = parsed.form_name || parsed.formName || parsed.form?.form_name || parsed.form?.formName;
+          
+          // Check if this is a final report JSON (by filename or content)
+          const isFinalReport = fileName.toLowerCase().includes('final-report') || 
+                                fileName.toLowerCase().includes('final_report') ||
+                                (parsed.protocolCode && parsed.titleOfStudy); // Common final report fields
+
+          if (!formName && isFinalReport) {
+            formName = 'FinalReport'; // Use this to trigger FinalReportForm
+          } else if (!formName) {
+            // Try to infer from fileName or path
+            const inferred = fileName || (fileUrl.split('/').pop() || '');
+            formName = inferred.replace(/-final-report-filled\.json$/i, '').replace(/\.json$/i, '');
+          }
+
+          // Use FinalReportForm for final report JSONs, or lookup in map for other forms
+          let FormComponent: any;
+          if (formName === 'FinalReport' || isFinalReport) {
+            FormComponent = FinalReportForm;
+          } else {
+            FormComponent = DOC_COMPONENT_MAP[formName];
+          }
+
+          if (!FormComponent) {
+            // Last resort: use FinalReportForm if nothing else matches and it looks like a final report
+            if (isFinalReport) {
+              FormComponent = FinalReportForm;
+            } else {
+              // Open raw JSON as fallback only for non-final-report JSONs
+              const blob = new Blob([JSON.stringify(parsed, null, 2)], { type: 'application/json' });
+              const blobUrl = URL.createObjectURL(blob);
+              window.open(blobUrl, '_blank');
+              return;
+            }
+          }
+
+          // Fetch proposal metadata (researcher/advisor names) similar to form-data path
+          const proposalId = Number(id);
+          const { data: proposalData } = await supabase
+            .from('proposals')
+            .select('protocol_id, proposal_title, review_type, researcher, advisor')
+            .eq('proposal_id', proposalId)
+            .single();
+
+          let researcherName = '';
+          if (proposalData?.researcher) {
+            const { data: researcherProfile } = await supabase
+              .from('profiles')
+              .select('fname, lname')
+              .eq('id', proposalData.researcher)
+              .single();
+            researcherName = researcherProfile ? `${researcherProfile.fname || ''} ${researcherProfile.lname || ''}`.trim() : '';
+          }
+
+          let advisorName = '';
+          if (proposalData?.advisor) {
+            const { data: advisorProfile } = await supabase
+              .from('profiles')
+              .select('fname, lname')
+              .eq('id', proposalData.advisor)
+              .single();
+            advisorName = advisorProfile ? `${advisorProfile.fname || ''} ${advisorProfile.lname || ''}`.trim() : '';
+          }
+
+          const printWindow = window.open('', '_blank', 'width=1200,height=900');
+          if (!printWindow) {
+            alert('Popup was blocked. Please allow popups and try again.');
+            return;
+          }
+
+          printWindow.document.open();
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8" />
+                <title>${(fileName || formName).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</title>
+                <style>
+                  html, body { margin:0; padding:0; background: white; }
+                  @page { size: A4; margin: 10mm; }
+                  @media print { html, body { background: white; } }
+                  #print-root { width:100%; display:block; box-sizing:border-box; }
+                </style>
+              </head>
+              <body>
+                <div id="print-root"></div>
+              </body>
+            </html>
+          `);
+          printWindow.document.close();
+
+          copyDocumentStyles(printWindow.document);
+
+          const printRootEl = printWindow.document.getElementById('print-root');
+          if (!printRootEl) {
+            alert('Failed to prepare print view.');
+            return;
+          }
+
+          const root = createRoot(printRootEl);
+          
+          // FinalReportForm takes different props than other forms
+          if (FormComponent === FinalReportForm) {
+            root.render(
+              <FinalReportForm
+                savedData={savedData || {}}
+              />
+            );
+          } else {
+            root.render(
+              <FormComponent
+                proposalId={proposalId}
+                protocolCode={proposalData?.protocol_id || ''}
+                proposalTitle={proposalData?.proposal_title || ''}
+                reviewType={proposalData?.review_type || ''}
+                researcherName={researcherName}
+                advisorName={advisorName}
+                formName={formName}
+                savedData={savedData || {}}
+                readOnlyAdvisor={true}
+              />
+            );
+          }
+
+          await waitForRender(260);
+          await waitForAssets(printRootEl);
+
+          printWindow.focus();
+          printWindow.print();
+
+          setTimeout(() => {
+            root.unmount();
+            printWindow.close();
+          }, 800);
+          return;
+        } catch (err) {
+          console.error('Error rendering JSON form:', err);
+          alert(`Could not render JSON form: ${err instanceof Error ? err.message : String(err)}`);
+          return;
+        }
       }
       
       // Validate file URL

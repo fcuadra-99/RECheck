@@ -339,10 +339,19 @@ const FinalReportDetail: React.FC = () => {
   async function handleOpenFinalReportForm(filePath: string) {
     try {
       const metadataFormData = report?.metadata?.staffSharedFormData;
-      if (metadataFormData && typeof metadataFormData === 'object') {
+      const sharedFormPath = typeof report?.metadata?.sharedFormPath === 'string'
+        ? report?.metadata?.sharedFormPath
+        : '';
+      const shouldUseMetadata =
+        !!metadataFormData &&
+        typeof metadataFormData === 'object' &&
+        !!sharedFormPath &&
+        sharedFormPath === filePath;
+
+      if (shouldUseMetadata) {
         setFinalReportFormData(metadataFormData as Record<string, any>);
-        setActiveAttachmentPath(report?.metadata?.sharedFormPath || filePath);
-        setSelectedPdfName((report?.metadata?.sharedFormPath || filePath).split('/').pop() || 'final-report-filled.json');
+        setActiveAttachmentPath(sharedFormPath);
+        setSelectedPdfName(sharedFormPath.split('/').pop() || 'final-report-filled.json');
         setShowFinalReportFormFiller(true);
         return;
       }

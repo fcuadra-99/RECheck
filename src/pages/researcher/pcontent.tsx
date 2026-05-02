@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import FormViewer, { DOC_COMPONENT_MAP } from "@/components/forms/FormViewer";
 import { createRoot } from "react-dom/client";
+import FinalReportSubmission from "./FinalReportSubmission";
 
 const waitForRender = async (ms = 180) => {
     await new Promise((resolve) => setTimeout(resolve, ms));
@@ -147,6 +148,14 @@ export default function PhaseContent({
     const isPast = activeIdx !== -1 && phaseIndex < activeIdx;
     const isActive = activeIdx !== -1 && phaseIndex === activeIdx;
     const isFuture = activeIdx !== -1 && phaseIndex > activeIdx;
+
+    if (phaseIndex === 6) {
+        return (
+            <div className="mt-4">
+                <FinalReportSubmission />
+            </div>
+        );
+    }
 
     const handleFileSelect = (docName: string, file: File | null) => {
         onUploadedFilesChange({ ...uploadedFiles, [docName]: file });

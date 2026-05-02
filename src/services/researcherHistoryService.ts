@@ -181,11 +181,26 @@ export class ResearcherHistoryService {
         completed: this.isProposalCompleted(proposal.status)
       };
 
+      // Include final report attachments in all_files
+      const finalReportAttachmentFiles = finalReports.flatMap(report =>
+        (report.attachments || []).map((filePath: string, index: number) => ({
+          file_id: undefined,
+          file_name: this.extractFileName(filePath),
+          file_url: filePath,
+          file_type: 'Final Report Attachment',
+          phase: 'Phase 7: Final Report Submission',
+          uploaded_at: report.submitted_at,
+          revision_number: index
+        }))
+      );
+
+      const allFilesWithAttachments = [...files, ...finalReportAttachmentFiles];
+
       return {
         researcher,
         proposal: proposalSummary,
         phases,
-        all_files: files,
+        all_files: allFilesWithAttachments,
         all_comments: comments,
         all_history: history,
         deviations,
