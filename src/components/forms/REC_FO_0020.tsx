@@ -27,7 +27,7 @@ export default function EthicsStudyProtocolNonComplianceReport({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? s.staffControlNo ?? protocolCode ?? "");
   const [studyProtocolTitle, setStudyProtocolTitle] = useState<string>(s.studyProtocolTitle ?? proposalTitle ?? "");
   const [ethicalClearanceEffectivityPeriod, setEthicalClearanceEffectivityPeriod] = useState<string>(
     s.ethicalClearanceEffectivityPeriod ?? ""
@@ -57,7 +57,7 @@ export default function EthicsStudyProtocolNonComplianceReport({
     s.principalInvestigatorSignature ?? ""
   );
 
-  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? s.controlNo ?? protocolCode ?? "");
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [methodologyMoreRisks, setMethodologyMoreRisks] = useState<YesNo>(s.methodologyMoreRisks ?? "");
   const [correctiveActionAppropriate, setCorrectiveActionAppropriate] = useState<YesNo>(
@@ -88,7 +88,10 @@ export default function EthicsStudyProtocolNonComplianceReport({
 
   useEffect(() => {
     const patch: Record<string, any> = {};
+    if (!s.controlNo && s.staffControlNo) patch.controlNo = s.staffControlNo;
+    if (!s.staffControlNo && s.controlNo) patch.staffControlNo = s.controlNo;
     if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.staffControlNo && protocolCode) patch.staffControlNo = protocolCode;
     if (!s.studyProtocolTitle && proposalTitle) patch.studyProtocolTitle = proposalTitle;
     if (!s.nameResearcher && researcherName) patch.nameResearcher = researcherName;
     if (!s.reportedBy && researcherName) patch.reportedBy = researcherName;
@@ -123,7 +126,8 @@ export default function EthicsStudyProtocolNonComplianceReport({
       <div style={pageContainer}>
         {renderHeader(controlNo, (value) => {
           setControlNo(value);
-          save({ controlNo: value });
+          setStaffControlNo(value);
+          save({ controlNo: value, staffControlNo: value });
         })}
 
         <div style={formTitle}>Ethics Study Protocol Non-Compliance (Deviation or Violations) Report</div>
@@ -136,7 +140,18 @@ export default function EthicsStudyProtocolNonComplianceReport({
         <table style={formTable}>
           <tbody>
             <tr>
-              <td colSpan={4} style={fieldCell}><strong>Protocol Code:</strong></td>
+              <td colSpan={4} style={fieldCell}><strong>Protocol Code:</strong>
+                <input
+                  style={lineInput}
+                  value={controlNo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setControlNo(value);
+                    setStaffControlNo(value);
+                    save({ controlNo: value, staffControlNo: value });
+                  }}
+                />
+              </td>
             </tr>
             <tr>
               <td colSpan={4} style={fieldCell}><strong>Study Protocol Title:</strong>
@@ -450,7 +465,8 @@ export default function EthicsStudyProtocolNonComplianceReport({
       <div style={pageContainer}>
         {renderHeader(staffControlNo, (value) => {
           setStaffControlNo(value);
-          save({ staffControlNo: value });
+          setControlNo(value);
+          save({ staffControlNo: value, controlNo: value });
         })}
 
         <table style={formTable}>

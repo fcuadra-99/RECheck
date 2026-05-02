@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
@@ -104,6 +110,7 @@ export default function ReviewerPage() {
     const [decisionLetterData, setDecisionLetterData] = useState<Record<string, any>>({});
     const [reviewerAssessmentData, setReviewerAssessmentData] = useState<Record<string, any>>({});
     const [informedConsentData, setInformedConsentData] = useState<Record<string, any>>({});
+    const [revisionTargets, setRevisionTargets] = useState<string[]>([]);
     
     // Preload template fields based on current template type
     const templateId = templateType === 'reviewer_assessment' ? 'protocol-reviewer-assessment'
@@ -230,6 +237,8 @@ export default function ReviewerPage() {
         try {
             const documents = await buildSubmissionDocuments(activeSubmission.proposal_id);
             setSubmissionDocuments(documents);
+            setRevisionTargets([]);
+            setDecisionLetterData((prev) => ({ ...prev, revisionTargets: [] }));
 
             // Load recommendations from history table - EXCLUDE current user's recommendations
             const { data: recommendations, error } = await supabase
@@ -789,10 +798,27 @@ export default function ReviewerPage() {
             setTemplateUrl(templatePath);
             setTemplateType(type);
             setShowPDFTemplate(true);
+
+            if (type === 'decision_letter') {
+                const savedTargets = Array.isArray(decisionLetterData.revisionTargets)
+                    ? decisionLetterData.revisionTargets
+                    : [];
+                setRevisionTargets(savedTargets);
+            }
         } catch (error) {
             console.error('Error loading template:', error);
             toast.error('Failed to load template');
         }
+    };
+
+    const toggleRevisionTarget = (docName: string) => {
+        setRevisionTargets((prev) => {
+            const next = prev.includes(docName)
+                ? prev.filter((item) => item !== docName)
+                : [...prev, docName];
+            setDecisionLetterData((current) => ({ ...current, revisionTargets: next }));
+            return next;
+        });
     };
 
     const handleSubmitReviewerAssessment = async () => {
@@ -2017,6 +2043,60 @@ export default function ReviewerPage() {
                                             Send Decision Letter
                                         </Button>
                                     </div>
+                                </div>
+
+                                <div className="bg-white border border-gray-200 rounded-md p-4 mb-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <div className="text-sm font-semibold text-gray-800">Documents for Revision</div>
+                                            <div className="text-xs text-gray-500">Select which submitted documents need changes.</div>
+                                        </div>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="outline" className="gap-2">
+                                                    {revisionTargets.length > 0
+                                                        ? `${revisionTargets.length} selected`
+                                                        : "Select documents"}
+                                                    <ChevronDown className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="max-h-64 w-72 overflow-auto">
+                                                {submissionDocuments.length === 0 ? (
+                                                    <div className="px-3 py-2 text-xs text-muted-foreground">No documents available.</div>
+                                                ) : (
+                                                    submissionDocuments.map((doc) => (
+                                                        <DropdownMenuCheckboxItem
+                                                            key={doc.name}
+                                                            checked={revisionTargets.includes(doc.name)}
+                                                            onCheckedChange={() => toggleRevisionTarget(doc.name)}
+                                                        >
+                                                            <div className="flex w-full items-center justify-between gap-2">
+                                                                <span className="truncate">{doc.name}</span>
+                                                                <Badge variant={getPhaseBadge(doc.phase).variant}>{getPhaseBadge(doc.phase).label}</Badge>
+                                                            </div>
+                                                        </DropdownMenuCheckboxItem>
+                                                    ))
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+
+                                    {revisionTargets.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {revisionTargets.map((name) => (
+                                                <Badge key={name} variant="secondary" className="gap-1">
+                                                    {name}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleRevisionTarget(name)}
+                                                        className="ml-1 text-xs text-gray-500 hover:text-gray-900"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <DecisionLetterForm

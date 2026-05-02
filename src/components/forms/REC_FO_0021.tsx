@@ -29,8 +29,8 @@ export default function EthicsStudyReportableNegativeEventReport({
   const today = new Date().toISOString().split("T")[0];
 
   const [titleOfStudy, setTitleOfStudy] = useState<string>(s.titleOfStudy ?? proposalTitle ?? "");
-  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
-  const [protocolCodeValue, setProtocolCodeValue] = useState<string>(s.protocolCodeValue ?? protocolCode ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? s.staffControlNo ?? s.protocolCodeValue ?? protocolCode ?? "");
+  const [protocolCodeValue, setProtocolCodeValue] = useState<string>(s.protocolCodeValue ?? s.controlNo ?? s.staffControlNo ?? protocolCode ?? "");
   const [nameResearcher, setNameResearcher] = useState<string>(s.nameResearcher ?? researcherName ?? "");
   const [coResearchers, setCoResearchers] = useState<string[]>(
     s.coResearchers ?? (s.coResearcher ? [s.coResearcher] : [""])
@@ -58,7 +58,7 @@ export default function EthicsStudyReportableNegativeEventReport({
   const [accomplishedSignature, setAccomplishedSignature] = useState<string>(s.accomplishedSignature ?? "");
   const [accomplishedDate, setAccomplishedDate] = useState<string>(s.accomplishedDate ?? today);
 
-  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? s.controlNo ?? s.protocolCodeValue ?? protocolCode ?? "");
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [qRisksDiscomfort, setQRisksDiscomfort] = useState<YesNo>(s.qRisksDiscomfort ?? "");
   const [qRiskBenefitBalance, setQRiskBenefitBalance] = useState<YesNo>(s.qRiskBenefitBalance ?? "");
@@ -92,6 +92,13 @@ export default function EthicsStudyReportableNegativeEventReport({
   useEffect(() => {
     const patch: Record<string, any> = {};
     if (!s.titleOfStudy && proposalTitle) patch.titleOfStudy = proposalTitle;
+    if (!s.protocolCodeValue && s.controlNo) patch.protocolCodeValue = s.controlNo;
+    if (!s.protocolCodeValue && s.staffControlNo) patch.protocolCodeValue = s.staffControlNo;
+    if (!s.controlNo && s.protocolCodeValue) patch.controlNo = s.protocolCodeValue;
+    if (!s.staffControlNo && (s.controlNo || s.protocolCodeValue)) {
+      patch.staffControlNo = s.controlNo ?? s.protocolCodeValue;
+    }
+    if (!s.controlNo && s.staffControlNo) patch.controlNo = s.staffControlNo;
     if (!s.protocolCodeValue && protocolCode) patch.protocolCodeValue = protocolCode;
     if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
     if (!s.nameResearcher && researcherName) patch.nameResearcher = researcherName;
@@ -157,8 +164,11 @@ export default function EthicsStudyReportableNegativeEventReport({
                         <input
                           value={controlNo}
                           onChange={(e) => {
-                            setControlNo(e.target.value);
-                            save({ controlNo: e.target.value });
+                            const value = e.target.value;
+                            setControlNo(value);
+                            setProtocolCodeValue(value);
+                            setStaffControlNo(value);
+                            save({ controlNo: value, protocolCodeValue: value, staffControlNo: value });
                           }}
                           style={lineInputInline}
                         />
@@ -204,8 +214,11 @@ export default function EthicsStudyReportableNegativeEventReport({
                 <input
                   value={protocolCodeValue}
                   onChange={(e) => {
-                    setProtocolCodeValue(e.target.value);
-                    save({ protocolCodeValue: e.target.value });
+                    const value = e.target.value;
+                    setProtocolCodeValue(value);
+                    setControlNo(value);
+                    setStaffControlNo(value);
+                    save({ protocolCodeValue: value, controlNo: value, staffControlNo: value });
                   }}
                   style={lineInput}
                 />
@@ -529,8 +542,11 @@ export default function EthicsStudyReportableNegativeEventReport({
                         <input
                           value={staffControlNo}
                           onChange={(e) => {
-                            setStaffControlNo(e.target.value);
-                            save({ staffControlNo: e.target.value });
+                            const value = e.target.value;
+                            setStaffControlNo(value);
+                            setControlNo(value);
+                            setProtocolCodeValue(value);
+                            save({ staffControlNo: value, controlNo: value, protocolCodeValue: value });
                           }}
                           style={lineInputInline}
                         />
