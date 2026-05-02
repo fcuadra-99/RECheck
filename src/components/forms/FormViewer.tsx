@@ -237,8 +237,8 @@ export default function FormViewer({
 
   return (
     <div className="flex flex-col h-full">
-      <div className={`flex-1 overflow-auto bg-gray-100 p-6 ${readOnly ? "pointer-events-none select-none" : ""}`}>
-        <div className="shadow-lg rounded-sm">
+      <div className="flex-1 overflow-auto bg-gray-100 p-6">
+        <div className={`shadow-lg rounded-sm ${readOnly ? "pointer-events-none select-none" : ""}`}>
           <FormComponent
             key={`${proposalId}-${documentName}`}
             proposalId={proposalId}
