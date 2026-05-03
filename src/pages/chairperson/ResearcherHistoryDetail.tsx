@@ -635,7 +635,7 @@ export default function ResearcherHistoryDetail() {
                 </h1>
                 <p className="text-gray-600 mb-4">{history.proposal.description}</p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-400" />
                     <div>
@@ -651,6 +651,15 @@ export default function ResearcherHistoryDetail() {
                       <p className="text-xs text-gray-500">Submitted</p>
                       <p className="text-sm font-medium text-gray-900">
                         {formatDateShort(history.proposal.submission_date)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs text-gray-500">Protocol Code</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {history.proposal.protocol_code || 'N/A'}
                       </p>
                     </div>
                   </div>

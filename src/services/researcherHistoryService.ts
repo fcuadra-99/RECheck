@@ -27,6 +27,7 @@ export class ResearcherHistoryService {
         .from('proposals')
         .select(`
           proposal_id,
+          protocol_id,
           proposal_title,
           description,
           category,
@@ -77,6 +78,7 @@ export class ResearcherHistoryService {
         const profile = profileMap.get(proposal.researcher);
         return {
           proposal_id: proposal.proposal_id,
+          protocol_code: proposal.protocol_id || null,
           proposal_title: proposal.proposal_title,
           description: proposal.description,
           category: proposal.category,
@@ -96,7 +98,8 @@ export class ResearcherHistoryService {
         return proposalsWithResearchers.filter(p =>
           p.proposal_title.toLowerCase().includes(searchLower) ||
           p.researcher_name.toLowerCase().includes(searchLower) ||
-          p.description.toLowerCase().includes(searchLower)
+          p.description.toLowerCase().includes(searchLower) ||
+          (p.protocol_code || '').toLowerCase().includes(searchLower)
         );
       }
 
@@ -169,6 +172,7 @@ export class ResearcherHistoryService {
 
       const proposalSummary: ProposalSummary = {
         proposal_id: proposal.proposal_id,
+        protocol_code: proposal.protocol_id || null,
         proposal_title: proposal.proposal_title,
         description: proposal.description,
         category: proposal.category,
