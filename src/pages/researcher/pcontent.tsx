@@ -1084,6 +1084,14 @@ export default function PhaseContent({
 
             if (docsError) throw new Error(`Failed to delete document records: ${docsError.message}`);
 
+            // Delete form_data records
+            const { error: formDataError } = await supabase
+                .from("form_data")
+                .delete()
+                .eq("proposal_id", submission.proposal_id);
+
+            if (formDataError) throw new Error(`Failed to delete form data: ${formDataError.message}`);
+
             // Delete history records
             const { error: historyError } = await supabase
                 .from("history")

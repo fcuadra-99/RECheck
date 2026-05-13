@@ -421,7 +421,9 @@ export default function AdminPhases() {
                                   variant="outline"
                                   className="px-2 py-1 text-xs"
                                 >
-                                  {file}
+                                  {file === "All Grades" 
+                                    ? "All Grades [certificate of grades - from the registrar] or screenshot of ONLINE Grades" 
+                                    : file}
                                 </Badge>
                               ))}
                             </div>
