@@ -49,15 +49,6 @@ export function LoginForm({
                 return;
             }
 
-            // ✅ Check if user email is verified
-            const isVerified = data.user?.email_confirmed_at;
-            if (!isVerified) {
-                toast.error("Please check your email to activate your account.");
-                // ✅ Sign out immediately if unverified
-                await supabase.auth.signOut();
-                return;
-            }
-
             const lname = data.user.user_metadata?.lname;
             toast.success(`Welcome back${lname ? `, ${lname}` : ""}!`);
             navigate("/sdash");
