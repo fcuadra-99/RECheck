@@ -24,6 +24,8 @@ export interface FormProps {
     /** Whether advisor-only fields should be locked */
     readOnlyAdvisor?: boolean;
 }
+export type FormComponent = React.ComponentType<FormProps>;
+export declare const DOC_COMPONENT_MAP: Record<string, FormComponent>;
 interface FormViewerProps {
     documentName: string;
     proposalId: number;

@@ -122,9 +122,14 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
       ? (savedData.researcherNames as string[])
       : [savedData.researcherName ?? ""];
 
+  const initialControlNo = (savedData.controlNo as string | undefined) ?? (savedData.protocolCode as string | undefined) ?? "";
+  const initialProtocolCode = (savedData.protocolCode as string | undefined) ?? (savedData.controlNo as string | undefined) ?? "";
+
   const [form, setForm] = useState<FinalReportState>({
     ...DEFAULT_STATE,
     ...savedData,
+    controlNo: initialControlNo,
+    protocolCode: initialProtocolCode,
     researcherNames: initialResearcherNames,
     researcherName: savedData.researcherName ?? initialResearcherNames[0] ?? "",
   });
@@ -133,6 +138,10 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
     const next = { ...form, ...patch };
     setForm(next);
     onSave?.({ ...patch, form: next });
+  };
+
+  const updateControlNos = (value: string) => {
+    savePatch({ controlNo: value, protocolCode: value });
   };
 
   const autoExpand = (e: React.FormEvent<HTMLTextAreaElement>) => {
@@ -186,7 +195,7 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
                     </tr>
                     <tr>
                       <td style={controlBottom}>
-                        Control No.: <input style={miniLineInput} value={form.controlNo} onChange={(e) => savePatch({ controlNo: e.target.value })} />
+                        Control No.: <input style={miniLineInput} value={form.controlNo} onChange={(e) => updateControlNos(e.target.value)} />
                       </td>
                     </tr>
                   </tbody>
@@ -215,7 +224,7 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
             </tr>
             <tr>
               <td style={labelCell}>Protocol Code</td>
-              <td colSpan={4} style={valueCell}><input style={lineInput} value={form.protocolCode} onChange={(e) => savePatch({ protocolCode: e.target.value })} /></td>
+              <td colSpan={4} style={valueCell}><input style={lineInput} value={form.protocolCode} onChange={(e) => updateControlNos(e.target.value)} /></td>
             </tr>
             <tr>
               <td style={labelCell}>Effectivity Period of Ethical Clearance</td>
@@ -384,7 +393,7 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
                       <td style={controlTop}>REC_FO_0025</td>
                     </tr>
                     <tr>
-                      <td style={controlBottom}>Control No.: <input style={miniLineInput} value={form.controlNo} onChange={(e) => savePatch({ controlNo: e.target.value })} /></td>
+                      <td style={controlBottom}>Control No.: <input style={miniLineInput} value={form.controlNo} onChange={(e) => updateControlNos(e.target.value)} /></td>
                     </tr>
                   </tbody>
                 </table>

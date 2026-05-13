@@ -42,7 +42,10 @@ export default function EthicsContinuingReviewApplicationForm({
     const patch: Record<string, any> = {};
     if (!fields.studyProtocolTitle && proposalTitle) patch.studyProtocolTitle = proposalTitle;
     if (!fields.nameResearcher && researcherName) patch.nameResearcher = researcherName;
+    if (!fields.controlNo && fields.staffControlNo) patch.controlNo = fields.staffControlNo;
+    if (!fields.staffControlNo && fields.controlNo) patch.staffControlNo = fields.controlNo;
     if (!fields.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!fields.staffControlNo && protocolCode) patch.staffControlNo = protocolCode;
     if (Object.keys(patch).length > 0) {
       const next = { ...fields, ...patch };
       setFields(next);
@@ -52,6 +55,12 @@ export default function EthicsContinuingReviewApplicationForm({
 
   const updateField = (key: string, value: string) => {
     const next = { ...fields, [key]: value };
+    setFields(next);
+    save({ fields: next });
+  };
+
+  const updateControlNos = (value: string) => {
+    const next = { ...fields, controlNo: value, staffControlNo: value };
     setFields(next);
     save({ fields: next });
   };
@@ -82,7 +91,7 @@ export default function EthicsContinuingReviewApplicationForm({
   return (
     <div>
       <div style={pageContainer}>
-        {renderHeader(fields.controlNo || "", (value) => updateField("controlNo", value))}
+        {renderHeader(fields.controlNo || "", updateControlNos)}
 
         <div style={titleStyle}>Ethics Continuing Review Application Form</div>
 
@@ -97,7 +106,13 @@ export default function EthicsContinuingReviewApplicationForm({
         <table style={table}>
           <tbody>
             <tr>
-              <td colSpan={4} style={td}><strong>Protocol Code:</strong></td>
+              <td colSpan={4} style={td}><strong>Protocol Code:</strong>
+                <input
+                  style={lineInput}
+                  value={fields.controlNo || ""}
+                  onChange={(e) => updateControlNos(e.target.value)}
+                />
+              </td>
             </tr>
             <tr>
               <td colSpan={4} style={td}><strong>Study Protocol Title:</strong>
@@ -313,7 +328,7 @@ export default function EthicsContinuingReviewApplicationForm({
       </div>
 
       <div style={pageContainer}>
-        {renderHeader(fields.controlNo || "", (value) => updateField("controlNo", value))}
+        {renderHeader(fields.controlNo || "", updateControlNos)}
 
         <table style={table}>
           <tbody>
@@ -594,7 +609,7 @@ export default function EthicsContinuingReviewApplicationForm({
       </div>
 
       <div style={pageContainer}>
-        {renderHeader(fields.staffControlNo || "", (value) => updateField("staffControlNo", value))}
+        {renderHeader(fields.staffControlNo || "", updateControlNos)}
 
         <table style={table}>
           <tbody>

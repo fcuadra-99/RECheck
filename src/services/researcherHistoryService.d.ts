@@ -56,6 +56,14 @@ export declare class ResearcherHistoryService {
      */
     private extractFileName;
     /**
+     * Helper: Derive phase from storage/file path when doc_type is missing or unclear
+     */
+    private getPhaseFromFilePath;
+    /**
+     * Helper: Build virtual path for form_data-backed (fillable) forms
+     */
+    private buildFormDataVirtualPath;
+    /**
      * Helper: Get phase name from document type
      */
     private getPhaseFromDocType;

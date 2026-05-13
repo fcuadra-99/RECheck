@@ -122,7 +122,6 @@ const navConfig = {
     url: "/researcher/final-report",
     icon: FileCheck,
     items: [
-      { title: "My Reports", url: "/researcher/final-report", role: "Researcher" },
       { title: "Manage Reports", url: "/chairperson/final-reports", role: "Chairperson" },
       { title: "Assigned Reports", url: "/reviewer/final-reports", role: "Reviewer" },
       { title: "Assigned Reports", url: "/staff/final-reports", role: "Admin Assistant" },

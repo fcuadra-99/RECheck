@@ -457,7 +457,8 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                         const activeIdx = getActivePhaseIndex(activeSubmission?.status || "");
                         const isActive = idx === activeIdx;
                         const isComplete = idx < activeIdx;
-                        const isUpcoming = idx > activeIdx;
+                        const isPhase7Unlocked = idx === 6 && activeIdx === 5;
+                        const isUpcoming = idx > activeIdx && !isPhase7Unlocked;
 
                         return (
                             <TabsTrigger

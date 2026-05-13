@@ -32,6 +32,9 @@ export default function EthicsStudyProtocolAmendmentForm({
 
   const today = new Date().toISOString().split("T")[0];
 
+  const [controlNo, setControlNo] = useState<string>(
+    s.controlNo ?? s.staffControlNo ?? s.uicRecProtocolCode ?? protocolCode ?? ""
+  );
   const [titleOfStudy, setTitleOfStudy] = useState<string>(s.titleOfStudy ?? proposalTitle ?? "");
   const [approvalDate, setApprovalDate] = useState<string>(s.approvalDate ?? "");
   const [researcherNameValue, setResearcherNameValue] = useState<string>(s.researcherNameValue ?? researcherName ?? "");
@@ -69,7 +72,9 @@ export default function EthicsStudyProtocolAmendmentForm({
   const [dateSubmitted, setDateSubmitted] = useState<string>(s.dateSubmitted ?? today);
   const [researcherSignature, setResearcherSignature] = useState<string>(s.researcherSignature ?? "");
 
-  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo, setStaffControlNo] = useState<string>(
+    s.staffControlNo ?? s.controlNo ?? s.uicRecProtocolCode ?? protocolCode ?? ""
+  );
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [postsMoreRisks, setPostsMoreRisks] = useState<YesNo>(s.postsMoreRisks ?? "");
   const [amendmentJustifiable, setAmendmentJustifiable] = useState<YesNo>(s.amendmentJustifiable ?? "");
@@ -104,7 +109,15 @@ export default function EthicsStudyProtocolAmendmentForm({
     const patch: Record<string, any> = {};
     if (!s.titleOfStudy && proposalTitle) patch.titleOfStudy = proposalTitle;
     if (!s.researcherNameValue && researcherName) patch.researcherNameValue = researcherName;
+    if (!s.uicRecProtocolCode && s.controlNo) patch.uicRecProtocolCode = s.controlNo;
+    if (!s.uicRecProtocolCode && s.staffControlNo) patch.uicRecProtocolCode = s.staffControlNo;
+    if (!s.controlNo && s.uicRecProtocolCode) patch.controlNo = s.uicRecProtocolCode;
+    if (!s.staffControlNo && (s.controlNo || s.uicRecProtocolCode)) {
+      patch.staffControlNo = s.controlNo ?? s.uicRecProtocolCode;
+    }
+    if (!s.controlNo && s.staffControlNo) patch.controlNo = s.staffControlNo;
     if (!s.uicRecProtocolCode && protocolCode) patch.uicRecProtocolCode = protocolCode;
+    if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
     if (!s.reportedBy && researcherName) patch.reportedBy = researcherName;
     if (!s.dateSubmitted) patch.dateSubmitted = today;
     if (Object.keys(patch).length > 0) save(patch);
@@ -189,7 +202,19 @@ export default function EthicsStudyProtocolAmendmentForm({
                       <td style={controlLabelCell}>REC_FO_0018</td>
                     </tr>
                     <tr>
-                      <td style={controlInputCell}>Control No. : <input style={lineInputInline} /></td>
+                      <td style={controlInputCell}>Control No. :
+                        <input
+                          style={lineInputInline}
+                          value={controlNo}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setControlNo(value);
+                            setUicRecProtocolCode(value);
+                            setStaffControlNo(value);
+                            save({ controlNo: value, uicRecProtocolCode: value, staffControlNo: value });
+                          }}
+                        />
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -255,7 +280,17 @@ export default function EthicsStudyProtocolAmendmentForm({
             </tr>
             <tr>
               <td colSpan={4} style={fieldCell}><strong>UIC-REC Protocol Code:</strong>
-                <input style={lineInput} value={uicRecProtocolCode} onChange={(e) => { setUicRecProtocolCode(e.target.value); save({ uicRecProtocolCode: e.target.value }); }} />
+                <input
+                  style={lineInput}
+                  value={uicRecProtocolCode}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setUicRecProtocolCode(value);
+                    setControlNo(value);
+                    setStaffControlNo(value);
+                    save({ uicRecProtocolCode: value, controlNo: value, staffControlNo: value });
+                  }}
+                />
               </td>
             </tr>
             <tr>
@@ -419,8 +454,11 @@ export default function EthicsStudyProtocolAmendmentForm({
                         <input
                           value={staffControlNo}
                           onChange={(e) => {
-                            setStaffControlNo(e.target.value);
-                            save({ staffControlNo: e.target.value });
+                            const value = e.target.value;
+                            setStaffControlNo(value);
+                            setControlNo(value);
+                            setUicRecProtocolCode(value);
+                            save({ staffControlNo: value, controlNo: value, uicRecProtocolCode: value });
                           }}
                           style={lineInputInline}
                         />

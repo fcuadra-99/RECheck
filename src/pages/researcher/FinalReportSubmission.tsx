@@ -68,9 +68,7 @@ const FinalReportSubmission: React.FC = () => {
   const [documents, setDocuments] = useState<DocumentUpload[]>([
     { id: '1', label: 'Upload your final report (PDF)', file: null, required: true },
     { id: '2', label: 'Upload signed consent form', file: null, required: true },
-    { id: '3', label: 'Upload participant information sheet', file: null, required: false },
-    { id: '4', label: 'Upload data analysis documents', file: null, required: false },
-    { id: '5', label: 'Upload any additional supporting documents', file: null, required: false },
+    { id: '3', label: 'Upload any additional supporting documents', file: null, required: false },
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [showFinalReportForm, setShowFinalReportForm] = useState(false);
@@ -243,9 +241,7 @@ const FinalReportSubmission: React.FC = () => {
       setDocuments([
         { id: '1', label: 'Upload your final report (PDF)', file: null, required: true },
         { id: '2', label: 'Upload signed consent form', file: null, required: true },
-        { id: '3', label: 'Upload participant information sheet', file: null, required: false },
-        { id: '4', label: 'Upload data analysis documents', file: null, required: false },
-        { id: '5', label: 'Upload any additional supporting documents', file: null, required: false },
+        { id: '3', label: 'Upload any additional supporting documents', file: null, required: false },
       ]);
       loadReports();
     } catch (err) {

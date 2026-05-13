@@ -25,7 +25,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? s.staffControlNo ?? protocolCode ?? "");
   const [studyProtocolTitle, setStudyProtocolTitle] = useState<string>(s.studyProtocolTitle ?? proposalTitle ?? "");
   const [approvalDate, setApprovalDate] = useState<string>(s.approvalDate ?? "");
   const [principalInvestigator, setPrincipalInvestigator] = useState<string>(s.principalInvestigator ?? researcherName ?? "");
@@ -50,7 +50,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
   const [researcherSignature, setResearcherSignature] = useState<string>(s.researcherSignature ?? "");
   const [dateOfApplication, setDateOfApplication] = useState<string>(s.dateOfApplication ?? today);
 
-  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? "");
+  const [staffControlNo, setStaffControlNo] = useState<string>(s.staffControlNo ?? s.controlNo ?? protocolCode ?? "");
   const [referredTo, setReferredTo] = useState<ReferredTo>(s.referredTo ?? "");
   const [terminationJustifiable, setTerminationJustifiable] = useState<YesNo>(s.terminationJustifiable ?? "");
   const [studyAffectParticipants, setStudyAffectParticipants] = useState<YesNo>(s.studyAffectParticipants ?? "");
@@ -79,7 +79,10 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
 
   useEffect(() => {
     const patch: Record<string, any> = {};
+    if (!s.controlNo && s.staffControlNo) patch.controlNo = s.staffControlNo;
+    if (!s.staffControlNo && s.controlNo) patch.staffControlNo = s.controlNo;
     if (!s.controlNo && protocolCode) patch.controlNo = protocolCode;
+    if (!s.staffControlNo && protocolCode) patch.staffControlNo = protocolCode;
     if (!s.studyProtocolTitle && proposalTitle) patch.studyProtocolTitle = proposalTitle;
     if (!s.principalInvestigator && researcherName) patch.principalInvestigator = researcherName;
     if (!s.dateOfApplication) patch.dateOfApplication = today;
@@ -114,7 +117,8 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
       <div style={pageContainer}>
         {renderHeader(controlNo, (value) => {
           setControlNo(value);
-          save({ controlNo: value });
+          setStaffControlNo(value);
+          save({ controlNo: value, staffControlNo: value });
         })}
 
         <div style={pinkRule} />
@@ -128,7 +132,18 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
         <table style={formTable}>
           <tbody>
             <tr>
-              <td colSpan={4} style={fieldCell}><strong>Protocol Code:</strong></td>
+              <td colSpan={4} style={fieldCell}><strong>Protocol Code:</strong>
+                <input
+                  style={lineInput}
+                  value={controlNo}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setControlNo(value);
+                    setStaffControlNo(value);
+                    save({ controlNo: value, staffControlNo: value });
+                  }}
+                />
+              </td>
             </tr>
             <tr>
               <td colSpan={4} style={fieldCell}><strong>Study Protocol Title:</strong>
@@ -238,7 +253,8 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
       <div style={pageContainer}>
         {renderHeader(staffControlNo, (value) => {
           setStaffControlNo(value);
-          save({ staffControlNo: value });
+          setControlNo(value);
+          save({ staffControlNo: value, controlNo: value });
         })}
 
         <div style={pinkRule} />

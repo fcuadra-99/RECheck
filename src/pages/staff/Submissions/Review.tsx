@@ -662,10 +662,12 @@ export const SReview = () => {
   }, [currentUserId, type]);
 
   // Determine which documents to show based on current status
+  const interactiveFormDocs = interactiveForms.map((name) => ({ name, file: name }));
+
   const requirementDocs =
     status === "Check Manuscript" ? manuscriptDocs :
-      status === "Forms Check" ? formsDocs :
-        status === "Deploy Queue" ? [...manuscriptDocs, ...formsDocs] : // Show both manuscript and forms for Deploy Queue
+      status === "Forms Check" ? [...formsDocs, ...interactiveFormDocs] :
+        status === "Deploy Queue" ? [...manuscriptDocs, ...formsDocs, ...interactiveFormDocs] : // Show both manuscript and forms for Deploy Queue
           status === "Check Revision" ? revisionDocs : [];
 
   // Get current documents based on active preview

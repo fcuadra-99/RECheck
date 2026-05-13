@@ -10,6 +10,7 @@ export interface ResearcherProfile {
 
 export interface ProposalSummary {
   proposal_id: number;
+  protocol_code?: string | null;
   proposal_title: string;
   description: string;
   category: string;

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen, FileCheck, Trash2 } from "lucide-react";
+import { FileText, Download, FileUp, Eye, PenLine, Check, AlertTriangle, BarChart3, CheckCircle, Pen, FileCheck, Trash2, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,43 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import FormViewer, { DOC_COMPONENT_MAP } from "@/components/forms/FormViewer";
+import { createRoot } from "react-dom/client";
+import FinalReportSubmission from "./FinalReportSubmission";
+
+const waitForRender = async (ms = 180) => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const waitForAssets = async (container: HTMLElement) => {
+    try {
+        if ("fonts" in document) {
+            await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+        }
+    } catch {
+        // Ignore font readiness failures and continue rendering.
+    }
+
+    const images = Array.from(container.querySelectorAll("img"));
+    await Promise.all(
+        images.map((img) => {
+            if (img.complete) return Promise.resolve();
+            return new Promise<void>((resolve) => {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+            });
+        })
+    );
+
+    await waitForRender(120);
+};
+
+const copyDocumentStyles = (targetDoc: Document) => {
+    const styleNodes = Array.from(document.querySelectorAll("style, link[rel=\"stylesheet\"]"));
+    styleNodes.forEach((node) => {
+        targetDoc.head.appendChild(node.cloneNode(true));
+    });
+};
 
 interface Submission {
     proposal_id: number;
@@ -87,6 +124,8 @@ export default function PhaseContent({
     const [deviationType, setDeviationType] = useState<string>("");
     const [deviationFiles, setDeviationFiles] = useState<File[]>([]);
     const [deviationUploadOpen, setDeviationUploadOpen] = useState(false);
+    const [formPreviewOpen, setFormPreviewOpen] = useState(false);
+    const [activeFormName, setActiveFormName] = useState<string | null>(null);
 
     const getActivePhaseIndex = (status: string) => {
         const phaseMap: Record<string, number> = {
@@ -109,6 +148,14 @@ export default function PhaseContent({
     const isPast = activeIdx !== -1 && phaseIndex < activeIdx;
     const isActive = activeIdx !== -1 && phaseIndex === activeIdx;
     const isFuture = activeIdx !== -1 && phaseIndex > activeIdx;
+
+    if (phaseIndex === 6) {
+        return (
+            <div className="mt-4">
+                <FinalReportSubmission />
+            </div>
+        );
+    }
 
     const handleFileSelect = (docName: string, file: File | null) => {
         onUploadedFilesChange({ ...uploadedFiles, [docName]: file });
@@ -367,6 +414,139 @@ export default function PhaseContent({
         } catch (err: any) {
             console.error(err);
             toast.error("Submission failed: " + (err.message || err), { id: loadingId });
+        }
+    };
+
+    const handleFormDataDownload = async (proposalId: number, formName: string) => {
+        try {
+            const { data, error } = await supabase
+                .from("form_data")
+                .select("data")
+                .eq("proposal_id", proposalId)
+                .eq("form_name", formName)
+                .single();
+
+            if (error || !data) {
+                toast.error(`Could not fetch saved data for ${formName}.`);
+                return;
+            }
+
+            const FormComponent = DOC_COMPONENT_MAP[formName];
+            if (!FormComponent) {
+                toast.error(`No form renderer found for ${formName}.`);
+                return;
+            }
+
+            const { data: proposalData } = await supabase
+                .from("proposals")
+                .select("protocol_id, proposal_title, review_type, researcher, advisor")
+                .eq("proposal_id", proposalId)
+                .single();
+
+            let researcherName = "";
+            if (proposalData?.researcher) {
+                const { data: researcherProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.researcher)
+                    .single();
+
+                researcherName = researcherProfile
+                    ? `${researcherProfile.fname || ""} ${researcherProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            let advisorName = "";
+            if (proposalData?.advisor) {
+                const { data: advisorProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.advisor)
+                    .single();
+
+                advisorName = advisorProfile
+                    ? `${advisorProfile.fname || ""} ${advisorProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            const printWindow = window.open("", "_blank", "width=1200,height=900");
+            if (!printWindow) {
+                toast.error("Popup was blocked. Please allow popups and try again.");
+                return;
+            }
+
+            printWindow.document.open();
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>${formName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 0;
+                                background: white;
+                            }
+                            @page {
+                                size: A4;
+                                margin: 10mm;
+                            }
+                            @media print {
+                                html, body {
+                                    background: white;
+                                }
+                            }
+                            #print-root {
+                                width: 100%;
+                                display: block;
+                                box-sizing: border-box;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="print-root"></div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+
+            copyDocumentStyles(printWindow.document);
+
+            const printRootEl = printWindow.document.getElementById("print-root");
+            if (!printRootEl) {
+                toast.error("Failed to prepare print view.");
+                return;
+            }
+
+            const root = createRoot(printRootEl);
+            root.render(
+                <FormComponent
+                    proposalId={proposalId}
+                    protocolCode={proposalData?.protocol_id || ""}
+                    proposalTitle={proposalData?.proposal_title || ""}
+                    reviewType={proposalData?.review_type || ""}
+                    researcherName={researcherName}
+                    advisorName={advisorName}
+                    formName={formName}
+                    savedData={data.data || {}}
+                    readOnlyAdvisor
+                />
+            );
+
+            await waitForRender(260);
+            await waitForAssets(printRootEl);
+
+            printWindow.focus();
+            printWindow.print();
+
+            setTimeout(() => {
+                root.unmount();
+                printWindow.close();
+            }, 800);
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to download form.");
         }
     };
 
@@ -716,7 +896,10 @@ export default function PhaseContent({
     };
 
     const PastPhaseFilesList = ({ phaseIndex }: { phaseIndex: number }) => {
-        const [storedFiles, setStoredFiles] = useState<{ name: string; url: string }[] | null>(null);
+        const [storedFiles, setStoredFiles] = useState<{ name: string; url: string; isFormData?: boolean }[] | null>(null);
+
+        const buildFormDataVirtualPath = (proposalId: number, formName: string) =>
+            `form-data://${proposalId}/${encodeURIComponent(formName)}`;
 
         const listStoredFilesForPhase = async (submissionId: number, phaseIndex: number) => {
             const uploadStatus = phaseUploadStatus(phaseIndex);
@@ -731,15 +914,11 @@ export default function PhaseContent({
                     return [];
                 }
 
-                if (!data || data.length === 0) return [];
-
-                const validFiles = data.filter((f: any) =>
+                const validFiles = (data || []).filter((f: any) =>
                     !f.name.startsWith('.') &&
                     !f.name.includes('emptyfolderplaceholder') &&
                     f.name !== '.emptyFolderPlaceholder'
                 );
-
-                if (validFiles.length === 0) return [];
 
                 const signedFiles = await Promise.all(
                     validFiles.map(async (f: any) => {
@@ -756,7 +935,37 @@ export default function PhaseContent({
                     })
                 );
 
-                return signedFiles.filter((f): f is { name: string; url: string } => f !== null);
+                const storageFiles = signedFiles.filter((f): f is { name: string; url: string } => f !== null);
+
+                if (phaseIndex !== 2) {
+                    return storageFiles;
+                }
+
+                const { data: formRows } = await supabase
+                    .from("form_data")
+                    .select("form_name")
+                    .eq("proposal_id", submissionId);
+
+                const formFiles = (formRows || [])
+                    .map((row: any) => (row.form_name || "").trim())
+                    .filter((name: string) => name.length > 0)
+                    .map((name: string) => ({
+                        name,
+                        url: buildFormDataVirtualPath(submissionId, name),
+                        isFormData: true
+                    }));
+
+                const merged: { name: string; url: string; isFormData?: boolean }[] = [];
+                const seen = new Set<string>();
+
+                for (const file of [...storageFiles, ...formFiles]) {
+                    const key = file.name.toLowerCase();
+                    if (seen.has(key)) continue;
+                    merged.push(file);
+                    seen.add(key);
+                }
+
+                return merged;
             } catch (err) {
                 console.error(err);
                 return [];
@@ -803,12 +1012,36 @@ export default function PhaseContent({
                             <div className="font-medium truncate">{f.name}</div>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                            <Button variant="outline" size="sm" onClick={() => openPreview(submission!.proposal_id, phaseIndex, f.name, f.name)}>
-                                View
-                            </Button>
-                            <a href={f.url} target="_blank" rel="noopener noreferrer">
-                                <RippleButton variant="outline" size="sm">Download</RippleButton>
-                            </a>
+                            {f.isFormData ? (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setActiveFormName(f.name);
+                                            setFormPreviewOpen(true);
+                                        }}
+                                    >
+                                        View
+                                    </Button>
+                                    <RippleButton
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleFormDataDownload(submission!.proposal_id, f.name)}
+                                    >
+                                        Download
+                                    </RippleButton>
+                                </>
+                            ) : (
+                                <>
+                                    <Button variant="outline" size="sm" onClick={() => openPreview(submission!.proposal_id, phaseIndex, f.name, f.name)}>
+                                        View
+                                    </Button>
+                                    <a href={f.url} target="_blank" rel="noopener noreferrer">
+                                        <RippleButton variant="outline" size="sm">Download</RippleButton>
+                                    </a>
+                                </>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -1384,6 +1617,38 @@ export default function PhaseContent({
             )}
 
             {isFuture && <div className="text-gray-500">This phase is not yet available.</div>}
+
+            {formPreviewOpen && activeFormName && (
+                <div className="fixed inset-0 bg-background z-50 flex flex-col form-print-root">
+                    <div className="flex items-center justify-between p-4 border-b">
+                        <div className="font-semibold text-lg">{activeFormName}</div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                                setFormPreviewOpen(false);
+                                setActiveFormName(null);
+                            }}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                        <FormViewer
+                            documentName={activeFormName}
+                            proposalId={submission.proposal_id}
+                            protocolCode={submission.protocol_id}
+                            proposalTitle={submission.proposal_title}
+                            reviewType={submission.review_type}
+                            readOnly
+                            onDone={() => {
+                                setFormPreviewOpen(false);
+                                setActiveFormName(null);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Study Report Upload Dialog */}
             <Dialog open={studyReportUploadOpen} onOpenChange={setStudyReportUploadOpen}>

@@ -360,6 +360,9 @@ export default function ResearcherHistory() {
                         Proposal ID
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Protocol Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Title
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -385,6 +388,11 @@ export default function ResearcherHistory() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-medium text-gray-900">
                             #{proposal.proposal_id}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-700">
+                            {proposal.protocol_code || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4">

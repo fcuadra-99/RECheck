@@ -49,6 +49,10 @@ export default function DecisionLetterForm({ savedData = {}, onSave }: DecisionL
     Array.isArray(s.dataCollectionFindings) && s.dataCollectionFindings.length > 0 ? s.dataCollectionFindings : [""]
   );
 
+  const revisionTargets = Array.isArray(s.revisionTargets)
+    ? s.revisionTargets.filter(Boolean)
+    : [];
+
   const [proposalRows, setProposalRows] = useState<Array<{ section: string; satisfactory: boolean; notSatisfactory: boolean }>>(
     Array.isArray(s.proposalRows) && s.proposalRows.length > 0
       ? s.proposalRows
@@ -227,6 +231,25 @@ export default function DecisionLetterForm({ savedData = {}, onSave }: DecisionL
                 </table>
               </td>
             </tr>
+            {revisionTargets.length > 0 && (
+              <tr>
+                <td style={td}>
+                  <strong>Documents requested for revision:</strong>
+                  <table style={bulletTable}>
+                    <tbody>
+                      {revisionTargets.map((item, idx) => (
+                        <tr key={`revision-${idx}`}>
+                          <td style={bulletSymbolCell}>•</td>
+                          <td style={bulletInputCell}>
+                            <div>{item}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            )}
             <tr>
               <td style={td}>
                 <div style={paragraph}>

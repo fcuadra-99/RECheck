@@ -3,7 +3,7 @@ export interface FormTemplate {
     name: string;
     description: string;
     templateUrl: string;
-    category: 'protocol' | 'report' | 'application';
+    category: 'protocol' | 'report' | 'application' | 'assessment';
     fileType: 'pdf' | 'docx';
     version: string;
     fileName: string;
@@ -15,6 +15,8 @@ export declare class TemplateDownloadService {
     static getAllTemplates(): FormTemplate[];
     static getUploadableTemplates(): FormTemplate[];
     static getUploadOnlyTemplates(): FormTemplate[];
+    static getConfigurableTemplates(): FormTemplate[];
     static getTemplateById(id: string): FormTemplate | undefined;
     static previewTemplate(templateId: string): void;
+    static getTemplateByName(name: string): FormTemplate | undefined;
 }
