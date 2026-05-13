@@ -95,7 +95,102 @@ export async function getFinalReport(id: string) {
 
 export async function updateFinalReport(payload: UpdateFinalReportPayload) {
   const { id, ...rest } = payload;
+  
+  console.log('[updateFinalReport] Starting update with payload:', { id, ...rest });
+  
   const { data, error } = await supabase.from(TABLE).update({ ...rest, last_updated_at: new Date().toISOString() }).eq('id', id).select().single();
+  
+  console.log('[updateFinalReport] Update result:', { data, error });
+  
+  // If status is being changed to Approved, archive the matching proposal
+  if (rest.status === 'Approved' && data) {
+    console.log('[updateFinalReport] Status is Approved, starting archiving process...');
+    
+    try {
+      // Get the final report details
+      const finalReport = data;
+      console.log('[updateFinalReport] Final report data:', finalReport);
+      
+      // Extract the original title from "Final Report: Title" format
+      let proposalTitle = finalReport.title;
+      console.log('[updateFinalReport] Original title:', proposalTitle);
+      
+      if (proposalTitle.startsWith('Final Report: ')) {
+        proposalTitle = proposalTitle.replace('Final Report: ', '');
+        console.log('[updateFinalReport] Extracted proposal title:', proposalTitle);
+      }
+      
+      console.log('[updateFinalReport] Searching for proposals with researcher_id:', finalReport.researcher_id);
+      console.log('[updateFinalReport] Searching for title matching:', proposalTitle);
+      
+      // Find matching proposal by title and researcher
+      // Try exact match first
+      let { data: matchingProposals, error: searchError } = await supabase
+        .from('proposals')
+        .select('proposal_id, proposal_title, researcher, status')
+        .eq('researcher', finalReport.researcher_id)
+        .eq('proposal_title', proposalTitle);
+      
+      console.log('[updateFinalReport] Exact match search result:', { matchingProposals, searchError });
+      
+      // If no exact match, try fuzzy match
+      if (!matchingProposals || matchingProposals.length === 0) {
+        console.log('[updateFinalReport] No exact match found, trying fuzzy match...');
+        
+        const fuzzyResult = await supabase
+          .from('proposals')
+          .select('proposal_id, proposal_title, researcher, status')
+          .eq('researcher', finalReport.researcher_id)
+          .ilike('proposal_title', `%${proposalTitle}%`);
+        
+        matchingProposals = fuzzyResult.data;
+        searchError = fuzzyResult.error;
+        
+        console.log('[updateFinalReport] Fuzzy match search result:', { matchingProposals, searchError });
+      }
+      
+      // Archive the matching proposal(s)
+      if (matchingProposals && matchingProposals.length > 0) {
+        console.log(`[updateFinalReport] Found ${matchingProposals.length} matching proposal(s)`);
+        
+        for (const proposal of matchingProposals) {
+          console.log('[updateFinalReport] Processing proposal:', proposal);
+          
+          // Only archive if not already archived
+          if (proposal.status !== 'Archive Files') {
+            console.log(`[updateFinalReport] Archiving proposal ${proposal.proposal_id}...`);
+            
+            const { data: archiveData, error: archiveError } = await supabase
+              .from('proposals')
+              .update({ status: 'Archive Files' })
+              .eq('proposal_id', proposal.proposal_id)
+              .select();
+            
+            console.log(`[updateFinalReport] Archive result for ${proposal.proposal_id}:`, { archiveData, archiveError });
+            
+            if (!archiveError) {
+              console.log(`✅ Successfully archived proposal ${proposal.proposal_id}: ${proposal.proposal_title}`);
+            } else {
+              console.error(`❌ Failed to archive proposal ${proposal.proposal_id}:`, archiveError);
+            }
+          } else {
+            console.log(`[updateFinalReport] Proposal ${proposal.proposal_id} is already archived, skipping`);
+          }
+        }
+      } else {
+        console.log('[updateFinalReport] ⚠️ No matching proposals found to archive');
+        console.log('[updateFinalReport] Debug info - Looking for:');
+        console.log('  - researcher_id:', finalReport.researcher_id);
+        console.log('  - proposal_title:', proposalTitle);
+      }
+    } catch (archiveError) {
+      console.error('[updateFinalReport] ❌ Error archiving proposal:', archiveError);
+      // Don't fail the update if archiving fails
+    }
+  } else {
+    console.log('[updateFinalReport] Skipping archiving - status is not Approved or no data returned');
+  }
+  
   return { data, error };
 }
 

@@ -17,6 +17,7 @@ import { supabase } from "@/DB";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import SubmissionDetails from "./submdetails";
 import NewProposalDialog from "./newpropdiag";
@@ -46,6 +47,7 @@ export default function SubmissionsPage() {
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [approvedFinalReports, setApprovedFinalReports] = useState<string[]>([]);
 
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
@@ -53,6 +55,9 @@ export default function SubmissionsPage() {
 
     // new proposal modal
     const [newProposalOpen, setNewProposalOpen] = useState(false);
+    
+    // archived proposals modal
+    const [archivedOpen, setArchivedOpen] = useState(false);
 
     /* fetch initial data */
     useEffect(() => {
@@ -68,6 +73,28 @@ export default function SubmissionsPage() {
                 if (error) throw error;
                 const projs = (proposals || []) as Submission[];
                 if (mounted) setSubmissions(projs);
+
+                // Fetch approved final reports for this user
+                if (uid) {
+                    const { data: finalReports } = await supabase
+                        .from("final_reports")
+                        .select("title")
+                        .eq("researcher_id", uid)
+                        .eq("status", "Approved");
+                    
+                    if (finalReports && mounted) {
+                        // Extract proposal titles from "Final Report: Title" format
+                        const approvedTitles = finalReports.map(report => {
+                            let title = report.title;
+                            if (title.startsWith('Final Report: ')) {
+                                title = title.replace('Final Report: ', '');
+                            }
+                            return title;
+                        });
+                        setApprovedFinalReports(approvedTitles);
+                        console.log('[Submissions] Approved final report titles:', approvedTitles);
+                    }
+                }
 
                 const profileIds = projs.map((p) => p.researcher).filter(Boolean);
                 if (profileIds.length) {
@@ -99,8 +126,43 @@ export default function SubmissionsPage() {
 
     /* derived: user's submissions and displayed (max 3) */
     const userSubmissions = submissions
-        .filter((s) => s.researcher === userId)
+        .filter((s) => {
+            // Filter out archived proposals
+            if (s.status === "Archive Files") return false;
+            
+            // Filter out proposals that don't belong to this user
+            if (s.researcher !== userId) return false;
+            
+            // Filter out proposals with approved final reports
+            const hasApprovedFinalReport = approvedFinalReports.some(approvedTitle => 
+                s.proposal_title.toLowerCase().includes(approvedTitle.toLowerCase()) ||
+                approvedTitle.toLowerCase().includes(s.proposal_title.toLowerCase())
+            );
+            
+            if (hasApprovedFinalReport) {
+                console.log(`[Submissions] Hiding proposal "${s.proposal_title}" - has approved final report`);
+            }
+            
+            return !hasApprovedFinalReport;
+        })
         .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+
+    const archivedSubmissions = submissions
+        .filter((s) => {
+            if (s.researcher !== userId) return false;
+            
+            // Include proposals with "Archive Files" status OR approved final reports
+            const hasApprovedFinalReport = approvedFinalReports.some(approvedTitle => 
+                s.proposal_title.toLowerCase().includes(approvedTitle.toLowerCase()) ||
+                approvedTitle.toLowerCase().includes(s.proposal_title.toLowerCase())
+            );
+            
+            return s.status === "Archive Files" || hasApprovedFinalReport;
+        })
+        .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+    
+    console.log('[Submissions] Archived submissions count:', archivedSubmissions.length);
+    console.log('[Submissions] Archived submissions:', archivedSubmissions);
 
     const displayedSubmissions = userSubmissions.slice(0, 3);
 
@@ -148,16 +210,28 @@ export default function SubmissionsPage() {
     return (
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
             {/* header */}
-            <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
-                    <FileStack className="w-5 h-5" />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
+                        <FileStack className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl sm:text-2xl font-semibold">Submissions</h1>
+                        <p className="text-sm text-gray-500">
+                            {userSubmissions.length}/3 Proposals Available
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-xl sm:text-2xl font-semibold">Submissions</h1>
-                    <p className="text-sm text-gray-500">
-                        {userSubmissions.length}/3 Proposals Available
-                    </p>
-                </div>
+                {archivedSubmissions.length > 0 && (
+                    <RippleButton
+                        variant="outline"
+                        onClick={() => setArchivedOpen(true)}
+                        className="flex items-center gap-2"
+                    >
+                        <Archive className="w-4 h-4" />
+                        Archived Proposals ({archivedSubmissions.length})
+                    </RippleButton>
+                )}
             </div>
 
             {/* submissions table */}
@@ -344,6 +418,88 @@ export default function SubmissionsPage() {
                     setActiveSubmission(newProposal);
                 }}
             />
+
+            {/* archived proposals dialog */}
+            <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
+                <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Archive className="w-5 h-5" />
+                            Archived Proposals
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="rounded-md border overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="border">Protocol ID</TableHead>
+                                    <TableHead className="border">Title</TableHead>
+                                    <TableHead className="border">Category</TableHead>
+                                    <TableHead className="border">Review Type</TableHead>
+                                    <TableHead className="border">Date</TableHead>
+                                    <TableHead className="border text-center">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {archivedSubmissions.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center text-gray-400 italic py-8">
+                                            No archived proposals
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    archivedSubmissions.map((submission) => (
+                                        <TableRow key={submission.proposal_id} className="hover:bg-gray-50/50">
+                                            <TableCell className="border">
+                                                <Badge variant="outline" className="font-mono text-xs">
+                                                    {submission.protocol_id || "—"}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                                    <span className="font-medium">{submission.proposal_title}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                <Badge variant="outline" className="text-xs">
+                                                    {submission.category}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                {submission.review_type ? (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {submission.review_type}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-gray-400">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="border text-gray-600">
+                                                {new Date(submission.date).toLocaleDateString()}
+                                            </TableCell>
+                                            <TableCell className="border text-center">
+                                                <RippleButton
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 px-2 text-gray-600 hover:text-primary"
+                                                    onClick={() => {
+                                                        setActiveSubmission(submission);
+                                                        setArchivedOpen(false);
+                                                    }}
+                                                >
+                                                    <Eye className="w-4 h-4 mr-1" />
+                                                    View
+                                                </RippleButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

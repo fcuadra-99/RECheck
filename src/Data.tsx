@@ -136,7 +136,7 @@ const navConfig = {
     ],
   },
   reviewerFormsReview: {
-    title: "Assigned Forms",
+    title: "Assigned Forms (Reviewer)",
     url: "/reviewer/template-submissions",
     icon: ClipboardCheck,
     items: [
@@ -144,7 +144,7 @@ const navConfig = {
     ],
   },
   staffFormsReview: {
-    title: "Assigned Forms",
+    title: "Assigned Forms (Staff)",
     url: "/staff/template-submissions",
     icon: ClipboardCheck,
     items: [

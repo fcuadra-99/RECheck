@@ -193,7 +193,7 @@ export function RadixSidebarDemo({
               <SidebarGroupLabel>Platform</SidebarGroupLabel>
               <SidebarMenu>
                 {navItems.map((item: NavItem) => (
-                  <Collapsible key={item.title}>
+                  <Collapsible key={item.url || item.title}>
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton tooltip={item.title}>
