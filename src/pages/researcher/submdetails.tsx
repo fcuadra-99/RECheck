@@ -113,6 +113,25 @@ const getLatestHistory = async (proposal_id: number): Promise<HistoryEntry | nul
     return data as HistoryEntry;
 };
 
+const getLatestHistoryWithAffectedFiles = async (proposal_id: number): Promise<HistoryEntry | null> => {
+    const { data, error } = await supabase
+        .from("history")
+        .select("*")
+        .eq("paper_id", proposal_id)
+        .not("affected_files", "is", null)
+        .order("history_date", { ascending: false })
+        .limit(1)
+        .single();
+
+    if (error) {
+        if (error.code === "PGRST116") return null;
+        console.error("Failed to fetch history with affected files:", error);
+        return null;
+    }
+
+    return data as HistoryEntry;
+};
+
 const getActivePhaseIndex = (status: string) => {
     const phaseMap: Record<string, number> = {
         "Send Manuscript": 0, "Check Manuscript": 0, "Resend Manuscript": 0,
@@ -272,8 +291,9 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                 setIsPhase3Approval(hasInitialApproval || false);
             }
 
-            if (["Resend Manuscript", "Resend Forms", "Send Revision"].includes(activeSubmission.status)) {
-                const hist = await getLatestHistory(activeSubmission.proposal_id);
+            if (["Resend Manuscript", "Resend Forms", "Send Revision", "Revise Proposal"].includes(activeSubmission.status)) {
+                const hist = await getLatestHistoryWithAffectedFiles(activeSubmission.proposal_id)
+                    || await getLatestHistory(activeSubmission.proposal_id);
 
                 if (hist) {
                     setLatestComment(hist.comment || null);
