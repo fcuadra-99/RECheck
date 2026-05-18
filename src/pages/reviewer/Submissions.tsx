@@ -114,7 +114,6 @@ export default function ReviewerPage() {
     const [previewTitle, setPreviewTitle] = useState<string>("");
     const [showAssessmentPreview, setShowAssessmentPreview] = useState(false);
     const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
-    const [assessmentPreviewTitle, setAssessmentPreviewTitle] = useState<string>("");
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
     const [printAssessmentOnOpen, setPrintAssessmentOnOpen] = useState(false);
     const [archivedOpen, setArchivedOpen] = useState(false);
@@ -783,7 +782,6 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewTitle(filename);
             setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
             setShowAssessmentPreview(true);
         } catch {
@@ -829,7 +827,6 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewTitle(filename);
             setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
             setPrintAssessmentOnOpen(true);
             setShowAssessmentPreview(true);
@@ -2709,7 +2706,6 @@ export default function ReviewerPage() {
                     onClick={() => {
                         setShowAssessmentPreview(false);
                         setAssessmentPreviewType(null);
-                        setAssessmentPreviewTitle("");
                         setAssessmentPreviewData({});
                         setPrintAssessmentOnOpen(false);
                     }}

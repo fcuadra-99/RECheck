@@ -100,7 +100,7 @@ export declare class TemplateSubmissionService {
     /**
      * Assign one to four staff members to a submission
      */
-    assignReviewers(submissionId: string, reviewerIds: string[]): Promise<{
+    assignReviewers(submissionId: string, reviewerIds: string[], reviewerRoles?: Record<string, 'primary_1' | 'primary_2'>): Promise<{
         success: boolean;
         error?: string;
     }>;
@@ -155,6 +155,19 @@ export declare class TemplateSubmissionService {
     signAsChairperson(submissionId: string, signatureData: string): Promise<{
         success: boolean;
         error?: string;
+    }>;
+    /**
+     * Terminate a proposal based on early termination submission details
+     */
+    terminateProposalForEarlyTermination(input: {
+        submissionId: string;
+        protocolCode: string;
+        proposalTitle: string;
+    }): Promise<{
+        success: boolean;
+        error?: string;
+        updatedCount?: number;
+        alreadyArchivedCount?: number;
     }>;
     /**
      * Update submission status

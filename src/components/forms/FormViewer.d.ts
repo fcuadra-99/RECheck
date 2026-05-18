@@ -2,6 +2,11 @@
  * FormViewer — maps a document name to its React form component.
  * Handles local save/load per proposal+document, autofill, and read-only advisor fields.
  */
+export interface ProposalOption {
+    id: number;
+    title: string;
+    protocolCode?: string | null;
+}
 export interface FormProps {
     /** Proposal ID — used as localStorage key namespace */
     proposalId: number;
@@ -13,6 +18,12 @@ export interface FormProps {
     advisorName?: string;
     /** Proposal title */
     proposalTitle?: string;
+    /** Proposal options for dropdown selection */
+    proposalOptions?: ProposalOption[];
+    /** Selected proposal ID for dropdowns */
+    selectedProposalId?: number | null;
+    /** Callback when a proposal is selected in a form */
+    onSelectProposal?: (proposalId: number | null) => void;
     /** Type of review (e.g. "Full Board", "Expedited", "Exempt") */
     reviewType?: string | null;
     /** The document filename — used for storage path */
