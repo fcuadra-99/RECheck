@@ -23,6 +23,9 @@ export default function EthicsContinuingReviewApplicationForm({
   formName,
   savedData = {},
   onSave,
+  proposalOptions,
+  selectedProposalId,
+  onSelectProposal,
 }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
@@ -37,6 +40,9 @@ export default function EthicsContinuingReviewApplicationForm({
           : [""])
   );
   const [checks, setChecks] = useState<RecommendedAction>(s.checks ?? DEFAULT_CHECKS);
+
+  const proposalChoices = proposalOptions ?? [];
+  const showProposalSelect = proposalOptions !== undefined;
 
   useEffect(() => {
     const patch: Record<string, any> = {};
@@ -81,6 +87,22 @@ export default function EthicsContinuingReviewApplicationForm({
     el.style.height = `${el.scrollHeight}px`;
   };
 
+  const applyProposalSelection = (proposalIdValue: number | null) => {
+    onSelectProposal?.(proposalIdValue);
+    const selected = proposalChoices.find((proposal) => proposal.id === proposalIdValue);
+    if (!selected) return;
+
+    const code = selected.protocolCode ?? "";
+    const next = {
+      ...fields,
+      studyProtocolTitle: selected.title,
+      controlNo: code,
+      staffControlNo: code,
+    };
+    setFields(next);
+    save({ fields: next });
+  };
+
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       document.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(resizeTextarea);
@@ -116,7 +138,33 @@ export default function EthicsContinuingReviewApplicationForm({
             </tr>
             <tr>
               <td colSpan={4} style={td}><strong>Study Protocol Title:</strong>
-                <textarea style={lineTextarea} value={fields.studyProtocolTitle || ""} onChange={(e) => updateField("studyProtocolTitle", e.target.value)} onInput={autoExpand} rows={1} />
+                {showProposalSelect ? (
+                  <select
+                    style={lineInput}
+                    value={selectedProposalId ?? ""}
+                    onChange={(e) => {
+                      const nextId = e.target.value ? Number(e.target.value) : null;
+                      applyProposalSelection(nextId);
+                    }}
+                    disabled={proposalChoices.length === 0}
+                  >
+                    <option value="">
+                      {proposalChoices.length === 0 ? "No proposals available" : "Choose a proposal..."}
+                    </option>
+                    {proposalChoices.map((proposal) => (
+                      <option key={proposal.id} value={proposal.id}>
+                        {proposal.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <textarea
+                    style={lineTextarea}
+                    value={fields.studyProtocolTitle || ""}
+                    readOnly
+                    rows={1}
+                  />
+                )}
               </td>
             </tr>
             <tr>

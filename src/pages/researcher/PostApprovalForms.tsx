@@ -1,9 +1,12 @@
-import { useState, } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 import { useTemplateFields } from '@/hooks/useTemplateFields';
+import { supabase } from '@/DB';
+import useAuth from '@/hooks/useAuth';
+import type { ProposalOption } from '@/components/forms/FormViewer';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
 import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
 import EthicsStudyProtocolNonComplianceReport from '@/components/forms/REC_FO_0020';
@@ -13,14 +16,58 @@ import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_F
 
 
 export default function FormsTemplates() {
+  const { user } = useAuth();
   const [selectedAction, setSelectedAction] = useState<'fill-online' | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [proposalOptions, setProposalOptions] = useState<ProposalOption[]>([]);
+  const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
   const [progressReportData, setProgressReportData] = useState<Record<string, any>>({});
   const [newEventReportData, setNewEventReportData] = useState<Record<string, any>>({});
   const [nonComplianceReportData, setNonComplianceReportData] = useState<Record<string, any>>({});
   const [protocolAmendmentData, setProtocolAmendmentData] = useState<Record<string, any>>({});
   const [continuingReviewData, setContinuingReviewData] = useState<Record<string, any>>({});
   const [earlyTerminationData, setEarlyTerminationData] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    const loadProposals = async () => {
+      if (!user?.id) {
+        setProposalOptions([]);
+        setSelectedProposalId(null);
+        return;
+      }
+
+
+      const { data, error } = await supabase
+        .from('proposals')
+        .select('proposal_id, proposal_title, protocol_id, status, date')
+        .eq('researcher', user.id)
+        .order('date', { ascending: false });
+
+      if (error) {
+        console.error('Failed to load proposals:', error);
+        setProposalOptions([]);
+        setSelectedProposalId(null);
+        return;
+      }
+
+      const options: ProposalOption[] = (data || [])
+        .filter((proposal) => !!proposal.protocol_id)
+        .map((proposal) => ({
+          id: proposal.proposal_id,
+          title: proposal.proposal_title,
+          protocolCode: proposal.protocol_id,
+        }));
+
+      setProposalOptions(options);
+      setSelectedProposalId((current) => {
+        if (options.length === 0) return null;
+        if (current && !options.find((p) => p.id === current)) return null;
+        return current;
+      });
+    };
+
+    loadProposals();
+  }, [user?.id]);
   
   // Get template details and load predefined fields
   const templateDetails = selectedTemplate 
@@ -33,6 +80,8 @@ export default function FormsTemplates() {
   const isProtocolAmendmentTemplate = templateDetails?.id === 'protocol-amendment';
   const isContinuingReviewTemplate = templateDetails?.id === 'continuing-review';
   const isEarlyTerminationTemplate = templateDetails?.id === 'early-termination';
+
+  const selectedProposal = proposalOptions.find((proposal) => proposal.id === selectedProposalId) || null;
 
   // haandleTemplateUploadComplete removed as upload functionality is no longer needed
 
@@ -377,11 +426,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsStudyProgressReport
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Progress_Report_Template.pdf"
                 savedData={progressReportData}
                 onSave={handleProgressReportSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -413,11 +466,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsStudyReportableNegativeEventReport
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Report_New_Event_Template.pdf"
                 savedData={newEventReportData}
                 onSave={handleNewEventReportSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -449,11 +506,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsStudyProtocolNonComplianceReport
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Non_Compliance_Report_Template.pdf"
                 savedData={nonComplianceReportData}
                 onSave={handleNonComplianceReportSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -485,11 +546,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsStudyProtocolAmendmentForm
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Protocol_Amendment_Template.pdf"
                 savedData={protocolAmendmentData}
                 onSave={handleProtocolAmendmentSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -521,11 +586,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsContinuingReviewApplicationForm
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Continuing_Review_Template.pdf"
                 savedData={continuingReviewData}
                 onSave={handleContinuingReviewSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -557,11 +626,15 @@ export default function FormsTemplates() {
 
             <div className="overflow-auto rounded-md border border-gray-300 bg-white shadow-sm">
               <EthicsEarlyStudyTerminationApplicationForm
-                proposalId={0}
+                proposalId={selectedProposal?.id ?? 0}
                 formName="Early_Termination_Template.pdf"
                 savedData={earlyTerminationData}
                 onSave={handleEarlyTerminationSave}
-                proposalTitle={selectedTemplate}
+                proposalTitle={selectedProposal?.title || ''}
+                protocolCode={selectedProposal?.protocolCode || null}
+                proposalOptions={proposalOptions}
+                selectedProposalId={selectedProposalId}
+                onSelectProposal={setSelectedProposalId}
               />
             </div>
           </div>
@@ -621,6 +694,7 @@ export default function FormsTemplates() {
                   ))}
                 </select>
               </div>
+
 
               <button
                 onClick={() => selectedTemplate && setSelectedAction('fill-online')}

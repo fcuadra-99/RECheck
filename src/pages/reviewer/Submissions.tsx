@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,7 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/DB";
 import { toast } from "sonner";
 import { Label } from "recharts";
@@ -74,6 +75,12 @@ interface ReviewRecommendation {
     history_id?: number;
 }
 
+type AssignmentMeta = {
+    reviewerRoles?: Record<string, string>;
+    reviewerDocs?: Record<string, string[]>;
+    assignmentDate?: string | null;
+};
+
 /* ----------------- component ----------------- */
 export default function ReviewerPage() {
     // data
@@ -92,11 +99,14 @@ export default function ReviewerPage() {
         submitted_at: ''
     });
     const [existingRecommendations, setExistingRecommendations] = useState<ReviewRecommendation[]>([]);
-    const [assignmentMeta, setAssignmentMeta] = useState<{ reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> } | null>(null);
+    const [assignmentMeta, setAssignmentMeta] = useState<AssignmentMeta | null>(null);
     const [assignmentRolesByProposal, setAssignmentRolesByProposal] = useState<Record<number, string>>({});
+    const [assignmentDatesByProposal, setAssignmentDatesByProposal] = useState<Record<number, string>>({});
+    const [reviewWindowStartByProposal, setReviewWindowStartByProposal] = useState<Record<number, string>>({});
     const [reviewerRoleKey, setReviewerRoleKey] = useState<'primary' | 'secondary' | 'member' | null>(null);
     const [reviewerRoleLabel, setReviewerRoleLabel] = useState<string | null>(null);
     const [reviewedProposalIds, setReviewedProposalIds] = useState<Set<number>>(new Set());
+    const [archivedProposalIds, setArchivedProposalIds] = useState<Set<number>>(new Set());
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -106,6 +116,7 @@ export default function ReviewerPage() {
     const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
     const [assessmentPreviewTitle, setAssessmentPreviewTitle] = useState<string>("");
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
+    const [archivedOpen, setArchivedOpen] = useState(false);
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
@@ -165,7 +176,48 @@ export default function ReviewerPage() {
             return null;
         }
 
-        return parseAssignmentMeta(data[0].affected_files);
+        const parsed = parseAssignmentMeta(data[0].affected_files);
+        return {
+            reviewerRoles: parsed?.reviewerRoles,
+            reviewerDocs: parsed?.reviewerDocs,
+            assignmentDate: data[0].history_date || null,
+        } as AssignmentMeta;
+    };
+
+    const fetchLatestSubmissionDate = async (proposalId: number) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("history_date")
+            .eq("paper_id", proposalId)
+            .eq("history_type", "submission")
+            .order("history_date", { ascending: false })
+            .limit(1);
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        return data[0].history_date || null;
+    };
+
+    const loadReviewerArchives = async (uid: string) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("paper_id")
+            .eq("history_type", "reviewer_archive")
+            .eq("actor", uid);
+
+        if (error) {
+            console.error("Error loading reviewer archives:", error);
+            return;
+        }
+
+        const nextArchived = new Set<number>(
+            (data || [])
+                .map((row: { paper_id?: number | null }) => row.paper_id)
+                .filter((id: number | null | undefined): id is number => typeof id === "number")
+        );
+        setArchivedProposalIds(nextArchived);
     };
 
     /* fetch initial data - only proposals assigned to current reviewer */
@@ -182,6 +234,8 @@ export default function ReviewerPage() {
                     toast.error("Not authenticated");
                     return;
                 }
+
+                await loadReviewerArchives(uid);
 
                 // Get user profile to check if chairperson
                 const { data: userProfileData, error: profileError } = await supabase
@@ -200,7 +254,7 @@ export default function ReviewerPage() {
                 const { data: proposals, error } = await supabase
                     .from("proposals")
                     .select("*")
-                    .eq("status", "Proposal Review")
+                    .in("status", ["Proposal Review", "Data Collection", "Revise Proposal"])
                     .like("reviewer", `%${uid}%`)
                     .order("date", { ascending: false });
 
@@ -209,38 +263,63 @@ export default function ReviewerPage() {
 
                 if (mounted) setSubmissions(projs);
 
+                let reviewWindowSnapshot: Record<number, string> = {};
+                if (mounted && uid && projs.length > 0) {
+                    const roleEntries = await Promise.all(
+                        projs.map(async (proposal) => {
+                            const meta = await fetchAssignmentMeta(proposal.proposal_id);
+                            const latestSubmissionDate = await fetchLatestSubmissionDate(proposal.proposal_id);
+                            const role = meta?.reviewerRoles?.[uid] || null;
+                            const assignmentDate = meta?.assignmentDate || null;
+                            const reviewWindowStart = pickLaterDate(assignmentDate, latestSubmissionDate);
+                            return [proposal.proposal_id, role, assignmentDate, reviewWindowStart] as const;
+                        })
+                    );
+
+                    const nextRoles: Record<number, string> = {};
+                    const nextDates: Record<number, string> = {};
+                    const nextWindows: Record<number, string> = {};
+                    roleEntries.forEach(([proposalId, role, assignmentDate, reviewWindowStart]) => {
+                        if (role) {
+                            nextRoles[proposalId] = role;
+                        }
+                        if (assignmentDate) {
+                            nextDates[proposalId] = assignmentDate;
+                        }
+                        if (reviewWindowStart) {
+                            nextWindows[proposalId] = reviewWindowStart;
+                        }
+                    });
+
+                    reviewWindowSnapshot = nextWindows;
+
+                    if (mounted) {
+                        setAssignmentRolesByProposal(nextRoles);
+                        setAssignmentDatesByProposal(nextDates);
+                        setReviewWindowStartByProposal(nextWindows);
+                    }
+                }
+
                 if (uid) {
                     const { data: userRecommendations } = await supabase
                         .from("history")
-                        .select("paper_id")
+                        .select("paper_id, history_date")
                         .eq("actor", uid)
                         .eq("history_type", "review_recommendation");
 
                     const reviewedSet = new Set<number>(
                         (userRecommendations || [])
-                            .map((rec: { paper_id?: number | null }) => rec.paper_id)
-                            .filter((paperId): paperId is number => typeof paperId === 'number')
+                            .filter((rec: { paper_id?: number | null; history_date?: string | null }) => {
+                                if (typeof rec.paper_id !== 'number') return false;
+                                const windowStart = reviewWindowSnapshot[rec.paper_id] || assignmentDatesByProposal[rec.paper_id];
+                                if (!windowStart) return true;
+                                const recTime = rec.history_date ? new Date(rec.history_date).getTime() : 0;
+                                const windowTime = new Date(windowStart).getTime();
+                                return recTime >= windowTime;
+                            })
+                            .map((rec: { paper_id?: number | null }) => rec.paper_id as number)
                     );
                     if (mounted) setReviewedProposalIds(reviewedSet);
-                }
-
-                if (mounted && uid && projs.length > 0) {
-                    const roleEntries = await Promise.all(
-                        projs.map(async (proposal) => {
-                            const meta = await fetchAssignmentMeta(proposal.proposal_id);
-                            const role = meta?.reviewerRoles?.[uid] || null;
-                            return [proposal.proposal_id, role] as const;
-                        })
-                    );
-
-                    const nextRoles: Record<number, string> = {};
-                    roleEntries.forEach(([proposalId, role]) => {
-                        if (role) {
-                            nextRoles[proposalId] = role;
-                        }
-                    });
-
-                    if (mounted) setAssignmentRolesByProposal(nextRoles);
                 }
 
                 // Get researcher profiles
@@ -312,15 +391,29 @@ export default function ReviewerPage() {
                             : null
             );
             setRevisionTargets([]);
-            setDecisionLetterData((prev) => ({ ...prev, revisionTargets: [] }));
+            setDecisionLetterData({});
+
+            const assignmentDate = meta?.assignmentDate || null;
+            const latestSubmissionDate = await fetchLatestSubmissionDate(activeSubmission.proposal_id);
+            const reviewWindowStart = pickLaterDate(assignmentDate, latestSubmissionDate);
+            if (reviewWindowStart) {
+                setReviewWindowStartByProposal((prev) => ({
+                    ...prev,
+                    [activeSubmission.proposal_id]: reviewWindowStart
+                }));
+            }
 
             // Load recommendations from history table - EXCLUDE current user's recommendations
-            const { data: recommendations, error } = await supabase
+            let recommendationsQuery = supabase
                 .from("history")
                 .select("*")
                 .eq("paper_id", activeSubmission.proposal_id)
                 .eq("history_type", "review_recommendation")
                 .order("history_date", { ascending: false });
+            if (reviewWindowStart) {
+                recommendationsQuery = recommendationsQuery.gte("history_date", reviewWindowStart);
+            }
+            const { data: recommendations, error } = await recommendationsQuery;
 
             if (error) throw error;
 
@@ -369,14 +462,17 @@ export default function ReviewerPage() {
             // Set current user's recommendation separately
             if (userId) {
                 // Check if current user has already submitted a recommendation
-                const { data: userRecommendation, error: userRecError } = await supabase
+                let userRecommendationQuery = supabase
                     .from("history")
                     .select("*")
                     .eq("paper_id", activeSubmission.proposal_id)
                     .eq("history_type", "review_recommendation")
                     .eq("actor", userId)
-                    .order("history_date", { ascending: false })
-                    .single();
+                    .order("history_date", { ascending: false });
+                if (reviewWindowStart) {
+                    userRecommendationQuery = userRecommendationQuery.gte("history_date", reviewWindowStart);
+                }
+                const { data: userRecommendation, error: userRecError } = await userRecommendationQuery.single();
 
                 if (userRecError && userRecError.code !== 'PGRST116') {
                     console.error("Error fetching user recommendation:", userRecError);
@@ -406,7 +502,7 @@ export default function ReviewerPage() {
             }
 
             // Load submitted assessment forms
-            await loadAssessmentForms();
+            await loadAssessmentForms(reviewWindowStart);
         } catch (err) {
             console.error("Failed to load submission data:", err);
             toast.error("Failed to load submission data");
@@ -414,13 +510,28 @@ export default function ReviewerPage() {
     };
 
     /* Load assessment forms for the current user */
-    const loadAssessmentForms = async () => {
+    const loadAssessmentForms = async (reviewWindowStart?: string | null) => {
         if (!activeSubmission || !userId) {
             setHasSubmittedProtocolAssessment(false);
             setHasSubmittedInformedConsent(false);
             setSubmittedAssessmentForms([]);
             return;
         }
+
+        const windowTime = reviewWindowStart ? new Date(reviewWindowStart).getTime() : null;
+        const extractTimestamp = (name: string) => {
+            const match = name.match(/_(\d{10,13})(?:\.[a-z0-9]+)?$/i);
+            if (!match) return null;
+            const parsed = Number(match[1]);
+            return Number.isFinite(parsed) ? parsed : null;
+        };
+        const isWithinWindow = (name: string, createdAt?: string | null) => {
+            if (!windowTime) return true;
+            const filenameTs = extractTimestamp(name);
+            if (filenameTs) return filenameTs >= windowTime;
+            if (createdAt) return new Date(createdAt).getTime() >= windowTime;
+            return true;
+        };
 
         try {
             const path = `${activeSubmission.proposal_id}/Assessments`;
@@ -448,10 +559,12 @@ export default function ReviewerPage() {
 
             // Check for current user's assessment forms (for reviewers)
             const userProtocolAssessment = data.find(f => 
-                f.name.includes(`Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}`)
+                f.name.includes(`Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
+                isWithinWindow(f.name, (f as any).created_at)
             );
             const userInformedConsent = data.find(f => 
-                f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`)
+                f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
+                isWithinWindow(f.name, (f as any).created_at)
             );
 
             setHasSubmittedProtocolAssessment(!!userProtocolAssessment);
@@ -459,7 +572,7 @@ export default function ReviewerPage() {
 
             // Load all assessment forms with signed URLs (for chairperson and reviewer view)
             const assessmentForms = await Promise.all(
-                data.map(async (f: any) => {
+                data.filter((f: any) => isWithinWindow(f.name, f.created_at)).map(async (f: any) => {
                     const { data: signed, error: signError } = await supabase.storage
                         .from("documents")
                         .createSignedUrl(`${path}/${f.name}`, 60 * 60); // 1 hour expiry
@@ -706,14 +819,20 @@ export default function ReviewerPage() {
         const loadingId = toast.loading(isChairperson ? "Submitting final decision..." : "Submitting recommendation...");
 
         try {
+            const reviewWindowStart = getActiveReviewWindowStart();
+
             // Check if user has already submitted a recommendation
-            const { data: existingRec } = await supabase
+            let existingRecQuery = supabase
                 .from("history")
                 .select("history_id")
                 .eq("paper_id", activeSubmission.proposal_id)
                 .eq("actor", userId)
                 .eq("history_type", "review_recommendation")
-                .single();
+                .order("history_date", { ascending: false });
+            if (reviewWindowStart) {
+                existingRecQuery = existingRecQuery.gte("history_date", reviewWindowStart);
+            }
+            const { data: existingRec } = await existingRecQuery.single();
 
             const actionText = `REVIEW_RECOMMENDATION_${recommendation.recommendation.toUpperCase()}`;
             const historyData = {
@@ -791,14 +910,11 @@ export default function ReviewerPage() {
                 const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
                 if (decisionError) throw decisionError;
 
-                // Update local state - remove the processed submission
-                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-                if (submissions.length > 1) {
-                    setActiveSubmission(submissions[1]);
-                } else {
-                    setActiveSubmission(null);
-                }
+                setReviewedProposalIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(activeSubmission.proposal_id);
+                    return next;
+                });
 
                 toast.success(
                     `Proposal ${recommendation.recommendation === 'approve' ? 'approved and moved to Data Collection' : 'sent for revisions'}`,
@@ -844,9 +960,26 @@ export default function ReviewerPage() {
         return submission.protocol_id || submission.protocol_code || "-";
     };
 
+    const pickLaterDate = (first?: string | null, second?: string | null) => {
+        if (!first && !second) return null;
+        if (!first) return second || null;
+        if (!second) return first;
+        return new Date(first).getTime() >= new Date(second).getTime() ? first : second;
+    };
+
+    const getActiveReviewWindowStart = () => {
+        if (!activeSubmission) return null;
+        return reviewWindowStartByProposal[activeSubmission.proposal_id]
+            || assignmentDatesByProposal[activeSubmission.proposal_id]
+            || null;
+    };
+
     // Check if current user has submitted a recommendation for active submission
     const hasUserSubmittedRecommendation = Boolean(
         activeSubmission && reviewedProposalIds.has(activeSubmission.proposal_id)
+    );
+    const isActiveSubmissionArchived = Boolean(
+        activeSubmission && archivedProposalIds.has(activeSubmission.proposal_id)
     );
     const needsProtocolAssessment = !isChairperson && reviewerRoleKey === 'primary';
     const needsInformedConsent = !isChairperson && reviewerRoleKey === 'secondary';
@@ -857,6 +990,16 @@ export default function ReviewerPage() {
         : needsInformedConsent
             ? hasSubmittedInformedConsent
             : true));
+
+    const activeSubmissions = submissions
+        .filter((submission) => !archivedProposalIds.has(submission.proposal_id))
+        .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+
+    const archivedSubmissions = submissions
+        .filter((submission) => archivedProposalIds.has(submission.proposal_id))
+        .sort((a, b) => +new Date(b.date) - +new Date(a.date));
+
+    const displayedSubmissions = activeSubmissions.slice(0, 3);
 
     /* Open PDF Template Handler */
     const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
@@ -924,6 +1067,40 @@ export default function ReviewerPage() {
         });
     };
 
+    const archiveSubmission = async () => {
+        if (!activeSubmission || !userId) return;
+
+        if (archivedProposalIds.has(activeSubmission.proposal_id)) {
+            toast.info("This proposal is already archived.");
+            return;
+        }
+
+        try {
+            const historyData = {
+                history_type: "reviewer_archive",
+                paper_id: activeSubmission.proposal_id,
+                comment: "Reviewer archived proposal",
+                actor: userId,
+                action: "REVIEWER_ARCHIVE",
+                history_date: new Date().toISOString(),
+            };
+
+            const { error } = await supabase.from("history").insert([historyData]);
+            if (error) throw error;
+
+            setArchivedProposalIds((prev) => {
+                const next = new Set(prev);
+                next.add(activeSubmission.proposal_id);
+                return next;
+            });
+
+            toast.success("Proposal archived.");
+        } catch (error: any) {
+            console.error("Failed to archive proposal:", error);
+            toast.error(`Failed to archive proposal: ${error.message || "Unknown error"}`);
+        }
+    };
+
     const handleSubmitReviewerAssessment = async () => {
         if (!activeSubmission || !userId) return;
 
@@ -966,7 +1143,7 @@ export default function ReviewerPage() {
             if (historyError) throw historyError;
 
             setHasSubmittedProtocolAssessment(true);
-            await loadAssessmentForms();
+            await loadAssessmentForms(getActiveReviewWindowStart());
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -1032,14 +1209,11 @@ export default function ReviewerPage() {
             const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
             if (decisionError) throw decisionError;
 
-            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-            if (submissions.length > 1) {
-                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
-                setActiveSubmission(nextSubmission || null);
-            } else {
-                setActiveSubmission(null);
-            }
+            setReviewedProposalIds((prev) => {
+                const next = new Set(prev);
+                next.add(activeSubmission.proposal_id);
+                return next;
+            });
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -1094,7 +1268,7 @@ export default function ReviewerPage() {
             if (historyError) throw historyError;
 
             setHasSubmittedInformedConsent(true);
-            await loadAssessmentForms();
+            await loadAssessmentForms(getActiveReviewWindowStart());
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -1169,14 +1343,11 @@ export default function ReviewerPage() {
             const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
             if (decisionError) throw decisionError;
 
-            setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-            if (submissions.length > 1) {
-                const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
-                setActiveSubmission(nextSubmission || null);
-            } else {
-                setActiveSubmission(null);
-            }
+            setReviewedProposalIds((prev) => {
+                const next = new Set(prev);
+                next.add(activeSubmission.proposal_id);
+                return next;
+            });
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -1290,15 +1461,11 @@ export default function ReviewerPage() {
                 const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
                 if (decisionError) throw decisionError;
 
-                // Update local state - remove the processed submission
-                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-
-                if (submissions.length > 1) {
-                    const nextSubmission = submissions.find(s => s.proposal_id !== activeSubmission.proposal_id);
-                    setActiveSubmission(nextSubmission || null);
-                } else {
-                    setActiveSubmission(null);
-                }
+                setReviewedProposalIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(activeSubmission.proposal_id);
+                    return next;
+                });
 
                 toast.success(
                     `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,
@@ -1313,7 +1480,7 @@ export default function ReviewerPage() {
                 }
                 
                 // Reload assessment forms to update the list
-                await loadAssessmentForms();
+                await loadAssessmentForms(getActiveReviewWindowStart());
                 
                 toast.success('Assessment form submitted successfully', { id: loadingId });
             }
@@ -1340,7 +1507,7 @@ export default function ReviewerPage() {
                 <div>
                     <h1 className="text-xl sm:text-2xl font-semibold">Reviewer Dashboard</h1>
                     <p className="text-sm text-gray-500">
-                        {submissions.length}/3 Proposals Assigned
+                        {activeSubmissions.length}/3 Proposals Assigned
                         {isChairperson && (
                             <Badge variant="secondary" className="ml-2">
                                 <Crown className="w-3 h-3 mr-1" />
@@ -1349,6 +1516,16 @@ export default function ReviewerPage() {
                         )}
                     </p>
                 </div>
+                {archivedSubmissions.length > 0 && (
+                    <RippleButton
+                        variant="outline"
+                        onClick={() => setArchivedOpen(true)}
+                        className="flex items-center gap-2"
+                    >
+                        <Archive className="w-4 h-4" />
+                        Archived Proposals ({archivedSubmissions.length})
+                    </RippleButton>
+                )}
             </div>
 
             {/* submissions table */}
@@ -1382,7 +1559,7 @@ export default function ReviewerPage() {
                             ))
                         ) : (
                             Array.from({ length: 3 }).map((_, index) => {
-                                const submission = submissions[index];
+                                const submission = displayedSubmissions[index];
                                 const isReviewed = submission ? reviewedProposalIds.has(submission.proposal_id) : false;
                                 return submission ? (
                                     <TableRow
@@ -1516,7 +1693,7 @@ export default function ReviewerPage() {
                                 </div>
                             </div>
 
-                            <div className="w-full lg:w-64 flex-shrink-0">
+                            <div className="w-full lg:w-64 flex-shrink-0 space-y-2">
                                 <div className="flex items-center justify-between lg:block">
                                     <div className="text-xs lg:text-sm text-gray-500 uppercase tracking-wide">Status</div>
                                 </div>
@@ -1525,6 +1702,18 @@ export default function ReviewerPage() {
                                         <Check className="w-3 h-3" />
                                         <span className="truncate">Assigned for Review</span>
                                     </Badge>
+                                </div>
+                                <div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={archiveSubmission}
+                                        disabled={isActiveSubmissionArchived}
+                                        className="w-full justify-center"
+                                    >
+                                        <Archive className="w-4 h-4 mr-2" />
+                                        {isActiveSubmissionArchived ? "Archived" : "Archive"}
+                                    </Button>
                                 </div>
                                 {reviewerRoleLabel && (
                                     <div className="mt-2">
@@ -1621,7 +1810,7 @@ export default function ReviewerPage() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={loadAssessmentForms}
+                                        onClick={() => loadAssessmentForms(getActiveReviewWindowStart())}
                                         className="text-xs"
                                     >
                                         
@@ -2373,6 +2562,87 @@ export default function ReviewerPage() {
                     )}
                 </div>
             )}
+
+            <Dialog open={archivedOpen} onOpenChange={setArchivedOpen}>
+                <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Archive className="w-5 h-5" />
+                            Archived Proposals
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="rounded-md border overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="border">Protocol ID</TableHead>
+                                    <TableHead className="border">Title</TableHead>
+                                    <TableHead className="border">Category</TableHead>
+                                    <TableHead className="border">Review Type</TableHead>
+                                    <TableHead className="border">Date</TableHead>
+                                    <TableHead className="border text-center">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {archivedSubmissions.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="text-center text-gray-400 italic py-8">
+                                            No archived proposals
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    archivedSubmissions.map((submission) => (
+                                        <TableRow key={submission.proposal_id} className="hover:bg-gray-50/50">
+                                            <TableCell className="border">
+                                                <Badge variant="outline" className="font-mono text-xs">
+                                                    {getSubmissionProtocolCode(submission)}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                                    <span className="font-medium">{submission.proposal_title}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                <Badge variant="outline" className="text-xs">
+                                                    {submission.category}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="border">
+                                                {submission.review_type ? (
+                                                    <Badge variant="outline" className="text-xs">
+                                                        {submission.review_type}
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-gray-400">—</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="border text-gray-600">
+                                                {new Date(submission.date).toLocaleDateString()}
+                                            </TableCell>
+                                            <TableCell className="border text-center">
+                                                <RippleButton
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 px-2 text-gray-600 hover:text-primary"
+                                                    onClick={() => {
+                                                        setActiveSubmission(submission);
+                                                        setArchivedOpen(false);
+                                                    }}
+                                                >
+                                                    <Eye className="w-4 h-4 mr-1" />
+                                                    View
+                                                </RippleButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

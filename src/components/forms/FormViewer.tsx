@@ -20,6 +20,12 @@ import EthicsMOAForm from "./REC_FO_0036_Exempt";
 import EthicsStudyProgressReport from "./REC_FO_0019";
 import EthicsStudyProtocolNonComplianceReport from "./REC_FO_0020";
 
+export interface ProposalOption {
+  id: number;
+  title: string;
+  protocolCode?: string | null;
+}
+
 export interface FormProps {
   /** Proposal ID — used as localStorage key namespace */
   proposalId: number;
@@ -31,6 +37,12 @@ export interface FormProps {
   advisorName?: string;
   /** Proposal title */
   proposalTitle?: string;
+  /** Proposal options for dropdown selection */
+  proposalOptions?: ProposalOption[];
+  /** Selected proposal ID for dropdowns */
+  selectedProposalId?: number | null;
+  /** Callback when a proposal is selected in a form */
+  onSelectProposal?: (proposalId: number | null) => void;
   /** Type of review (e.g. "Full Board", "Expedited", "Exempt") */
   reviewType?: string | null;
   /** The document filename — used for storage path */

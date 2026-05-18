@@ -15,6 +15,9 @@ export default function EthicsStudyProgressReport({
   formName,
   savedData = {},
   onSave,
+  proposalOptions,
+  selectedProposalId,
+  onSelectProposal,
 }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
@@ -76,6 +79,9 @@ export default function EthicsStudyProgressReport({
   const [recChairSignature, setRecChairSignature] = useState<string>(s.recChairSignature ?? "");
   const [recChairName, setRecChairName] = useState<string>(s.recChairName ?? "");
 
+  const proposalChoices = proposalOptions ?? [];
+  const showProposalSelect = proposalOptions !== undefined;
+
   useEffect(() => {
     const patch: Record<string, any> = {};
     if (!s.titleOfStudy && proposalTitle) patch.titleOfStudy = proposalTitle;
@@ -102,6 +108,24 @@ export default function EthicsStudyProgressReport({
   const resizeTextarea = (el: HTMLTextAreaElement) => {
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+  };
+
+  const applyProposalSelection = (proposalIdValue: number | null) => {
+    onSelectProposal?.(proposalIdValue);
+    const selected = proposalChoices.find((proposal) => proposal.id === proposalIdValue);
+    if (!selected) return;
+
+    const code = selected.protocolCode ?? "";
+    setTitleOfStudy(selected.title);
+    setProtocolCodeValue(code);
+    setControlNo(code);
+    setStaffControlNo(code);
+    save({
+      titleOfStudy: selected.title,
+      protocolCodeValue: code,
+      controlNo: code,
+      staffControlNo: code,
+    });
   };
 
   useEffect(() => {
@@ -177,16 +201,33 @@ export default function EthicsStudyProgressReport({
             <tr>
               <td colSpan={4} style={fieldCell}>
                 <strong>*Title of Study</strong>
-                <textarea
-                  style={lineTextarea}
-                  value={titleOfStudy}
-                  onChange={(e) => {
-                    setTitleOfStudy(e.target.value);
-                    save({ titleOfStudy: e.target.value });
-                  }}
-                  onInput={autoExpand}
-                  rows={1}
-                />
+                {showProposalSelect ? (
+                  <select
+                    style={lineInput}
+                    value={selectedProposalId ?? ""}
+                    onChange={(e) => {
+                      const nextId = e.target.value ? Number(e.target.value) : null;
+                      applyProposalSelection(nextId);
+                    }}
+                    disabled={proposalChoices.length === 0}
+                  >
+                    <option value="">
+                      {proposalChoices.length === 0 ? "No proposals available" : "Choose a proposal..."}
+                    </option>
+                    {proposalChoices.map((proposal) => (
+                      <option key={proposal.id} value={proposal.id}>
+                        {proposal.title}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <textarea
+                    style={lineTextarea}
+                    value={titleOfStudy}
+                    readOnly
+                    rows={1}
+                  />
+                )}
               </td>
             </tr>
             <tr>

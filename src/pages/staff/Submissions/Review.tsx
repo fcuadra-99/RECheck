@@ -10,7 +10,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   FileText,
   User,
@@ -27,8 +26,6 @@ import {
   X as CloseIcon,
   Crown,
   FileCheck,
-  Columns2,
-  RefreshCw,
 } from "lucide-react";
 import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
 import FormViewer from "@/components/forms/FormViewer";
@@ -119,10 +116,6 @@ function statm(params: Status) {
 export const SReview = () => {
   const [activePreview, setActivePreview] = React.useState<"manuscript" | "forms" | "revision" | null>(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
-  const [isSplitScreen, setIsSplitScreen] = React.useState(false);
-  const [splitScreenDoc, setSplitScreenDoc] = React.useState<string>("");
-  const [splitScreenURL, setSplitScreenURL] = React.useState<string>("");
-  const [splitScreenInteractiveForm, setSplitScreenInteractiveForm] = React.useState<string | null>(null);
   const navigate = useNavigate();
 
   isFullscreen
@@ -162,7 +155,6 @@ export const SReview = () => {
   const [showRiskAssessmentForm, setShowRiskAssessmentForm] = React.useState(false);
   const [riskAssessmentCompleted, setRiskAssessmentCompleted] = React.useState(false);
   const [riskAssessmentAnswers, setRiskAssessmentAnswers] = React.useState<Record<string, string>>({});
-  const [isRefreshing, setIsRefreshing] = React.useState(false);
 
   riskAssessmentAnswers;
 
@@ -481,41 +473,6 @@ export const SReview = () => {
     };
 
     fetchDocs();
-
-    // Set up real-time subscription for proposal changes
-    const channel = supabase
-      .channel(`proposal-${id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'proposals',
-          filter: `proposal_id=eq.${id}`
-        },
-        () => {
-          // Refetch documents when proposal changes
-          fetchDocs();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'form_data',
-          filter: `proposal_id=eq.${id}`
-        },
-        () => {
-          // Refetch when form data changes
-          fetchDocs();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [id, status]);
 
   React.useEffect(() => {
@@ -523,45 +480,6 @@ export const SReview = () => {
       fetchDoc();
     }
   }, [selectedDoc, activePreview]);
-
-  React.useEffect(() => {
-    if (splitScreenDoc && isSplitScreen) {
-      fetchSplitScreenDoc();
-    }
-  }, [splitScreenDoc, isSplitScreen]);
-
-  async function fetchSplitScreenDoc() {
-    if (!splitScreenDoc || !activePreview) return;
-
-    let phase = "";
-    if (activePreview === "manuscript") {
-      phase = "Send Manuscript";
-    } else if (activePreview === "forms") {
-      phase = "Send Forms";
-    } else if (activePreview === "revision") {
-      phase = "Send Revision";
-    }
-
-    const path = `${id}/${phase}/${splitScreenDoc}`;
-
-    setSplitScreenURL(""); // Show skeleton while loading
-    try {
-      const { data, error } = await supabase.storage
-        .from("documents")
-        .createSignedUrl(path, 60);
-
-      if (error || !data?.signedUrl) {
-        toast.error("Failed to load split screen document");
-        setSplitScreenURL(""); // Document does not exist
-        return;
-      }
-
-      setSplitScreenURL(data.signedUrl);
-    } catch (err) {
-      toast.error("Failed to load split screen document");
-      setSplitScreenURL("");
-    }
-  }
 
   async function fetchDoc() {
     if (!selectedDoc || !activePreview) return;
@@ -626,78 +544,6 @@ export const SReview = () => {
   // Start risk assessment process
   const handleStartRiskAssessment = () => {
     setShowRiskAssessmentForm(true);
-  };
-
-  // Manual refresh function
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      // Refetch all data
-      await Promise.all([
-        fetchReviewComments(),
-        checkRiskAssessmentCompletion(),
-        type === "Assign" && fetchProposalData(),
-        type === "Assign" && fetchReviewers(),
-      ]);
-      
-      // Trigger document refetch by updating a dependency
-      const manuscriptPhase = "Send Manuscript";
-      const formsPhase = "Send Forms";
-      const revisionPhase = "Send Revision";
-
-      const { data: manuList } = await supabase.storage
-        .from("documents")
-        .list(`${id}/${manuscriptPhase}`);
-      
-      const validManuFiles = manuList?.filter(f =>
-        !f.name.startsWith('.') &&
-        !f.name.includes('emptyfolderplaceholder')
-      ) || [];
-      
-      setManuscriptDocs(
-        validManuFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
-      );
-
-      const { data: formsList } = await supabase.storage
-        .from("documents")
-        .list(`${id}/${formsPhase}`);
-      
-      const validFormsFiles = formsList?.filter(f =>
-        !f.name.startsWith('.') &&
-        !f.name.includes('emptyfolderplaceholder')
-      ) || [];
-      
-      setFormsDocs(
-        validFormsFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
-      );
-
-      const { data: formDataRows } = await supabase
-        .from("form_data")
-        .select("form_name")
-        .eq("proposal_id", parseInt(id));
-      setInteractiveForms((formDataRows || []).map((r: any) => r.form_name));
-
-      if (status === "Check Revision") {
-        const { data: revisionList } = await supabase.storage
-          .from("documents")
-          .list(`${id}/${revisionPhase}`);
-        
-        const validRevisionFiles = revisionList?.filter(f =>
-          !f.name.startsWith('.') &&
-          !f.name.includes('emptyfolderplaceholder')
-        ) || [];
-        
-        setRevisionDocs(
-          validRevisionFiles.map((f) => ({ name: f.name.replace(".pdf", ""), file: f.name }))
-        );
-      }
-
-      toast.success("Data refreshed successfully");
-    } catch (error: any) {
-      toast.error("Failed to refresh: " + error.message);
-    } finally {
-      setIsRefreshing(false);
-    }
   };
 
   async function handleSubmit() {
@@ -970,268 +816,119 @@ export const SReview = () => {
     const currentDocs = getCurrentDocs();
 
     return (
-      <div className="fixed inset-0 z-50 flex flex-col bg-white">
-        {/* Top Bar - Always visible */}
-        <div className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0">
-          <div className="flex items-center gap-3">
+      <div className="fixed inset-0 z-50 flex bg-white">
+        {/* Sidebar - File List */}
+        <div className="w-72 bg-gray-50 border-r flex flex-col flex-shrink-0">
+          {/* Sidebar Header */}
+          <div className="p-4 border-b bg-white">
             <h2 className="text-base font-semibold">{getPreviewTitle()}</h2>
+            <p className="text-xs text-gray-500 mt-1">Select a document to view</p>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleClosePreview}
-            className="flex items-center gap-2"
-          >
-            <CloseIcon className="h-4 w-4" />
-            Close
-          </Button>
+
+          {/* File List */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {currentDocs.map((doc) => (
+              <Button
+                key={doc.file}
+                variant={selectedDoc === doc.file ? "default" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDoc(doc.file);
+                  setActiveInteractiveForm(null);
+                }}
+                className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="h-4 w-4 flex-shrink-0" />
+                  <span className="text-sm truncate text-ellipsis">{doc.name}</span>
+                </div>
+              </Button>
+            ))}
+            {activePreview === "forms" && interactiveForms.map((formName) => (
+              <Button
+                key={formName}
+                variant={activeInteractiveForm === formName ? "default" : "outline"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveInteractiveForm(formName);
+                  setSelectedDoc("");
+                  setDocURL("");
+                }}
+                className="w-full justify-start text-left h-auto py-3 px-4 overflow-hidden text-ellipsis"
+              >
+                <div className="flex items-center gap-3">
+                  <FileCheck className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                  <span className="text-sm truncate text-ellipsis">{formName.replace(".pdf", "")}</span>
+                </div>
+              </Button>
+            ))}
+            {currentDocs.length === 0 && interactiveForms.length === 0 && (
+              <div className="text-center text-gray-500 py-8">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No documents available</p>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar - File List */}
-          <div className="w-72 bg-gray-50 border-r flex flex-col flex-shrink-0">
-            <div className="p-4 border-b bg-white">
-              <p className="text-xs text-gray-500">Select documents to view</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-              {currentDocs.map((doc) => (
-                <div
-                  key={doc.file}
-                  className={`group relative rounded-lg border transition-all ${
-                    selectedDoc === doc.file
-                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                      : splitScreenDoc === doc.file
-                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setSelectedDoc(doc.file);
-                      setActiveInteractiveForm(null);
-                    }}
-                    className="w-full justify-start text-left h-auto py-3 px-4 hover:bg-transparent"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 flex-shrink-0" />
-                      <span className="text-sm truncate flex-1">{doc.name}</span>
-                    </div>
-                  </Button>
-                  
-                  {/* Split Screen Button - Only show during Risk Assessment */}
-                  {status === "Risk Assessment" && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (splitScreenDoc === doc.file) {
-                                // Close split screen if clicking on the same document
-                                setSplitScreenDoc("");
-                                setSplitScreenURL("");
-                                setIsSplitScreen(false);
-                              } else {
-                                // Open in split screen
-                                setSplitScreenDoc(doc.file);
-                                setSplitScreenInteractiveForm(null);
-                                setIsSplitScreen(true);
-                              }
-                            }}
-                            className={`absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 transition-opacity ${
-                              splitScreenDoc === doc.file 
-                                ? "opacity-100 bg-blue-100 hover:bg-blue-200" 
-                                : "opacity-0 group-hover:opacity-100"
-                            }`}
-                          >
-                            {splitScreenDoc === doc.file ? (
-                              <X className="h-3 w-3" />
-                            ) : (
-                              <Columns2 className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          <p>{splitScreenDoc === doc.file ? "Close split screen" : "Open in split screen"}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              ))}
-              
-              {activePreview === "forms" && interactiveForms.map((formName) => (
-                <div
-                  key={formName}
-                  className={`group relative rounded-lg border transition-all ${
-                    activeInteractiveForm === formName
-                      ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                      : splitScreenInteractiveForm === formName
-                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                      : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                  }`}
-                >
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setActiveInteractiveForm(formName);
-                      setSelectedDoc("");
-                      setDocURL("");
-                    }}
-                    className="w-full justify-start text-left h-auto py-3 px-4 hover:bg-transparent"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileCheck className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                      <span className="text-sm truncate flex-1">{formName.replace(".pdf", "")}</span>
-                    </div>
-                  </Button>
-                  
-                  {/* Split Screen Button */}
-                  {status === "Risk Assessment" && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (splitScreenInteractiveForm === formName) {
-                                // Close split screen if clicking on the same form
-                                setSplitScreenInteractiveForm(null);
-                                setIsSplitScreen(false);
-                              } else {
-                                // Open in split screen
-                                setSplitScreenInteractiveForm(formName);
-                                setSplitScreenDoc("");
-                                setSplitScreenURL("");
-                                setIsSplitScreen(true);
-                              }
-                            }}
-                            className={`absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 transition-opacity ${
-                              splitScreenInteractiveForm === formName 
-                                ? "opacity-100 bg-blue-100 hover:bg-blue-200" 
-                                : "opacity-0 group-hover:opacity-100"
-                            }`}
-                          >
-                            {splitScreenInteractiveForm === formName ? (
-                              <X className="h-3 w-3" />
-                            ) : (
-                              <Columns2 className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="left">
-                          <p>{splitScreenInteractiveForm === formName ? "Close split screen" : "Open in split screen"}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              ))}
-              
-              {currentDocs.length === 0 && interactiveForms.length === 0 && (
-                <div className="text-center text-gray-500 py-8">
-                  <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No documents available</p>
-                </div>
-              )}
-            </div>
+        {/* Main Content - Document Preview */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b bg-white flex-shrink-0">
+            <h3 className="text-sm font-semibold truncate">
+              {activeInteractiveForm ? activeInteractiveForm.replace('.pdf', '') : selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClosePreview}
+              className="flex items-center gap-2 flex-shrink-0 ml-2"
+            >
+              <CloseIcon className="h-4 w-4" />
+              Close
+            </Button>
           </div>
 
-          {/* Document Preview Area */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Left Panel / Main Panel */}
-            <div className={`${isSplitScreen ? 'w-1/2 border-r' : 'w-full'} flex flex-col`}>
-              <div className="p-3 border-b bg-white">
-                <h3 className="text-sm font-semibold truncate">
-                  {activeInteractiveForm ? activeInteractiveForm.replace('.pdf', '') : selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
-                </h3>
+          {/* Document Content */}
+          <div className="flex-1 overflow-auto bg-gray-100 relative">
+            {activeInteractiveForm ? (
+              <div className="min-h-full flex flex-col">
+                <FormViewer
+                  key={`${id}-${activeInteractiveForm}`}
+                  documentName={activeInteractiveForm}
+                  proposalId={parseInt(id)}
+                  readOnly={true}
+                  onDone={() => setActiveInteractiveForm(null)}
+                />
               </div>
-              <div className="flex-1 overflow-auto bg-gray-100">
-                {activeInteractiveForm ? (
-                  <div className="h-full">
-                    <FormViewer
-                      key={`${id}-${activeInteractiveForm}`}
-                      documentName={activeInteractiveForm}
-                      proposalId={parseInt(id)}
-                      readOnly={true}
-                      onDone={() => setActiveInteractiveForm(null)}
-                    />
-                  </div>
-                ) : !selectedDoc ? (
-                  <div className="flex items-center justify-center h-full text-gray-400">
-                    <div className="text-center">
-                      <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <p className="text-sm">Select a document from the sidebar</p>
-                    </div>
-                  </div>
-                ) : docURL === null ? (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <p className="text-lg">Document does not exist.</p>
-                    </div>
-                  </div>
-                ) : !docURL ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Skeleton className="w-64 h-8 mx-auto mb-4" />
-                    <Skeleton className="w-full h-96 max-w-2xl mx-auto" />
-                  </div>
-                ) : (
-                  <iframe
-                    src={docURL}
-                    className="w-full h-full border-0"
-                    title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Right Panel - Only in Split Screen Mode */}
-            {isSplitScreen && (
-              <div className="w-1/2 flex flex-col">
-                <div className="p-3 border-b bg-white">
-                  <h4 className="text-sm font-semibold truncate">
-                    {splitScreenInteractiveForm ? splitScreenInteractiveForm.replace('.pdf', '') : splitScreenDoc ? splitScreenDoc.replace('.pdf', '') : 'Split Screen'}
-                  </h4>
-                </div>
-                <div className="flex-1 overflow-auto bg-gray-50">
-                  {splitScreenInteractiveForm ? (
-                    <div className="h-full">
-                      <FormViewer
-                        key={`split-${id}-${splitScreenInteractiveForm}`}
-                        documentName={splitScreenInteractiveForm}
-                        proposalId={parseInt(id)}
-                        readOnly={true}
-                        onDone={() => setSplitScreenInteractiveForm(null)}
-                      />
-                    </div>
-                  ) : !splitScreenDoc ? (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      <div className="text-center">
-                        <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                        <p className="text-xs">Hover over a document and click "Split"</p>
-                      </div>
-                    </div>
-                  ) : !splitScreenURL ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Skeleton className="w-full h-full" />
-                    </div>
-                  ) : (
-                    <iframe
-                      src={splitScreenURL}
-                      className="w-full h-full border-0"
-                      title={splitScreenDoc?.replace('.pdf', '') || "Split Screen Document Viewer"}
-                    />
-                  )}
+            ) : !selectedDoc ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-sm">Select a document from the sidebar</p>
                 </div>
               </div>
+            ) : docURL === null ? (
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="text-center">
+                  <FileText className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-lg">Document does not exist.</p>
+                  <p className="text-sm text-gray-400 mt-2">The requested document could not be found.</p>
+                </div>
+              </div>
+            ) : !docURL ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center w-full px-8">
+                  <Skeleton className="w-64 h-8 mx-auto mb-4" />
+                  <Skeleton className="w-full h-96 max-w-2xl mx-auto" />
+                </div>
+              </div>
+            ) : (
+              <iframe
+                src={docURL}
+                className="w-full h-full border-0"
+                title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
+              />
             )}
           </div>
         </div>
@@ -1257,198 +954,25 @@ export const SReview = () => {
   if (showRiskAssessmentForm) {
     return (
       <div className="fixed inset-0 bg-background z-50 flex flex-col">
-        {/* Top Bar - Always visible */}
-        <div className="flex items-center justify-between p-4 border-b bg-white flex-shrink-0">
+        <div className="flex items-center justify-between p-4 border-b">
           <div className="font-semibold text-lg">Risk Assessment Form</div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={isSplitScreen ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setIsSplitScreen(!isSplitScreen);
-                if (!isSplitScreen) {
-                  setActivePreview("manuscript");
-                  setSelectedDoc("");
-                  setDocURL("");
-                }
-              }}
-              className="flex items-center gap-2"
-            >
-              <FileText className="h-4 w-4" />
-              {isSplitScreen ? "Hide Documents" : "View Documents"}
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setShowRiskAssessmentForm(false);
-                setIsSplitScreen(false);
-              }}
-              className="flex items-center gap-2"
-            >
-              <X className="h-4 w-4" />
-              Close
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setShowRiskAssessmentForm(false);
+            }}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
-
-        {/* Content Area - Split Screen or Full */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Risk Assessment Form */}
-          <div className={`${isSplitScreen ? 'w-1/2' : 'w-full'} flex flex-col border-r`}>
-            <div className="flex-1 relative overflow-auto">
-              <PdfFormViewer
-                document="risk_assessment_form.pdf"
-                onAnswersSubmit={handleRiskAssessmentComplete}
-                proposalId={parseInt(id)}
-                status="Risk Assessment"
-              />
-            </div>
-          </div>
-
-          {/* Document Viewer Panel - Only shown when split screen is enabled */}
-          {isSplitScreen && (
-            <div className="w-1/2 flex">
-              {/* Sidebar - File List */}
-              <div className="w-64 bg-gray-50 border-r flex flex-col flex-shrink-0">
-                <div className="p-4 border-b bg-white">
-                  <h2 className="text-sm font-semibold">Documents</h2>
-                  <p className="text-xs text-gray-500 mt-1">Select to view</p>
-                </div>
-
-                {/* Document Type Tabs */}
-                <div className="p-2 border-b bg-white">
-                  <div className="flex gap-1">
-                    <Button
-                      variant={activePreview === "manuscript" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => {
-                        setActivePreview("manuscript");
-                        setSelectedDoc("");
-                        setDocURL("");
-                        setActiveInteractiveForm(null);
-                      }}
-                      className="flex-1 text-xs"
-                    >
-                      Manuscript
-                    </Button>
-                    <Button
-                      variant={activePreview === "forms" ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => {
-                        setActivePreview("forms");
-                        setSelectedDoc("");
-                        setDocURL("");
-                        setActiveInteractiveForm(null);
-                      }}
-                      className="flex-1 text-xs"
-                    >
-                      Forms
-                    </Button>
-                  </div>
-                </div>
-
-                {/* File List */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                  {activePreview === "manuscript" && manuscriptDocs.map((doc) => (
-                    <Button
-                      key={doc.file}
-                      variant={selectedDoc === doc.file ? "default" : "outline"}
-                      onClick={() => {
-                        setSelectedDoc(doc.file);
-                        setActiveInteractiveForm(null);
-                      }}
-                      className="w-full justify-start text-left h-auto py-2 px-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-3 w-3 flex-shrink-0" />
-                        <span className="text-xs truncate">{doc.name}</span>
-                      </div>
-                    </Button>
-                  ))}
-                  {activePreview === "forms" && formsDocs.map((doc) => (
-                    <Button
-                      key={doc.file}
-                      variant={selectedDoc === doc.file ? "default" : "outline"}
-                      onClick={() => {
-                        setSelectedDoc(doc.file);
-                        setActiveInteractiveForm(null);
-                      }}
-                      className="w-full justify-start text-left h-auto py-2 px-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-3 w-3 flex-shrink-0" />
-                        <span className="text-xs truncate">{doc.name}</span>
-                      </div>
-                    </Button>
-                  ))}
-                  {activePreview === "forms" && interactiveForms.map((formName) => (
-                    <Button
-                      key={formName}
-                      variant={activeInteractiveForm === formName ? "default" : "outline"}
-                      onClick={() => {
-                        setActiveInteractiveForm(formName);
-                        setSelectedDoc("");
-                        setDocURL("");
-                      }}
-                      className="w-full justify-start text-left h-auto py-2 px-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FileCheck className="h-3 w-3 flex-shrink-0 text-blue-500" />
-                        <span className="text-xs truncate">{formName.replace(".pdf", "")}</span>
-                      </div>
-                    </Button>
-                  ))}
-                  {((activePreview === "manuscript" && manuscriptDocs.length === 0) ||
-                    (activePreview === "forms" && formsDocs.length === 0 && interactiveForms.length === 0)) && (
-                    <div className="text-center text-gray-500 py-8">
-                      <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-xs">No documents</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Document Preview */}
-              <div className="flex-1 flex flex-col min-w-0 bg-gray-100">
-                <div className="p-2 border-b bg-white">
-                  <h3 className="text-xs font-semibold truncate">
-                    {activeInteractiveForm ? activeInteractiveForm.replace('.pdf', '') : selectedDoc ? selectedDoc.replace('.pdf', '') : 'Select a document'}
-                  </h3>
-                </div>
-                <div className="flex-1 overflow-auto">
-                  {activeInteractiveForm ? (
-                    <div className="h-full">
-                      <FormViewer
-                        key={`risk-${id}-${activeInteractiveForm}`}
-                        documentName={activeInteractiveForm}
-                        proposalId={parseInt(id)}
-                        readOnly={true}
-                        onDone={() => setActiveInteractiveForm(null)}
-                      />
-                    </div>
-                  ) : !selectedDoc ? (
-                    <div className="flex items-center justify-center h-full text-gray-400">
-                      <div className="text-center">
-                        <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                        <p className="text-xs">Select a document</p>
-                      </div>
-                    </div>
-                  ) : !docURL ? (
-                    <div className="flex items-center justify-center h-full">
-                      <Skeleton className="w-full h-full" />
-                    </div>
-                  ) : (
-                    <iframe
-                      src={docURL}
-                      className="w-full h-full border-0"
-                      title={selectedDoc?.replace('.pdf', '') || "Document Viewer"}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+        <div className="flex-1 relative">
+          <PdfFormViewer
+            document="risk_assessment_form.pdf" // Replace with your actual risk assessment form name
+            onAnswersSubmit={handleRiskAssessmentComplete}
+            proposalId={parseInt(id)}
+            status="Risk Assessment"
+          />
         </div>
       </div>
     );
@@ -1470,10 +994,10 @@ export const SReview = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <FileText className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-            <div className="min-w-0 flex-1">
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <div>
               <div className="text-xs text-muted-foreground">Proposal Title</div>
-              <div className="text-sm font-medium truncate" title={title}>{title}</div>
+              <div className="text-sm font-medium">{title}</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1537,21 +1061,9 @@ export const SReview = () => {
 
       {/* Review Documents */}
       <section className="bg-white p-6 rounded-lg shadow-md border mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold flex items-center gap-2">
-            <FileText className="text-primary w-5 h-5" /> Review Documents
-          </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </div>
+        <h2 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <FileText className="text-primary w-5 h-5" /> Review Documents
+        </h2>
 
         {/* Manuscript */}
         <div className="flex justify-between items-center py-3 border-b">
