@@ -41,6 +41,7 @@ interface TemplateSubmission {
   signature_image?: string;
   metadata?: {
     assignedReviewerIds?: string[];
+    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
     assignedByName?: string;
     assignedAt?: string;
     reviewerSubmissions?: Record<string, {
@@ -53,6 +54,8 @@ interface TemplateSubmission {
     }>;
   };
 }
+
+type ReviewerRole = 'primary_1' | 'primary_2';
 
 export default function TemplateSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -71,7 +74,11 @@ export default function TemplateSubmissionDetail() {
   const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
   const [reviewers, setReviewers] = useState<ReviewerProfile[]>([]);
   const [selectedReviewerIds, setSelectedReviewerIds] = useState<string[]>([]);
+  const [selectedReviewerRoles, setSelectedReviewerRoles] = useState<Record<string, ReviewerRole>>({});
   const [assigningReviewers, setAssigningReviewers] = useState(false);
+  const [terminationInfo, setTerminationInfo] = useState<{ protocolCode: string; proposalTitle: string } | null>(null);
+  const [terminationInfoLoading, setTerminationInfoLoading] = useState(false);
+  const [terminatingProposal, setTerminatingProposal] = useState(false);
   
   // Get template ID for loading predefined fields
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
@@ -79,6 +86,7 @@ export default function TemplateSubmissionDetail() {
     template?.id &&
       ['progress-report', 'new-event-report', 'non-compliance-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
   );
+  const isEarlyTerminationTemplate = template?.id === 'early-termination';
   const isStaffInputSubmitted = Boolean(
     submission?.original_filename?.toLowerCase().includes('_reviewed.') ||
       submission?.status === 'approved' ||
@@ -92,6 +100,39 @@ export default function TemplateSubmissionDetail() {
     fetchSubmission();
     fetchReviewers();
   }, [id]);
+
+  const loadTerminationInfo = async () => {
+    if (!submission) return null;
+    if (terminationInfo) return terminationInfo;
+
+    try {
+      setTerminationInfoLoading(true);
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      const protocolCode = String(
+        parsed?.controlNo || parsed?.staffControlNo || parsed?.protocolCodeValue || parsed?.protocolCode || ''
+      ).trim();
+      const proposalTitle = String(parsed?.studyProtocolTitle || parsed?.titleOfStudy || '').trim();
+
+      if (!protocolCode || !proposalTitle) {
+        throw new Error('Missing protocol code or study protocol title in the submitted form.');
+      }
+
+      const info = { protocolCode, proposalTitle };
+      setTerminationInfo(info);
+      return info;
+    } catch (error) {
+      console.error('Error loading termination info:', error);
+      return null;
+    } finally {
+      setTerminationInfoLoading(false);
+    }
+  };
 
   const fetchReviewers = async () => {
     const templateService = new TemplateSubmissionService();
@@ -158,7 +199,8 @@ export default function TemplateSubmissionDetail() {
         };
 
         setSubmission(transformedSubmission);
-        setSelectedReviewerIds((data.metadata?.assignedReviewerIds || []).slice(0, 2));
+        setSelectedReviewerIds((data.metadata?.assignedReviewerIds || []).slice(0, 4));
+        setSelectedReviewerRoles((data.metadata?.assignedReviewerRoles || {}) as Record<string, ReviewerRole>);
       }
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -221,6 +263,11 @@ export default function TemplateSubmissionDetail() {
   const toggleReviewerSelection = (reviewerId: string) => {
     setSelectedReviewerIds((prev) => {
       if (prev.includes(reviewerId)) {
+        setSelectedReviewerRoles((roles) => {
+          const next = { ...roles };
+          delete next[reviewerId];
+          return next;
+        });
         return prev.filter((id) => id !== reviewerId);
       }
 
@@ -232,6 +279,29 @@ export default function TemplateSubmissionDetail() {
     });
   };
 
+  const updateReviewerRole = (reviewerId: string, role: ReviewerRole | '') => {
+    setSelectedReviewerRoles((prev) => {
+      const next = { ...prev };
+      if (!role) {
+        delete next[reviewerId];
+      } else {
+        next[reviewerId] = role;
+      }
+      return next;
+    });
+  };
+
+  const getReviewerRoleLabel = (role?: ReviewerRole) => {
+    if (role === 'primary_1') return 'Primary Reviewer 1';
+    if (role === 'primary_2') return 'Primary Reviewer 2';
+    return 'Unassigned';
+  };
+
+  const getReviewerName = (reviewerId: string) => {
+    const reviewer = reviewers.find((item) => item.id === reviewerId);
+    return reviewer?.name || reviewerId;
+  };
+
   const handleAssignReviewers = async () => {
     if (!submission) return;
 
@@ -240,10 +310,25 @@ export default function TemplateSubmissionDetail() {
       return;
     }
 
+    const activeRoles = selectedReviewerIds
+      .map((id) => selectedReviewerRoles[id])
+      .filter(Boolean) as ReviewerRole[];
+    const uniqueRoles = new Set(activeRoles);
+    if (activeRoles.length !== uniqueRoles.size) {
+      alert('Primary Reviewer roles must be unique.');
+      return;
+    }
+
+    const rolesForSelected = Object.fromEntries(
+      selectedReviewerIds
+        .filter((id) => selectedReviewerRoles[id])
+        .map((id) => [id, selectedReviewerRoles[id]])
+    ) as Record<string, ReviewerRole>;
+
     try {
       setAssigningReviewers(true);
       const templateService = new TemplateSubmissionService();
-      const result = await templateService.assignReviewers(submission.id, selectedReviewerIds);
+      const result = await templateService.assignReviewers(submission.id, selectedReviewerIds, rolesForSelected);
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to assign reviewers');
@@ -400,6 +485,52 @@ export default function TemplateSubmissionDetail() {
     if (!showCustomFormView || !autoOpenView || !id) return;
     navigate(`/chairperson/template-submissions/${id}`, { replace: true });
   }, [showCustomFormView, autoOpenView, id, navigate]);
+
+  useEffect(() => {
+    if (!submission || !isEarlyTerminationTemplate || submission.status !== 'approved') return;
+    if (terminationInfoLoading || terminationInfo) return;
+    loadTerminationInfo();
+  }, [submission, isEarlyTerminationTemplate, terminationInfoLoading, terminationInfo]);
+
+  const handleTerminateProposal = async () => {
+    if (!submission) return;
+
+    const info = terminationInfo || (await loadTerminationInfo());
+    if (!info) {
+      alert('Unable to locate protocol code or proposal title from the submitted form.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Terminate the proposal with Protocol ${info.protocolCode} and title "${info.proposalTitle}"? This will archive the proposal.`
+    );
+    if (!confirmed) return;
+
+    try {
+      setTerminatingProposal(true);
+      const templateService = new TemplateSubmissionService();
+      const result = await templateService.terminateProposalForEarlyTermination({
+        submissionId: submission.id,
+        protocolCode: info.protocolCode,
+        proposalTitle: info.proposalTitle
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to terminate proposal');
+      }
+
+      const updatedCount = result.updatedCount ?? 0;
+      const alreadyArchivedCount = result.alreadyArchivedCount ?? 0;
+      alert(
+        `Termination complete. Updated ${updatedCount} proposal(s). Already archived: ${alreadyArchivedCount}.`
+      );
+    } catch (error) {
+      console.error('Error terminating proposal:', error);
+      alert(`Failed to terminate proposal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setTerminatingProposal(false);
+    }
+  };
 
   const handleSaveCustomForm = async () => {
     if (!submission) return;
@@ -814,6 +945,19 @@ export default function TemplateSubmissionDetail() {
                         <span className="block text-xs text-gray-500">
                           {reviewer.email}{reviewer.role ? ` • ${reviewer.role}` : ''}
                         </span>
+                        {selectedReviewerIds.includes(reviewer.id) && (
+                          <span className="mt-1 block">
+                            <select
+                              value={selectedReviewerRoles[reviewer.id] || ''}
+                              onChange={(e) => updateReviewerRole(reviewer.id, e.target.value as ReviewerRole | '')}
+                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500"
+                            >
+                              <option value="">Select role</option>
+                              <option value="primary_1">Primary Reviewer 1</option>
+                              <option value="primary_2">Primary Reviewer 2</option>
+                            </select>
+                          </span>
+                        )}
                       </span>
                     </label>
                   ))
@@ -832,12 +976,51 @@ export default function TemplateSubmissionDetail() {
                   <p className="text-xs text-indigo-900 font-medium">
                     Assigned: {submission.metadata.assignedReviewerIds.length} reviewer{submission.metadata.assignedReviewerIds.length > 1 ? 's' : ''}
                   </p>
+                  {submission.metadata?.assignedReviewerRoles && Object.keys(submission.metadata.assignedReviewerRoles).length > 0 && (
+                    <div className="mt-1 text-xs text-indigo-700">
+                      {submission.metadata.assignedReviewerIds.map((reviewerId) => (
+                        <div key={reviewerId}>
+                          {getReviewerName(reviewerId)}: {getReviewerRoleLabel(submission.metadata?.assignedReviewerRoles?.[reviewerId])}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {submission.metadata.assignedAt && (
                     <p className="text-xs text-indigo-700">{formatDate(submission.metadata.assignedAt)}</p>
                   )}
                 </div>
               )}
             </div>
+
+            {isEarlyTerminationTemplate && submission.status === 'approved' && (
+              <div className="bg-white rounded-lg border border-gray-200 p-5">
+                <h4 className="text-base font-medium text-gray-900 mb-2">Terminate Proposal</h4>
+                <p className="text-xs text-gray-600">
+                  This archives the proposal that matches the protocol code and title from the approved termination form.
+                </p>
+                <div className="mt-3 text-xs text-gray-700 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Protocol Code</span>
+                    <span className="font-mono">
+                      {terminationInfoLoading ? 'Loading...' : terminationInfo?.protocolCode || 'Unavailable'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">Proposal Title</span>
+                    <span className="text-right max-w-[190px] truncate">
+                      {terminationInfoLoading ? 'Loading...' : terminationInfo?.proposalTitle || 'Unavailable'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleTerminateProposal}
+                  disabled={terminationInfoLoading || terminatingProposal}
+                  className="mt-4 w-full px-4 py-2 rounded text-white bg-red-600 hover:bg-red-700 disabled:bg-red-300 transition"
+                >
+                  {terminatingProposal ? 'Terminating...' : 'Terminate Proposal'}
+                </button>
+              </div>
+            )}
 
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               {submission.status === 'pending' || submission.status === 'under_review' || submission.status === 'in_review' ? (

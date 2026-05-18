@@ -89,6 +89,14 @@ export default function ReviewerTemplateSubmissions() {
     return Boolean(reviewerSubmissions[reviewerId]);
   };
 
+  const getAssignedRoleLabel = (submission: TemplateSubmission) => {
+    if (!reviewerId) return '-';
+    const role = (submission.metadata as any)?.assignedReviewerRoles?.[reviewerId] as string | undefined;
+    if (role === 'primary_1') return 'Primary Reviewer 1';
+    if (role === 'primary_2') return 'Primary Reviewer 2';
+    return '-';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -130,6 +138,7 @@ export default function ReviewerTemplateSubmissions() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Researcher</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">My Update</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                 </tr>
@@ -137,11 +146,11 @@ export default function ReviewerTemplateSubmissions() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-gray-500">Loading assigned forms...</td>
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-500">Loading assigned forms...</td>
                   </tr>
                 ) : filteredSubmissions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={7} className="px-6 py-12 text-center">
                       <FileText className="mx-auto h-12 w-12 text-gray-400" />
                       <h3 className="mt-2 text-sm font-medium text-gray-900">No assigned forms yet</h3>
                       <p className="mt-1 text-sm text-gray-500">Forms assigned by chairperson will appear here.</p>
@@ -167,6 +176,9 @@ export default function ReviewerTemplateSubmissions() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(submission.status)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                        {getAssignedRoleLabel(submission)}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {hasReviewerSubmitted(submission) ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border bg-green-100 text-green-800 border-green-200">

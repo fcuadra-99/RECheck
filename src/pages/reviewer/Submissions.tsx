@@ -116,6 +116,7 @@ export default function ReviewerPage() {
     const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
     const [assessmentPreviewTitle, setAssessmentPreviewTitle] = useState<string>("");
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
+    const [printAssessmentOnOpen, setPrintAssessmentOnOpen] = useState(false);
     const [archivedOpen, setArchivedOpen] = useState(false);
 
     // PDF template states
@@ -791,6 +792,76 @@ export default function ReviewerPage() {
         }
     };
 
+    const handleDownloadAssessmentForm = async (url: string, filename: string) => {
+        const lowerName = filename.toLowerCase();
+        const isReviewerAssessment = lowerName.includes('reviewer_assessment');
+        const isInformedConsent = lowerName.includes('informed_consent_assessment');
+        const isAssessmentJson = lowerName.endsWith('.json') && (isReviewerAssessment || isInformedConsent);
+
+        if (!isAssessmentJson) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+                }
+
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename || 'download';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(link.href);
+            } catch (error) {
+                console.error('Error downloading assessment form:', error);
+                toast.error('Failed to download assessment form');
+            }
+            return;
+        }
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+
+            const text = await response.text();
+            const parsed = JSON.parse(text);
+            if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
+
+            setAssessmentPreviewData(parsed);
+            setAssessmentPreviewTitle(filename);
+            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setPrintAssessmentOnOpen(true);
+            setShowAssessmentPreview(true);
+        } catch (error) {
+            console.error('Error preparing assessment download:', error);
+            toast.error('Failed to download assessment form');
+        }
+    };
+
+    useEffect(() => {
+        if (!showAssessmentPreview || !printAssessmentOnOpen) return;
+
+        const timer = window.setTimeout(() => {
+            window.print();
+            setPrintAssessmentOnOpen(false);
+        }, 300);
+
+        return () => window.clearTimeout(timer);
+    }, [showAssessmentPreview, printAssessmentOnOpen]);
+
+    useEffect(() => {
+        if (showAssessmentPreview) {
+            document.body.classList.add('form-print-active');
+        } else {
+            document.body.classList.remove('form-print-active');
+        }
+
+        return () => {
+            document.body.classList.remove('form-print-active');
+        };
+    }, [showAssessmentPreview]);
+
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
         if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
@@ -958,6 +1029,13 @@ export default function ReviewerPage() {
     const getSubmissionProtocolCode = (submission: Submission | null) => {
         if (!submission) return "-";
         return submission.protocol_id || submission.protocol_code || "-";
+    };
+
+    const getReviewerRoleLabel = (role?: string | null) => {
+        if (role === 'primary') return 'Primary reviewer';
+        if (role === 'secondary') return 'Secondary reviewer';
+        if (role === 'member') return 'Member';
+        return null;
     };
 
     const pickLaterDate = (first?: string | null, second?: string | null) => {
@@ -1498,7 +1576,8 @@ export default function ReviewerPage() {
 
     /* ---------- UI ---------- */
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+        <>
+            <div className="p-4 sm:p-6 lg:p-8 space-y-6 print:hidden">
             {/* header */}
             <div className="flex items-center gap-3">
                 <div className="rounded-lg bg-primary/10 p-3 text-primary shadow-sm">
@@ -1867,12 +1946,14 @@ export default function ReviewerPage() {
                                                                 <Eye className="h-4 w-4 mr-2" />
                                                                 View
                                                             </Button>
-                                                            <a href={form.url} download target="_blank" rel="noopener noreferrer">
-                                                                <RippleButton variant="outline" size="sm">
-                                                                    <Download className="h-4 w-4 mr-2" />
-                                                                    Download
-                                                                </RippleButton>
-                                                            </a>
+                                                            <RippleButton
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleDownloadAssessmentForm(form.url, form.name)}
+                                                            >
+                                                                <Download className="h-4 w-4 mr-2" />
+                                                                Download
+                                                            </RippleButton>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1894,7 +1975,14 @@ export default function ReviewerPage() {
                                     {existingRecommendations.map((rec, index) => (
                                         <div key={index} className="border rounded-lg p-4 bg-white">
                                             <div className="flex items-center justify-between mb-2">
-                                                <div className="font-medium text-sm">{rec.reviewer_name}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="font-medium text-sm">{rec.reviewer_name}</div>
+                                                    {getReviewerRoleLabel(assignmentMeta?.reviewerRoles?.[rec.reviewer_id]) && (
+                                                        <span className="text-xs text-gray-500">
+                                                            {getReviewerRoleLabel(assignmentMeta?.reviewerRoles?.[rec.reviewer_id])}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <Badge
                                                     variant={rec.recommendation === 'approve' ? 'default' : 'outline'}
                                                     className={cn(
@@ -2338,36 +2426,6 @@ export default function ReviewerPage() {
                 </div>
             )}
 
-            {/* Assessment React Preview (Chairperson) */}
-            {showAssessmentPreview && assessmentPreviewType && (
-                <div className="fixed inset-0 z-50 bg-gray-100 overflow-auto p-4">
-                    <div className="max-w-[1000px] mx-auto">
-                        <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
-                            <div className="text-sm font-medium text-gray-700">Assessment Preview: {assessmentPreviewTitle}</div>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setShowAssessmentPreview(false);
-                                    setAssessmentPreviewType(null);
-                                    setAssessmentPreviewTitle("");
-                                    setAssessmentPreviewData({});
-                                }}
-                            >
-                                Close
-                            </Button>
-                        </div>
-
-                        <div style={{ pointerEvents: 'none' }}>
-                            {assessmentPreviewType === 'reviewer_assessment' ? (
-                                <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
-                            ) : (
-                                <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* PDF Template Modal - Full Screen */}
             {showPDFTemplate && templateUrl && (
                 <div className="fixed inset-0 z-50 bg-white">
@@ -2643,6 +2701,30 @@ export default function ReviewerPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </div>
+            </div>
+            {/* Assessment React Preview (Chairperson) */}
+            {showAssessmentPreview && assessmentPreviewType && (
+                <div
+                    className="fixed inset-0 z-50 bg-gray-100 overflow-auto p-4 form-print-root"
+                    onClick={() => {
+                        setShowAssessmentPreview(false);
+                        setAssessmentPreviewType(null);
+                        setAssessmentPreviewTitle("");
+                        setAssessmentPreviewData({});
+                        setPrintAssessmentOnOpen(false);
+                    }}
+                >
+                    <div className="max-w-[1000px] mx-auto form-print-shell" onClick={(event) => event.stopPropagation()}>
+                        <div style={{ pointerEvents: 'none' }}>
+                            {assessmentPreviewType === 'reviewer_assessment' ? (
+                                <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
+                            ) : (
+                                <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }

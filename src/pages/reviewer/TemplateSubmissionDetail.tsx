@@ -23,6 +23,7 @@ interface TemplateSubmissionView {
   status: string;
   metadata?: {
     assignedReviewerIds?: string[];
+    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
     reviewerSubmissions?: Record<string, {
       reviewerId: string;
       reviewerName: string;
@@ -129,6 +130,14 @@ export default function ReviewerTemplateSubmissionDetail() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getAssignedRoleLabel = () => {
+    if (!submission || !reviewerId) return '-';
+    const role = submission.metadata?.assignedReviewerRoles?.[reviewerId];
+    if (role === 'primary_1') return 'Primary Reviewer 1';
+    if (role === 'primary_2') return 'Primary Reviewer 2';
+    return '-';
   };
 
   const handleViewSubmission = async () => {
@@ -408,6 +417,13 @@ export default function ReviewerTemplateSubmissionDetail() {
               <div>
                 <p className="text-sm font-medium text-gray-900">Submission Date</p>
                 <p className="text-sm text-gray-600">{formatDate(submission.submittedAt)}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <FileText className="w-5 h-5 text-gray-400" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">Assigned Role</p>
+                <p className="text-sm text-gray-600">{getAssignedRoleLabel()}</p>
               </div>
             </div>
           </div>

@@ -37,6 +37,7 @@ export interface TemplateSubmission {
 
 interface ReviewerAssignmentMetadata {
   assignedReviewerIds?: string[];
+  assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
   assignedById?: string;
   assignedByName?: string;
   assignedAt?: string;
@@ -394,7 +395,8 @@ export class TemplateSubmissionService {
    */
   async assignReviewers(
     submissionId: string,
-    reviewerIds: string[]
+    reviewerIds: string[],
+    reviewerRoles: Record<string, 'primary_1' | 'primary_2'> = {}
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const uniqueReviewerIds = Array.from(new Set(reviewerIds.filter(Boolean)));
@@ -425,10 +427,17 @@ export class TemplateSubmissionService {
         return { success: false, error: `Failed to fetch submission: ${submissionError.message}` };
       }
 
+      const allowedRoles = new Set(['primary_1', 'primary_2']);
+      const sanitizedRoles = Object.fromEntries(
+        Object.entries(reviewerRoles)
+          .filter(([reviewerId, role]) => uniqueReviewerIds.includes(reviewerId) && allowedRoles.has(role))
+      ) as Record<string, 'primary_1' | 'primary_2'>;
+
       const existingMetadata = (submission?.metadata || {}) as ReviewerAssignmentMetadata;
       const mergedMetadata: ReviewerAssignmentMetadata = {
         ...existingMetadata,
         assignedReviewerIds: uniqueReviewerIds,
+        assignedReviewerRoles: sanitizedRoles,
         assignedById: user.user.id,
         assignedByName: chairpersonProfile?.name || chairpersonProfile?.email || user.user.email || 'Chairperson',
         assignedAt: now
@@ -768,6 +777,88 @@ export class TemplateSubmissionService {
       return { success: true };
     } catch (error) {
       console.error('Error signing template submission as chairperson:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Terminate a proposal based on early termination submission details
+   */
+  async terminateProposalForEarlyTermination(input: {
+    submissionId: string;
+    protocolCode: string;
+    proposalTitle: string;
+  }): Promise<{ success: boolean; error?: string; updatedCount?: number; alreadyArchivedCount?: number }> {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      const normalizedCode = input.protocolCode.trim();
+      const normalizedTitle = input.proposalTitle.trim();
+      if (!normalizedCode || !normalizedTitle) {
+        return { success: false, error: 'Protocol code and proposal title are required' };
+      }
+
+      const { data: proposals, error: fetchError } = await supabase
+        .from('proposals')
+        .select('proposal_id, proposal_title, protocol_id, status')
+        .eq('protocol_id', normalizedCode)
+        .eq('proposal_title', normalizedTitle);
+
+      if (fetchError) {
+        return { success: false, error: `Failed to locate proposal: ${fetchError.message}` };
+      }
+
+      if (!proposals || proposals.length === 0) {
+        return { success: false, error: 'No matching proposal found for the provided protocol code and title' };
+      }
+
+      const now = new Date().toISOString();
+      const toArchive = proposals.filter((proposal: any) => proposal.status !== 'Archive Files');
+      let updatedCount = 0;
+
+      if (toArchive.length > 0) {
+        const { data: archived, error: updateError } = await supabase
+          .from('proposals')
+          .update({ status: 'Archive Files', updated_on: now })
+          .in('proposal_id', toArchive.map((proposal: any) => proposal.proposal_id))
+          .select('proposal_id');
+
+        if (updateError) {
+          return { success: false, error: `Failed to update proposal status: ${updateError.message}` };
+        }
+
+        updatedCount = archived?.length || 0;
+      }
+
+      const historyPayload = proposals.map((proposal: any) => ({
+        history_type: 'termination',
+        paper_id: proposal.proposal_id,
+        comment: `Proposal terminated from Early Study Termination submission ${input.submissionId}. Protocol: ${normalizedCode}. Title: ${normalizedTitle}.`,
+        affected_files: JSON.stringify({
+          submissionId: input.submissionId,
+          protocolCode: normalizedCode,
+          proposalTitle: normalizedTitle
+        }),
+        actor: user.user.id,
+        action: 'Terminate Proposal',
+        history_date: now
+      }));
+
+      const { error: historyError } = await supabase.from('history').insert(historyPayload);
+      if (historyError) {
+        return { success: false, error: `Failed to record termination history: ${historyError.message}` };
+      }
+
+      return {
+        success: true,
+        updatedCount,
+        alreadyArchivedCount: proposals.length - updatedCount
+      };
+    } catch (error) {
+      console.error('Error terminating proposal for early termination submission:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   }

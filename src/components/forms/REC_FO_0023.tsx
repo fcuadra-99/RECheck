@@ -696,8 +696,8 @@ export default function EthicsContinuingReviewApplicationForm({
               </td>
             </tr>
 
-            {renderReviewerRow("PRIMARY REVIEWER", proposalId, formName, fields, updateField, "r1")}
-            {renderReviewerRow("PRIMARY REVIEWER", proposalId, formName, fields, updateField, "r2")}
+            {renderReviewerRow("PRIMARY REVIEWER 1", proposalId, formName, fields, updateField, "r1")}
+            {renderReviewerRow("PRIMARY REVIEWER 2", proposalId, formName, fields, updateField, "r2")}
             {renderReviewerRow("REC CHAIR", proposalId, formName, fields, updateField, "chair")}
           </tbody>
         </table>

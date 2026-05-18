@@ -320,7 +320,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
             </tr>
 
             {renderReviewerRow(
-              "PRIMARY REVIEWER",
+              "PRIMARY REVIEWER 1",
               proposalId,
               formName,
               primaryReviewer1Date,
@@ -336,7 +336,7 @@ export default function EthicsEarlyStudyTerminationApplicationForm({
             )}
 
             {renderReviewerRow(
-              "PRIMARY REVIEWER",
+              "PRIMARY REVIEWER 2",
               proposalId,
               formName,
               primaryReviewer2Date,

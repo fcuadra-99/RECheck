@@ -558,7 +558,7 @@ export default function EthicsStudyProtocolAmendmentForm({
             </tr>
 
             {renderReviewerRow(
-              "PRIMARY REVIEWER",
+              "PRIMARY REVIEWER 1",
               proposalId,
               formName,
               primaryReviewerDate,
@@ -573,7 +573,7 @@ export default function EthicsStudyProtocolAmendmentForm({
               "primaryReviewerName"
             )}
             {renderReviewerRow(
-              "PRIMARY REVIEWER",
+              "PRIMARY REVIEWER 2",
               proposalId,
               formName,
               primaryReviewer2Date,
