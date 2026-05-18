@@ -35,7 +35,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { Pagination } from "@/components/parts/table"
-import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, ListCheck } from "lucide-react"
+import { ChevronDown, ChevronUp, ChevronsUpDown, Search, LayoutGrid, ListCheck, RefreshCw } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import { useEffect } from "react"
@@ -45,6 +45,7 @@ export interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
   isLoading?: boolean
+  onRefresh?: () => void
 }
 
 interface Phase {
@@ -75,6 +76,7 @@ export function DataTable<TData, TValue>({
   columns,
   data,
   isLoading = false,
+  onRefresh,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
@@ -213,6 +215,19 @@ export function DataTable<TData, TValue>({
           />
           <Search className="h-4 w-4 absolute left-2.5 top-2.5 text-gray-500" />
         </div>
+
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="ml-2 text-gray-600 border-gray-200 hover:bg-gray-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

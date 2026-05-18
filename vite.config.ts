@@ -32,7 +32,7 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        enabled: true
+        enabled: false // Disable SW in development to avoid caching issues
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
