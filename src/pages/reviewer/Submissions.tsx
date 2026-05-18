@@ -254,7 +254,7 @@ export default function ReviewerPage() {
                 const { data: proposals, error } = await supabase
                     .from("proposals")
                     .select("*")
-                    .in("status", ["Proposal Review", "Data Collection", "Revise Proposal"])
+                    .in("status", ["Proposal Review", "Data Collection", "Revise Proposal", "Archive Files"])
                     .like("reviewer", `%${uid}%`)
                     .order("date", { ascending: false });
 
