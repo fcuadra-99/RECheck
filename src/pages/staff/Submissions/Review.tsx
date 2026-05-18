@@ -152,6 +152,8 @@ export const SReview = () => {
   const [activeInteractiveForm, setActiveInteractiveForm] = React.useState<string | null>(null);
 
   const [selectedReviewers, setSelectedReviewers] = React.useState<string[]>([]);
+  const [reviewerRoles, setReviewerRoles] = React.useState<Record<string, 'primary' | 'secondary' | 'member'>>({});
+  const [reviewerDocs, setReviewerDocs] = React.useState<Record<string, string[]>>({});
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [reviewType, setReviewType] = React.useState<"Full Board" | "Expedited" | "Exempt" | null>(null);
   const [requiredReviewerCount, setRequiredReviewerCount] = React.useState<number>(0);
@@ -235,6 +237,77 @@ export const SReview = () => {
       }
     }
   }, [reviewType, currentUserId, reviewers]);
+
+  const assignableDocs = React.useMemo(() => {
+    const docs = [
+      ...manuscriptDocs.map((doc) => ({ ...doc, group: 'Manuscript' })),
+      ...formsDocs.map((doc) => ({ ...doc, group: 'Forms' })),
+      ...revisionDocs.map((doc) => ({ ...doc, group: 'Revision' })),
+      ...interactiveForms.map((name) => ({ name, file: name, group: 'Forms' }))
+    ];
+
+    const seen = new Set<string>();
+    return docs.filter((doc) => {
+      const key = doc.name.trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [manuscriptDocs, formsDocs, revisionDocs, interactiveForms]);
+
+  React.useEffect(() => {
+    if (type !== "Assign") return;
+    if (assignableDocs.length === 0) return;
+
+    setReviewerDocs((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((id) => {
+        if (!selectedReviewers.includes(id)) {
+          delete next[id];
+        }
+      });
+
+      selectedReviewers.forEach((id) => {
+        if (!next[id]) {
+          next[id] = assignableDocs.map((doc) => doc.name);
+        }
+      });
+
+      return next;
+    });
+  }, [assignableDocs, selectedReviewers, type]);
+
+  React.useEffect(() => {
+    if (type !== "Assign") return;
+
+    setReviewerRoles((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((id) => {
+        if (!selectedReviewers.includes(id)) {
+          delete next[id];
+        }
+      });
+
+      selectedReviewers.forEach((id) => {
+        if (!next[id]) {
+          next[id] = id === currentUserId ? 'primary' : 'member';
+        }
+      });
+
+      const primaryIds = selectedReviewers.filter((id) => next[id] === 'primary');
+      if (primaryIds.length === 0 && selectedReviewers.length > 0) {
+        next[selectedReviewers[0]] = 'primary';
+      }
+
+      if (primaryIds.length > 1) {
+        primaryIds.slice(1).forEach((id) => {
+          next[id] = 'member';
+        });
+      }
+
+      return next;
+    });
+  }, [selectedReviewers, currentUserId, type]);
 
   // Fetch review comments
   React.useEffect(() => {
@@ -691,6 +764,29 @@ export const SReview = () => {
           return;
         }
 
+        if (assignableDocs.length > 0) {
+          const reviewersMissingDocs = selectedReviewers.filter((reviewerId) => {
+            const docsForReviewer = reviewerDocs[reviewerId] || [];
+            return docsForReviewer.length === 0;
+          });
+
+          if (reviewersMissingDocs.length > 0) {
+            toast.error("Please select at least one document for each reviewer.");
+            return;
+          }
+        }
+
+        const assignmentRoles = selectedReviewers.reduce<Record<string, 'primary' | 'secondary' | 'member'>>((acc, reviewerId) => {
+          acc[reviewerId] = reviewerRoles[reviewerId] || (reviewerId === currentUserId ? 'primary' : 'member');
+          return acc;
+        }, {});
+
+        const primaryCount = Object.values(assignmentRoles).filter((role) => role === 'primary').length;
+        if (primaryCount !== 1) {
+          toast.error("Please select exactly one primary reviewer.");
+          return;
+        }
+
         // Generate protocol code
         let protocolCode = "";
         try {
@@ -728,6 +824,10 @@ export const SReview = () => {
           history_type: "assignment",
           paper_id: id,
           comment: `Assigned to ${selectedReviewers.length} reviewer(s) for ${reviewType} review: ${reviewerNames}. Protocol Code: ${protocolCode}`,
+          affected_files: JSON.stringify({
+            reviewerDocs,
+            reviewerRoles: assignmentRoles
+          }),
           actor: actorId,
           action: "Assign Reviewers",
           history_date: new Date().toISOString(),
@@ -1597,6 +1697,13 @@ export const SReview = () => {
             </div>
           </div>
 
+          <div className="mb-6 p-4 border rounded-lg bg-gray-50">
+            <div>
+              <h3 className="text-sm font-medium">Documents to pass</h3>
+              <p className="text-xs text-gray-500">Select documents per reviewer after you choose them.</p>
+            </div>
+          </div>
+
           {isLoadingReviewers ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -1668,6 +1775,32 @@ export const SReview = () => {
                         {reviewer.assignedCount}/3 assigned
                       </Badge>
 
+                      {isSelected && (
+                        <select
+                          className="border rounded px-2 py-1 text-xs"
+                          value={reviewerRoles[reviewer.id] || (reviewer.id === currentUserId ? 'primary' : 'member')}
+                          onClick={(event) => event.stopPropagation()}
+                          onMouseDown={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            event.stopPropagation();
+                            const value = event.target.value as 'primary' | 'secondary' | 'member';
+                            setReviewerRoles((prev) => {
+                              const next: Record<string, 'primary' | 'secondary' | 'member'> = { ...prev, [reviewer.id]: value };
+                              if (value === 'primary') {
+                                Object.keys(next).forEach((id) => {
+                                  if (id !== reviewer.id) next[id] = 'member';
+                                });
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          <option value="primary">Primary reviewer</option>
+                          <option value="secondary">Secondary reviewer</option>
+                          <option value="member">Member</option>
+                        </select>
+                      )}
+
                       <div className="flex items-center gap-2">
                         {isSelected ? (
                           <Check className="h-5 w-5 text-primary" />
@@ -1679,6 +1812,81 @@ export const SReview = () => {
                   </div>
                 );
               })}
+
+              {assignableDocs.length > 0 && selectedReviewers.length > 0 && (
+                <div className="mt-4 space-y-4">
+                  {selectedReviewers.map((reviewerId) => {
+                    const reviewer = reviewers.find((item) => item.id === reviewerId);
+                    if (!reviewer) return null;
+
+                    const reviewerSelection = reviewerDocs[reviewerId] || [];
+                    return (
+                      <div key={reviewerId} className="border rounded-lg p-4 bg-white">
+                        <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <div className="text-sm font-medium text-gray-900">Documents for {reviewer.fname} {reviewer.lname}</div>
+                            <div className="text-xs text-gray-500">Select what this reviewer can access.</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setReviewerDocs((prev) => ({
+                                  ...prev,
+                                  [reviewerId]: assignableDocs.map((doc) => doc.name)
+                                }))
+                              }
+                            >
+                              Select all
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setReviewerDocs((prev) => ({
+                                  ...prev,
+                                  [reviewerId]: []
+                                }))
+                              }
+                            >
+                              Clear
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2">
+                          {assignableDocs.map((doc) => (
+                            <label key={`${reviewerId}-${doc.name}`} className="flex items-center gap-2 text-sm text-gray-700">
+                              <input
+                                type="checkbox"
+                                checked={reviewerSelection.includes(doc.name)}
+                                onChange={() => {
+                                  setReviewerDocs((prev) => {
+                                    const current = prev[reviewerId] || [];
+                                    const nextSelection = current.includes(doc.name)
+                                      ? current.filter((item) => item !== doc.name)
+                                      : [...current, doc.name];
+                                    return { ...prev, [reviewerId]: nextSelection };
+                                  });
+                                }}
+                              />
+                              <span className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">{doc.name}</span>
+                                <span className="inline-flex items-center rounded-full border border-gray-300 px-2 py-0.5 text-[10px] text-gray-600">
+                                  {doc.group}
+                                </span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {reviewers.length === 0 && (
                 <div className="text-center py-8 text-gray-500">

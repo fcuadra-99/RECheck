@@ -92,6 +92,11 @@ export default function ReviewerPage() {
         submitted_at: ''
     });
     const [existingRecommendations, setExistingRecommendations] = useState<ReviewRecommendation[]>([]);
+    const [assignmentMeta, setAssignmentMeta] = useState<{ reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> } | null>(null);
+    const [assignmentRolesByProposal, setAssignmentRolesByProposal] = useState<Record<number, string>>({});
+    const [reviewerRoleKey, setReviewerRoleKey] = useState<'primary' | 'secondary' | 'member' | null>(null);
+    const [reviewerRoleLabel, setReviewerRoleLabel] = useState<string | null>(null);
+    const [reviewedProposalIds, setReviewedProposalIds] = useState<Set<number>>(new Set());
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -134,6 +139,35 @@ export default function ReviewerPage() {
     const [userProfile, setUserProfile] = useState<Profile | null>(null);
     const [isChairperson, setIsChairperson] = useState(false);
 
+    const parseAssignmentMeta = (raw: any) => {
+        if (!raw) return null;
+        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> };
+        if (typeof raw === 'string') {
+            try {
+                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> };
+            } catch (error) {
+                return null;
+            }
+        }
+        return null;
+    };
+
+    const fetchAssignmentMeta = async (proposalId: number) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("affected_files, history_date")
+            .eq("paper_id", proposalId)
+            .eq("history_type", "assignment")
+            .order("history_date", { ascending: false })
+            .limit(1);
+
+        if (error || !data || data.length === 0) {
+            return null;
+        }
+
+        return parseAssignmentMeta(data[0].affected_files);
+    };
+
     /* fetch initial data - only proposals assigned to current reviewer */
     useEffect(() => {
         let mounted = true;
@@ -173,24 +207,41 @@ export default function ReviewerPage() {
                 if (error) throw error;
                 let projs = (proposals || []) as Submission[];
 
-                // Filter out proposals where the current user has already submitted a recommendation
-                // (unless they are a chairperson - chairpersons should see all)
-                if (!userProfileData || (userProfileData.role !== 'Chairperson' && userProfileData.role !== 'Admin')) {
-                    // Get all recommendations submitted by this reviewer
+                if (mounted) setSubmissions(projs);
+
+                if (uid) {
                     const { data: userRecommendations } = await supabase
                         .from("history")
                         .select("paper_id")
                         .eq("actor", uid)
                         .eq("history_type", "review_recommendation");
 
-                    if (userRecommendations && userRecommendations.length > 0) {
-                        const reviewedProposalIds = userRecommendations.map(rec => rec.paper_id);
-                        // Filter out proposals that have been reviewed by this user
-                        projs = projs.filter(p => !reviewedProposalIds.includes(p.proposal_id));
-                    }
+                    const reviewedSet = new Set<number>(
+                        (userRecommendations || [])
+                            .map((rec: { paper_id?: number | null }) => rec.paper_id)
+                            .filter((paperId): paperId is number => typeof paperId === 'number')
+                    );
+                    if (mounted) setReviewedProposalIds(reviewedSet);
                 }
 
-                if (mounted) setSubmissions(projs);
+                if (mounted && uid && projs.length > 0) {
+                    const roleEntries = await Promise.all(
+                        projs.map(async (proposal) => {
+                            const meta = await fetchAssignmentMeta(proposal.proposal_id);
+                            const role = meta?.reviewerRoles?.[uid] || null;
+                            return [proposal.proposal_id, role] as const;
+                        })
+                    );
+
+                    const nextRoles: Record<number, string> = {};
+                    roleEntries.forEach(([proposalId, role]) => {
+                        if (role) {
+                            nextRoles[proposalId] = role;
+                        }
+                    });
+
+                    if (mounted) setAssignmentRolesByProposal(nextRoles);
+                }
 
                 // Get researcher profiles
                 const researcherIds = projs.map((p) => p.researcher).filter(Boolean);
@@ -236,7 +287,30 @@ export default function ReviewerPage() {
 
         try {
             const documents = await buildSubmissionDocuments(activeSubmission.proposal_id);
-            setSubmissionDocuments(documents);
+            const meta = await fetchAssignmentMeta(activeSubmission.proposal_id);
+            const reviewerAllowedDocs = userId ? (meta?.reviewerDocs?.[userId] || []) : [];
+            const allowedDocSet = new Set(reviewerAllowedDocs.map((doc) => doc.trim().toLowerCase()));
+            const filteredDocuments = allowedDocSet.size > 0
+                ? documents.filter((doc) => allowedDocSet.has(doc.name.trim().toLowerCase()))
+                : documents;
+
+            setSubmissionDocuments(filteredDocuments);
+            setAssignmentMeta(meta);
+
+            const roleValue = userId ? meta?.reviewerRoles?.[userId] : null;
+            const normalizedRole = roleValue === 'primary' || roleValue === 'secondary' || roleValue === 'member'
+                ? roleValue
+                : null;
+            setReviewerRoleKey(normalizedRole);
+            setReviewerRoleLabel(
+                normalizedRole === 'primary'
+                    ? 'Primary reviewer'
+                    : normalizedRole === 'secondary'
+                        ? 'Secondary reviewer'
+                        : normalizedRole === 'member'
+                            ? 'Member'
+                            : null
+            );
             setRevisionTargets([]);
             setDecisionLetterData((prev) => ({ ...prev, revisionTargets: [] }));
 
@@ -611,10 +685,20 @@ export default function ReviewerPage() {
             return;
         }
 
+        if (!isChairperson && !reviewerRoleKey) {
+            toast.error("Your reviewer role is not set. Please contact the chairperson.");
+            return;
+        }
+
         // Check if assessment forms are submitted (for non-chairperson reviewers)
         if (!isChairperson) {
-            if (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent) {
-                toast.error("Please submit both assessment forms (Protocol Assessment and Informed Consent) before submitting your recommendation");
+            if (needsProtocolAssessment && !hasSubmittedProtocolAssessment) {
+                toast.error("Please submit the Protocol Assessment before submitting your recommendation");
+                return;
+            }
+
+            if (needsInformedConsent && !hasSubmittedInformedConsent) {
+                toast.error("Please submit the Informed Consent Assessment before submitting your recommendation");
                 return;
             }
         }
@@ -721,19 +805,15 @@ export default function ReviewerPage() {
                     { id: loadingId }
                 );
             } else {
-                // Regular reviewer - remove the reviewed proposal from their list
-                setSubmissions(prev => prev.filter(s => s.proposal_id !== activeSubmission.proposal_id));
-                
-                // Set next submission as active or null if no more submissions
-                const remainingSubmissions = submissions.filter(s => s.proposal_id !== activeSubmission.proposal_id);
-                if (remainingSubmissions.length > 0) {
-                    setActiveSubmission(remainingSubmissions[0]);
-                } else {
-                    setActiveSubmission(null);
-                }
-                
+                await loadSubmissionData();
+                setReviewedProposalIds((prev) => {
+                    const next = new Set(prev);
+                    next.add(activeSubmission.proposal_id);
+                    return next;
+                });
+
                 toast.success(
-                    existingRec ? "Recommendation updated successfully" : "Recommendation submitted successfully. This proposal has been removed from your review queue.",
+                    existingRec ? "Recommendation updated successfully" : "Recommendation submitted successfully",
                     { id: loadingId }
                 );
             }
@@ -765,11 +845,34 @@ export default function ReviewerPage() {
     };
 
     // Check if current user has submitted a recommendation for active submission
-    const hasUserSubmittedRecommendation = existingRecommendations.some(rec => rec.reviewer_id === userId);
+    const hasUserSubmittedRecommendation = Boolean(
+        activeSubmission && reviewedProposalIds.has(activeSubmission.proposal_id)
+    );
+    const needsProtocolAssessment = !isChairperson && reviewerRoleKey === 'primary';
+    const needsInformedConsent = !isChairperson && reviewerRoleKey === 'secondary';
+    const needsAnyAssessment = needsProtocolAssessment || needsInformedConsent;
+    const isRoleAssigned = isChairperson || reviewerRoleKey !== null;
+    const canSubmitRecommendation = isRoleAssigned && (isChairperson || (needsProtocolAssessment
+        ? hasSubmittedProtocolAssessment
+        : needsInformedConsent
+            ? hasSubmittedInformedConsent
+            : true));
 
     /* Open PDF Template Handler */
     const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
         try {
+            if (!isChairperson) {
+                if (type === 'reviewer_assessment' && reviewerRoleKey !== 'primary') {
+                    toast.error('Only primary reviewers can fill the Protocol Assessment form.');
+                    return;
+                }
+
+                if (type === 'informed_consent' && reviewerRoleKey !== 'secondary') {
+                    toast.error('Only secondary reviewers can fill the Informed Consent Assessment form.');
+                    return;
+                }
+            }
+
             if (type === 'reviewer_assessment' && hasSubmittedProtocolAssessment) {
                 toast.info('Protocol Reviewer Assessment already submitted. Editing is locked.');
                 return;
@@ -823,6 +926,11 @@ export default function ReviewerPage() {
 
     const handleSubmitReviewerAssessment = async () => {
         if (!activeSubmission || !userId) return;
+
+        if (!isChairperson && reviewerRoleKey !== 'primary') {
+            toast.error('Only primary reviewers can submit the Protocol Assessment.');
+            return;
+        }
 
         if (hasSubmittedProtocolAssessment) {
             toast.info('Protocol Reviewer Assessment already submitted. Editing is locked.');
@@ -947,6 +1055,11 @@ export default function ReviewerPage() {
     const handleSubmitInformedConsentAssessment = async () => {
         if (!activeSubmission || !userId) return;
 
+        if (!isChairperson && reviewerRoleKey !== 'secondary') {
+            toast.error('Only secondary reviewers can submit the Informed Consent Assessment.');
+            return;
+        }
+
         if (hasSubmittedInformedConsent) {
             toast.info('Informed Consent Assessment already submitted. Editing is locked.');
             return;
@@ -1000,6 +1113,14 @@ export default function ReviewerPage() {
         try {
             const loadingId = toast.loading("Sending decision letter...");
 
+            const revisionTargets = Array.isArray(decisionLetterData.revisionTargets)
+                ? decisionLetterData.revisionTargets.filter(Boolean)
+                : [];
+            const affectedFiles = revisionTargets.map((name: string) => ({
+                name,
+                required: true,
+            }));
+
             const filename = `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.json`;
             const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
             const json = JSON.stringify(decisionLetterData, null, 2);
@@ -1020,6 +1141,7 @@ export default function ReviewerPage() {
                 actor: userId,
                 action: 'DECISION_LETTER_SENT',
                 history_date: new Date().toISOString(),
+                affected_files: affectedFiles.length > 0 ? affectedFiles : null,
             };
 
             const { error: historyError } = await supabase.from("history").insert(historyData);
@@ -1117,6 +1239,14 @@ export default function ReviewerPage() {
             if (uploadError) throw uploadError;
 
             // Add history entry for document sent
+            const revisionTargets = Array.isArray(decisionLetterData.revisionTargets)
+                ? decisionLetterData.revisionTargets.filter(Boolean)
+                : [];
+            const affectedFiles = revisionTargets.map((name: string) => ({
+                name,
+                required: true,
+            }));
+
             const historyData = {
                 history_type: historyType,
                 paper_id: activeSubmission.proposal_id,
@@ -1124,6 +1254,7 @@ export default function ReviewerPage() {
                 actor: userId,
                 action: historyAction,
                 history_date: new Date().toISOString(),
+                affected_files: templateType === 'decision_letter' && affectedFiles.length > 0 ? affectedFiles : null,
             };
 
             const { error: historyError } = await supabase.from("history").insert(historyData);
@@ -1230,6 +1361,7 @@ export default function ReviewerPage() {
                             <TableHead className="border min-w-[120px]">Researcher</TableHead>
                             <TableHead className="border min-w-[100px]">Category</TableHead>
                             <TableHead className="border min-w-[100px]">Date</TableHead>
+                            <TableHead className="border min-w-[110px] text-center">Status</TableHead>
                             <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
                                 Action
                             </TableHead>
@@ -1244,12 +1376,14 @@ export default function ReviewerPage() {
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                                    <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                                     <TableCell><Skeleton className="h-8 w-[120px]" /></TableCell>
                                 </TableRow>
                             ))
                         ) : (
                             Array.from({ length: 3 }).map((_, index) => {
                                 const submission = submissions[index];
+                                const isReviewed = submission ? reviewedProposalIds.has(submission.proposal_id) : false;
                                 return submission ? (
                                     <TableRow
                                         key={submission.proposal_id}
@@ -1263,6 +1397,15 @@ export default function ReviewerPage() {
                                             <div className="flex items-center gap-2 min-w-0">
                                                 <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                                 <span className="font-medium truncate min-w-0">{submission.proposal_title}</span>
+                                                {assignmentRolesByProposal[submission.proposal_id] && (
+                                                    <Badge variant="secondary" className="text-[10px] capitalize">
+                                                        {assignmentRolesByProposal[submission.proposal_id] === 'primary'
+                                                            ? 'Primary reviewer'
+                                                            : assignmentRolesByProposal[submission.proposal_id] === 'secondary'
+                                                                ? 'Secondary reviewer'
+                                                                : 'Member'}
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell className="border">
@@ -1286,6 +1429,17 @@ export default function ReviewerPage() {
                                                 <Calendar className="w-4 h-4 text-gray-500" />
                                                 {new Date(submission.date).toLocaleDateString()}
                                             </div>
+                                        </TableCell>
+                                        <TableCell className="border text-center">
+                                            {isReviewed ? (
+                                                <Badge variant="default" className="bg-green-100 text-green-800">
+                                                    Reviewed
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" className="text-gray-600 border-gray-300">
+                                                    Pending
+                                                </Badge>
+                                            )}
                                         </TableCell>
                                         <TableCell className="border w-1 whitespace-nowrap text-center">
                                             <TooltipProvider>
@@ -1324,6 +1478,7 @@ export default function ReviewerPage() {
                                                 <span>Available Slot</span>
                                             </div>
                                         </TableCell>
+                                        <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
@@ -1371,6 +1526,13 @@ export default function ReviewerPage() {
                                         <span className="truncate">Assigned for Review</span>
                                     </Badge>
                                 </div>
+                                {reviewerRoleLabel && (
+                                    <div className="mt-2">
+                                        <Badge variant="secondary" className="text-xs capitalize">
+                                            {reviewerRoleLabel}
+                                        </Badge>
+                                    </div>
+                                )}
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
                             </div>
                         </div>
@@ -1397,6 +1559,11 @@ export default function ReviewerPage() {
                                 <FileStack className="w-3.5 h-3.5" />
                                 <span className="uppercase tracking-wide">Submitted Documents</span>
                             </div>
+                            {assignmentMeta?.reviewerDocs?.[userId || ''] && assignmentMeta.reviewerDocs[userId || ''].length > 0 && (
+                                <div className="text-xs text-gray-500">
+                                    Documents shared by chairperson: {assignmentMeta.reviewerDocs[userId || ''].length}
+                                </div>
+                            )}
 
                             {submissionDocuments.length === 0 ? (
                                 <div className="text-sm text-gray-500 py-4">No documents submitted yet.</div>
@@ -1711,71 +1878,89 @@ export default function ReviewerPage() {
                                     )}
                                 </div>
 
-                                {/* Reviewer Assessment Form Button - For ALL Reviewers */}
-                                {!isChairperson && (
+                                {/* Reviewer Assessment Form Button - For reviewers (and chairperson when assigned) */}
+                                {(!isChairperson || reviewerRoleKey === 'primary' || reviewerRoleKey === 'secondary') && (
                                     <div className="space-y-3 border-t pt-4">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="text-sm font-medium text-gray-700">
-                                                Assessment Forms (Required)
+                                                Assessment Forms
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                {hasSubmittedProtocolAssessment && hasSubmittedInformedConsent ? (
-                                                    <span className="text-green-600 font-medium">✓ Both forms submitted</span>
-                                                ) : (
-                                                    <span className="text-orange-600 font-medium">
-                                                        {hasSubmittedProtocolAssessment ? '1/2' : hasSubmittedInformedConsent ? '1/2' : '0/2'} completed
+                                                {needsAnyAssessment ? (
+                                                    <span className={canSubmitRecommendation ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                                                        {canSubmitRecommendation ? '✓ Form submitted' : 'Required'}
                                                     </span>
+                                                ) : (
+                                                    <span className="text-gray-500 font-medium">Comments only</span>
                                                 )}
                                             </div>
                                         </div>
-                                        
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {/* Protocol Reviewer Assessment Form */}
-                                            <div className="relative">
-                                                <Button
-                                                    onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
-                                                    disabled={hasSubmittedProtocolAssessment}
-                                                    className={cn(
-                                                        "w-full flex items-center justify-center gap-2",
-                                                        hasSubmittedProtocolAssessment 
-                                                            ? "bg-green-600 hover:bg-green-700"
-                                                            : "bg-blue-600 hover:bg-blue-700"
+
+                                        {reviewerRoleKey === 'primary' && (
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <div className="relative">
+                                                    <Button
+                                                        onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
+                                                        disabled={hasSubmittedProtocolAssessment}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-center gap-2",
+                                                            hasSubmittedProtocolAssessment
+                                                                ? "bg-green-600 hover:bg-green-700"
+                                                                : "bg-blue-600 hover:bg-blue-700"
+                                                        )}
+                                                    >
+                                                        {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
+                                                        <FileSignature className="w-4 h-4" />
+                                                        Protocol Assessment
+                                                    </Button>
+                                                    {hasSubmittedProtocolAssessment && (
+                                                        <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
                                                     )}
-                                                >
-                                                    {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
-                                                    <FileSignature className="w-4 h-4" />
-                                                    Protocol Assessment
-                                                </Button>
-                                                {hasSubmittedProtocolAssessment && (
-                                                    <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
-                                                )}
+                                                </div>
+                                                <p className="text-xs text-gray-500 text-center">
+                                                    Primary reviewers must submit the Protocol Assessment.
+                                                </p>
                                             </div>
-                                            
-                                            {/* Informed Consent Assessment Form */}
-                                            <div className="relative">
-                                                <Button
-                                                    onClick={() => handleOpenPDFTemplate('informed_consent')}
-                                                    disabled={hasSubmittedInformedConsent}
-                                                    className={cn(
-                                                        "w-full flex items-center justify-center gap-2",
-                                                        hasSubmittedInformedConsent 
-                                                            ? "bg-green-600 hover:bg-green-700"
-                                                            : "bg-indigo-600 hover:bg-indigo-700"
+                                        )}
+
+                                        {reviewerRoleKey === 'secondary' && (
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <div className="relative">
+                                                    <Button
+                                                        onClick={() => handleOpenPDFTemplate('informed_consent')}
+                                                        disabled={hasSubmittedInformedConsent}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-center gap-2",
+                                                            hasSubmittedInformedConsent
+                                                                ? "bg-green-600 hover:bg-green-700"
+                                                                : "bg-indigo-600 hover:bg-indigo-700"
+                                                        )}
+                                                    >
+                                                        {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
+                                                        <FileSignature className="w-4 h-4" />
+                                                        Informed Consent
+                                                    </Button>
+                                                    {hasSubmittedInformedConsent && (
+                                                        <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
                                                     )}
-                                                >
-                                                    {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
-                                                    <FileSignature className="w-4 h-4" />
-                                                    Informed Consent
-                                                </Button>
-                                                {hasSubmittedInformedConsent && (
-                                                    <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
-                                                )}
+                                                </div>
+                                                <p className="text-xs text-gray-500 text-center">
+                                                    Secondary reviewers must submit the Informed Consent Assessment.
+                                                </p>
                                             </div>
-                                        </div>
-                                        
-                                        <p className="text-xs text-gray-500 text-center">
-                                            Complete both assessment forms before submitting your recommendation.
-                                        </p>
+                                        )}
+
+                                        {reviewerRoleKey === 'member' && (
+                                            <p className="text-xs text-gray-500 text-center">
+                                                Members submit comments only. No assessment forms required.
+                                            </p>
+                                        )}
+
+                                        {!reviewerRoleKey && (
+                                            <p className="text-xs text-gray-500 text-center">
+                                                Reviewer role not set. Please contact the chairperson.
+                                            </p>
+                                        )}
                                     </div>
                                 )}
 
@@ -1846,7 +2031,7 @@ export default function ReviewerPage() {
                                             onClick={submitRecommendation}
                                             disabled={
                                                 (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
-                                                (!isChairperson && (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent))
+                                                (!isChairperson && !canSubmitRecommendation)
                                             }
                                             className="flex items-center gap-2"
                                         >
@@ -1862,10 +2047,12 @@ export default function ReviewerPage() {
                                 </div>
                                 
                                 {/* Warning message for incomplete forms */}
-                                {!isChairperson && (!hasSubmittedProtocolAssessment || !hasSubmittedInformedConsent) && (
+                                {!isChairperson && needsAnyAssessment && !canSubmitRecommendation && (
                                     <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
                                         <p className="text-sm text-orange-800">
-                                            ⚠️ Please complete and submit both assessment forms before submitting your recommendation.
+                                            {needsProtocolAssessment
+                                                ? '⚠️ Please complete and submit the Protocol Assessment before submitting your recommendation.'
+                                                : '⚠️ Please complete and submit the Informed Consent Assessment before submitting your recommendation.'}
                                         </p>
                                     </div>
                                 )}

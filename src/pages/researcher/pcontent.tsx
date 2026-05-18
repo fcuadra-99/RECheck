@@ -553,10 +553,12 @@ export default function PhaseContent({
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = getFilesNeedingRevision(submission);
         const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);
+        const revisionTargetNames = new Set((historyFiles || []).map((doc) => doc.name.toLowerCase()));
+        const hasRevisionTargets = revisionTargetNames.size > 0;
 
         return (
             <div className="space-y-4">
-                {(isResendStatus || submission.status === "Revise Proposal") && docs.length > 0 && (
+                {(isResendStatus || submission.status === "Revise Proposal") && docs.length > 0 && hasRevisionTargets && (
                     <div className="space-y-4">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                             <div className="flex items-start gap-2">
@@ -593,8 +595,20 @@ export default function PhaseContent({
                     </div>
                 )}
 
-                {docs.map((doc) => (
-                    <div key={doc.name} className="border rounded-lg p-4 bg-white shadow-sm">
+                {docs.map((doc) => {
+                    const isRevisionTarget = revisionTargetNames.has(doc.name.toLowerCase());
+                    const showNeedsRevisionBadge = isResendStatus
+                        ? (hasRevisionTargets ? isRevisionTarget : true)
+                        : (submission.status === "Revise Proposal" ? isRevisionTarget : false);
+
+                    return (
+                    <div
+                        key={doc.name}
+                        className={cn(
+                            "border rounded-lg p-4 bg-white shadow-sm",
+                            isRevisionTarget && "border-red-200 bg-red-50"
+                        )}
+                    >
                         <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full">
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-start gap-3">
@@ -615,7 +629,7 @@ export default function PhaseContent({
                                                     Needs Answer
                                                 </Badge>
                                             )}
-                                            {isResendStatus && (
+                                            {showNeedsRevisionBadge && (
                                                 <Badge variant="destructive" className="text-xs">
                                                     Needs Revision
                                                 </Badge>
@@ -781,7 +795,8 @@ export default function PhaseContent({
                             </div>
                         </div>
                     </div>
-                ))}
+                );
+                })}
 
                 <div className="pt-4">
                     <RippleButton
