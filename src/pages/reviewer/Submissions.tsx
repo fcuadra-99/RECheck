@@ -147,9 +147,7 @@ export default function ReviewerPage() {
     const [revisionSubmissionsCount, setRevisionSubmissionsCount] = useState(0);
     const [decisionLetterSentCount, setDecisionLetterSentCount] = useState(0);
     const [ethicalClearanceSentCount, setEthicalClearanceSentCount] = useState(0);
-    const [hasSubmittedAssessmentFollowup, setHasSubmittedAssessmentFollowup] = useState(false);
     const [hasSubmittedChairpersonRevisionNote, setHasSubmittedChairpersonRevisionNote] = useState(false);
-    const [submittingFollowup, setSubmittingFollowup] = useState(false);
 
     const [showFormPreview, setShowFormPreview] = useState(false);
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
@@ -448,7 +446,6 @@ export default function ReviewerPage() {
             setRevisionSubmissionsCount(0);
             setDecisionLetterSentCount(0);
             setEthicalClearanceSentCount(0);
-            setHasSubmittedAssessmentFollowup(false);
             setHasSubmittedChairpersonRevisionNote(false);
             return;
         }
@@ -497,21 +494,6 @@ export default function ReviewerPage() {
             }
 
             if (userId) {
-                let followupQuery = supabase
-                    .from("history")
-                    .select("history_id")
-                    .eq("paper_id", activeSubmission.proposal_id)
-                    .eq("actor", userId)
-                    .eq("history_type", "assessment_followup_comment")
-                    .order("history_date", { ascending: false })
-                    .limit(1);
-                if (reviewWindowStart) {
-                    followupQuery = followupQuery.gte("history_date", reviewWindowStart);
-                }
-
-                const { data: followupData } = await followupQuery;
-                setHasSubmittedAssessmentFollowup(Boolean(followupData && followupData.length > 0));
-
                 let chairpersonNoteQuery = supabase
                     .from("history")
                     .select("history_id")
@@ -528,7 +510,6 @@ export default function ReviewerPage() {
                 const { data: chairpersonNoteData } = await chairpersonNoteQuery;
                 setHasSubmittedChairpersonRevisionNote(Boolean(chairpersonNoteData && chairpersonNoteData.length > 0));
             } else {
-                setHasSubmittedAssessmentFollowup(false);
                 setHasSubmittedChairpersonRevisionNote(false);
             }
 
@@ -1526,52 +1507,6 @@ export default function ReviewerPage() {
         }
     };
 
-    const submitAssessmentFollowup = async (type: 'protocol' | 'informed_consent') => {
-        if (!activeSubmission || !userId) return;
-
-        if (isEthicalClearanceLocked) {
-            toast.info('Ethical Clearance has already been sent. Follow-up notes are locked.');
-            return;
-        }
-
-        if (hasSubmittedAssessmentFollowup) {
-            toast.info('You have already submitted follow-up notes for this revision cycle.');
-            return;
-        }
-
-        const comment = recommendation.comments.trim();
-
-        if (!comment) {
-            toast.error('Please enter your revision notes before submitting.');
-            return;
-        }
-
-        try {
-            setSubmittingFollowup(true);
-            const historyData = {
-                history_type: 'assessment_followup_comment',
-                paper_id: activeSubmission.proposal_id,
-                comment,
-                actor: userId,
-                action: type === 'protocol'
-                    ? 'ASSESSMENT_FOLLOWUP_PROTOCOL'
-                    : 'ASSESSMENT_FOLLOWUP_ICF',
-                history_date: new Date().toISOString()
-            };
-
-            const { error } = await supabase.from('history').insert(historyData);
-            if (error) throw error;
-
-            setRecommendation((prev) => ({ ...prev, comments: '' }));
-
-            toast.success('Follow-up notes submitted.');
-        } catch (error: any) {
-            console.error('Error submitting follow-up notes:', error);
-            toast.error(`Failed to submit follow-up notes: ${error.message || 'Unknown error'}`);
-        } finally {
-            setSubmittingFollowup(false);
-        }
-    };
 
     const handleSubmitDecisionLetter = async () => {
         if (!activeSubmission || !userId) return;
