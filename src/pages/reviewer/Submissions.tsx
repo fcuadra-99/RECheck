@@ -78,6 +78,7 @@ interface ReviewRecommendation {
 type AssignmentMeta = {
     reviewerRoles?: Record<string, string>;
     reviewerDocs?: Record<string, string[]>;
+    reviewerSections?: Record<string, string>;
     assignmentDate?: string | null;
 };
 
@@ -101,10 +102,12 @@ export default function ReviewerPage() {
     const [existingRecommendations, setExistingRecommendations] = useState<ReviewRecommendation[]>([]);
     const [assignmentMeta, setAssignmentMeta] = useState<AssignmentMeta | null>(null);
     const [assignmentRolesByProposal, setAssignmentRolesByProposal] = useState<Record<number, string>>({});
+    const [assignmentSectionsByProposal, setAssignmentSectionsByProposal] = useState<Record<number, string>>({});
     const [assignmentDatesByProposal, setAssignmentDatesByProposal] = useState<Record<number, string>>({});
     const [reviewWindowStartByProposal, setReviewWindowStartByProposal] = useState<Record<number, string>>({});
     const [reviewerRoleKey, setReviewerRoleKey] = useState<'primary' | 'secondary' | 'member' | null>(null);
     const [reviewerRoleLabel, setReviewerRoleLabel] = useState<string | null>(null);
+    const [reviewerSectionHint, setReviewerSectionHint] = useState<string | null>(null);
     const [reviewedProposalIds, setReviewedProposalIds] = useState<Set<number>>(new Set());
     const [archivedProposalIds, setArchivedProposalIds] = useState<Set<number>>(new Set());
 
@@ -141,6 +144,12 @@ export default function ReviewerPage() {
     const [hasSubmittedProtocolAssessment, setHasSubmittedProtocolAssessment] = useState(false);
     const [hasSubmittedInformedConsent, setHasSubmittedInformedConsent] = useState(false);
     const [submittedAssessmentForms, setSubmittedAssessmentForms] = useState<DocumentItem[]>([]);
+    const [revisionSubmissionsCount, setRevisionSubmissionsCount] = useState(0);
+    const [decisionLetterSentCount, setDecisionLetterSentCount] = useState(0);
+    const [ethicalClearanceSentCount, setEthicalClearanceSentCount] = useState(0);
+    const [hasSubmittedAssessmentFollowup, setHasSubmittedAssessmentFollowup] = useState(false);
+    const [hasSubmittedChairpersonRevisionNote, setHasSubmittedChairpersonRevisionNote] = useState(false);
+    const [submittingFollowup, setSubmittingFollowup] = useState(false);
 
     const [showFormPreview, setShowFormPreview] = useState(false);
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
@@ -152,10 +161,10 @@ export default function ReviewerPage() {
 
     const parseAssignmentMeta = (raw: any) => {
         if (!raw) return null;
-        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> };
+        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
         if (typeof raw === 'string') {
             try {
-                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]> };
+                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
             } catch (error) {
                 return null;
             }
@@ -180,6 +189,7 @@ export default function ReviewerPage() {
         return {
             reviewerRoles: parsed?.reviewerRoles,
             reviewerDocs: parsed?.reviewerDocs,
+            reviewerSections: parsed?.reviewerSections,
             assignmentDate: data[0].history_date || null,
         } as AssignmentMeta;
     };
@@ -198,6 +208,58 @@ export default function ReviewerPage() {
         }
 
         return data[0].history_date || null;
+    };
+
+    const loadRevisionCycleInfo = async (proposalId: number) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("history_type, action, comment, history_date")
+            .eq("paper_id", proposalId)
+            .eq("history_type", "submission")
+            .order("history_date", { ascending: false });
+
+        if (error || !data) {
+            setRevisionSubmissionsCount(0);
+            return;
+        }
+
+        const revisionSubmissions = data.filter((entry) => {
+            if (entry.action === 'Submit Revisions') return true;
+            const note = String(entry.comment || '').toLowerCase();
+            return note.includes('revision');
+        });
+
+        setRevisionSubmissionsCount(revisionSubmissions.length);
+    };
+
+    const loadDecisionLetterInfo = async (proposalId: number) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("history_id")
+            .eq("paper_id", proposalId)
+            .eq("history_type", "decision_letter_sent");
+
+        if (error || !data) {
+            setDecisionLetterSentCount(0);
+            return;
+        }
+
+        setDecisionLetterSentCount(data.length);
+    };
+
+    const loadEthicalClearanceInfo = async (proposalId: number) => {
+        const { data, error } = await supabase
+            .from("history")
+            .select("history_id")
+            .eq("paper_id", proposalId)
+            .eq("history_type", "ethical_clearance_sent");
+
+        if (error || !data) {
+            setEthicalClearanceSentCount(0);
+            return;
+        }
+
+        setEthicalClearanceSentCount(data.length);
     };
 
     const loadReviewerArchives = async (uid: string) => {
@@ -270,18 +332,23 @@ export default function ReviewerPage() {
                             const meta = await fetchAssignmentMeta(proposal.proposal_id);
                             const latestSubmissionDate = await fetchLatestSubmissionDate(proposal.proposal_id);
                             const role = meta?.reviewerRoles?.[uid] || null;
+                            const section = meta?.reviewerSections?.[uid] || null;
                             const assignmentDate = meta?.assignmentDate || null;
                             const reviewWindowStart = pickLaterDate(assignmentDate, latestSubmissionDate);
-                            return [proposal.proposal_id, role, assignmentDate, reviewWindowStart] as const;
+                            return [proposal.proposal_id, role, section, assignmentDate, reviewWindowStart] as const;
                         })
                     );
 
                     const nextRoles: Record<number, string> = {};
+                    const nextSections: Record<number, string> = {};
                     const nextDates: Record<number, string> = {};
                     const nextWindows: Record<number, string> = {};
-                    roleEntries.forEach(([proposalId, role, assignmentDate, reviewWindowStart]) => {
+                    roleEntries.forEach(([proposalId, role, section, assignmentDate, reviewWindowStart]) => {
                         if (role) {
                             nextRoles[proposalId] = role;
+                        }
+                        if (section) {
+                            nextSections[proposalId] = section;
                         }
                         if (assignmentDate) {
                             nextDates[proposalId] = assignmentDate;
@@ -295,6 +362,7 @@ export default function ReviewerPage() {
 
                     if (mounted) {
                         setAssignmentRolesByProposal(nextRoles);
+                        setAssignmentSectionsByProposal(nextSections);
                         setAssignmentDatesByProposal(nextDates);
                         setReviewWindowStartByProposal(nextWindows);
                     }
@@ -306,6 +374,19 @@ export default function ReviewerPage() {
                         .select("paper_id, history_date")
                         .eq("actor", uid)
                         .eq("history_type", "review_recommendation");
+
+                    const proposalIds = projs.map((p) => p.proposal_id).filter((id) => typeof id === 'number');
+                    const { data: clearanceHistory } = await supabase
+                        .from("history")
+                        .select("paper_id")
+                        .eq("history_type", "ethical_clearance_sent")
+                        .in("paper_id", proposalIds);
+
+                    const clearanceSet = new Set<number>(
+                        (clearanceHistory || [])
+                            .map((rec: { paper_id?: number | null }) => rec.paper_id)
+                            .filter((id: number | null | undefined): id is number => typeof id === 'number')
+                    );
 
                     const reviewedSet = new Set<number>(
                         (userRecommendations || [])
@@ -319,6 +400,9 @@ export default function ReviewerPage() {
                             })
                             .map((rec: { paper_id?: number | null }) => rec.paper_id as number)
                     );
+
+                    clearanceSet.forEach((id) => reviewedSet.add(id));
+
                     if (mounted) setReviewedProposalIds(reviewedSet);
                 }
 
@@ -361,6 +445,11 @@ export default function ReviewerPage() {
         if (!activeSubmission) {
             setSubmissionDocuments([]);
             setExistingRecommendations([]);
+            setRevisionSubmissionsCount(0);
+            setDecisionLetterSentCount(0);
+            setEthicalClearanceSentCount(0);
+            setHasSubmittedAssessmentFollowup(false);
+            setHasSubmittedChairpersonRevisionNote(false);
             return;
         }
 
@@ -390,8 +479,12 @@ export default function ReviewerPage() {
                             ? 'Member'
                             : null
             );
+            setReviewerSectionHint(userId ? meta?.reviewerSections?.[userId] || null : null);
             setRevisionTargets([]);
             setDecisionLetterData({});
+            await loadRevisionCycleInfo(activeSubmission.proposal_id);
+            await loadDecisionLetterInfo(activeSubmission.proposal_id);
+            await loadEthicalClearanceInfo(activeSubmission.proposal_id);
 
             const assignmentDate = meta?.assignmentDate || null;
             const latestSubmissionDate = await fetchLatestSubmissionDate(activeSubmission.proposal_id);
@@ -401,6 +494,42 @@ export default function ReviewerPage() {
                     ...prev,
                     [activeSubmission.proposal_id]: reviewWindowStart
                 }));
+            }
+
+            if (userId) {
+                let followupQuery = supabase
+                    .from("history")
+                    .select("history_id")
+                    .eq("paper_id", activeSubmission.proposal_id)
+                    .eq("actor", userId)
+                    .eq("history_type", "assessment_followup_comment")
+                    .order("history_date", { ascending: false })
+                    .limit(1);
+                if (reviewWindowStart) {
+                    followupQuery = followupQuery.gte("history_date", reviewWindowStart);
+                }
+
+                const { data: followupData } = await followupQuery;
+                setHasSubmittedAssessmentFollowup(Boolean(followupData && followupData.length > 0));
+
+                let chairpersonNoteQuery = supabase
+                    .from("history")
+                    .select("history_id")
+                    .eq("paper_id", activeSubmission.proposal_id)
+                    .eq("actor", userId)
+                    .eq("history_type", "review_decision")
+                    .eq("action", "CHAIRPERSON_DECISION_REVISIONS")
+                    .order("history_date", { ascending: false })
+                    .limit(1);
+                if (reviewWindowStart) {
+                    chairpersonNoteQuery = chairpersonNoteQuery.gte("history_date", reviewWindowStart);
+                }
+
+                const { data: chairpersonNoteData } = await chairpersonNoteQuery;
+                setHasSubmittedChairpersonRevisionNote(Boolean(chairpersonNoteData && chairpersonNoteData.length > 0));
+            } else {
+                setHasSubmittedAssessmentFollowup(false);
+                setHasSubmittedChairpersonRevisionNote(false);
             }
 
             // Load recommendations from history table - EXCLUDE current user's recommendations
@@ -518,7 +647,8 @@ export default function ReviewerPage() {
             return;
         }
 
-        const windowTime = reviewWindowStart ? new Date(reviewWindowStart).getTime() : null;
+        const shouldApplyWindow = !isChairperson;
+        const windowTime = shouldApplyWindow && reviewWindowStart ? new Date(reviewWindowStart).getTime() : null;
         const extractTimestamp = (name: string) => {
             const match = name.match(/_(\d{10,13})(?:\.[a-z0-9]+)?$/i);
             if (!match) return null;
@@ -558,11 +688,11 @@ export default function ReviewerPage() {
             console.log("Found assessment forms:", data);
 
             // Check for current user's assessment forms (for reviewers)
-            const userProtocolAssessment = data.find(f => 
+            const userProtocolAssessment = data.find(f =>
                 f.name.includes(`Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
                 isWithinWindow(f.name, (f as any).created_at)
             );
-            const userInformedConsent = data.find(f => 
+            const userInformedConsent = data.find(f =>
                 f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
                 isWithinWindow(f.name, (f as any).created_at)
             );
@@ -866,13 +996,23 @@ export default function ReviewerPage() {
             return;
         }
 
+        if (isEthicalClearanceLocked) {
+            toast.info("This proposal already has an Ethical Clearance. Updates are locked.");
+            return;
+        }
+
+        if (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote) {
+            toast.info("You have already submitted revision notes for this cycle.");
+            return;
+        }
+
         if (!isChairperson && !reviewerRoleKey) {
             toast.error("Your reviewer role is not set. Please contact the chairperson.");
             return;
         }
 
         // Check if assessment forms are submitted (for non-chairperson reviewers)
-        if (!isChairperson) {
+        if (!isChairperson && !hasRevisionResubmission) {
             if (needsProtocolAssessment && !hasSubmittedProtocolAssessment) {
                 toast.error("Please submit the Protocol Assessment before submitting your recommendation");
                 return;
@@ -1056,15 +1196,21 @@ export default function ReviewerPage() {
     const isActiveSubmissionArchived = Boolean(
         activeSubmission && archivedProposalIds.has(activeSubmission.proposal_id)
     );
+    const hasRevisionResubmission = revisionSubmissionsCount > 0;
+    const hasDecisionLetterSent = decisionLetterSentCount > 0;
+    const isDecisionLetterLocked = hasDecisionLetterSent || hasRevisionResubmission;
+    const isEthicalClearanceLocked = ethicalClearanceSentCount > 0;
     const needsProtocolAssessment = !isChairperson && reviewerRoleKey === 'primary';
     const needsInformedConsent = !isChairperson && reviewerRoleKey === 'secondary';
     const needsAnyAssessment = needsProtocolAssessment || needsInformedConsent;
     const isRoleAssigned = isChairperson || reviewerRoleKey !== null;
-    const canSubmitRecommendation = isRoleAssigned && (isChairperson || (needsProtocolAssessment
-        ? hasSubmittedProtocolAssessment
-        : needsInformedConsent
-            ? hasSubmittedInformedConsent
-            : true));
+    const canSubmitRecommendation = isRoleAssigned && (isChairperson || (hasRevisionResubmission
+        ? true
+        : needsProtocolAssessment
+            ? hasSubmittedProtocolAssessment
+            : needsInformedConsent
+                ? hasSubmittedInformedConsent
+                : true));
 
     const activeSubmissions = submissions
         .filter((submission) => !archivedProposalIds.has(submission.proposal_id))
@@ -1079,6 +1225,20 @@ export default function ReviewerPage() {
     /* Open PDF Template Handler */
     const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
         try {
+            if (type === 'ethical_clearance' && isEthicalClearanceLocked) {
+                toast.info('Ethical Clearance has already been sent for this proposal.');
+                return;
+            }
+            if (type === 'decision_letter' && isDecisionLetterLocked) {
+                toast.info('Decision Letters are only allowed on the first revision request. Use comments for additional revisions.');
+                return;
+            }
+
+            if ((type === 'reviewer_assessment' || type === 'informed_consent') && hasRevisionResubmission) {
+                toast.info('Assessment forms are only submitted on the first review cycle. Use follow-up notes for revisions.');
+                return;
+            }
+
             if (!isChairperson) {
                 if (type === 'reviewer_assessment' && reviewerRoleKey !== 'primary') {
                     toast.error('Only primary reviewers can fill the Protocol Assessment form.');
@@ -1178,6 +1338,11 @@ export default function ReviewerPage() {
 
     const handleSubmitReviewerAssessment = async () => {
         if (!activeSubmission || !userId) return;
+
+        if (hasRevisionResubmission) {
+            toast.info('Protocol Assessment is locked for revision cycles. Use follow-up notes instead.');
+            return;
+        }
 
         if (!isChairperson && reviewerRoleKey !== 'primary') {
             toast.error('Only primary reviewers can submit the Protocol Assessment.');
@@ -1304,6 +1469,11 @@ export default function ReviewerPage() {
     const handleSubmitInformedConsentAssessment = async () => {
         if (!activeSubmission || !userId) return;
 
+        if (hasRevisionResubmission) {
+            toast.info('Informed Consent Assessment is locked for revision cycles. Use follow-up notes instead.');
+            return;
+        }
+
         if (!isChairperson && reviewerRoleKey !== 'secondary') {
             toast.error('Only secondary reviewers can submit the Informed Consent Assessment.');
             return;
@@ -1356,8 +1526,60 @@ export default function ReviewerPage() {
         }
     };
 
+    const submitAssessmentFollowup = async (type: 'protocol' | 'informed_consent') => {
+        if (!activeSubmission || !userId) return;
+
+        if (isEthicalClearanceLocked) {
+            toast.info('Ethical Clearance has already been sent. Follow-up notes are locked.');
+            return;
+        }
+
+        if (hasSubmittedAssessmentFollowup) {
+            toast.info('You have already submitted follow-up notes for this revision cycle.');
+            return;
+        }
+
+        const comment = recommendation.comments.trim();
+
+        if (!comment) {
+            toast.error('Please enter your revision notes before submitting.');
+            return;
+        }
+
+        try {
+            setSubmittingFollowup(true);
+            const historyData = {
+                history_type: 'assessment_followup_comment',
+                paper_id: activeSubmission.proposal_id,
+                comment,
+                actor: userId,
+                action: type === 'protocol'
+                    ? 'ASSESSMENT_FOLLOWUP_PROTOCOL'
+                    : 'ASSESSMENT_FOLLOWUP_ICF',
+                history_date: new Date().toISOString()
+            };
+
+            const { error } = await supabase.from('history').insert(historyData);
+            if (error) throw error;
+
+            setRecommendation((prev) => ({ ...prev, comments: '' }));
+
+            toast.success('Follow-up notes submitted.');
+        } catch (error: any) {
+            console.error('Error submitting follow-up notes:', error);
+            toast.error(`Failed to submit follow-up notes: ${error.message || 'Unknown error'}`);
+        } finally {
+            setSubmittingFollowup(false);
+        }
+    };
+
     const handleSubmitDecisionLetter = async () => {
         if (!activeSubmission || !userId) return;
+
+        if (isDecisionLetterLocked) {
+            toast.info('Decision Letters are only allowed on the first revision request. Use comments for additional revisions.');
+            return;
+        }
 
         try {
             const loadingId = toast.loading("Sending decision letter...");
@@ -1438,6 +1660,11 @@ export default function ReviewerPage() {
     /* Save PDF Template Handler */
     const handleSavePDFTemplate = async (pdfBytes: Uint8Array, _formData: Record<string, any>) => {
         if (!activeSubmission || !userId) return;
+
+        if ((templateType === 'ethical_clearance' && isEthicalClearanceLocked) || (templateType === 'decision_letter' && isDecisionLetterLocked) || (hasRevisionResubmission && (templateType === 'reviewer_assessment' || templateType === 'informed_consent'))) {
+            toast.info('This template is locked for revision cycles. Use follow-up comments instead.');
+            return;
+        }
 
         try {
             const loadingId = toast.loading("Saving and sending document...");
@@ -1651,13 +1878,20 @@ export default function ReviewerPage() {
                                                 <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                                 <span className="font-medium truncate min-w-0">{submission.proposal_title}</span>
                                                 {assignmentRolesByProposal[submission.proposal_id] && (
-                                                    <Badge variant="secondary" className="text-[10px] capitalize">
-                                                        {assignmentRolesByProposal[submission.proposal_id] === 'primary'
-                                                            ? 'Primary reviewer'
-                                                            : assignmentRolesByProposal[submission.proposal_id] === 'secondary'
-                                                                ? 'Secondary reviewer'
-                                                                : 'Member'}
-                                                    </Badge>
+                                                    <div className="flex flex-col">
+                                                        <Badge variant="secondary" className="text-[10px] capitalize">
+                                                            {assignmentRolesByProposal[submission.proposal_id] === 'primary'
+                                                                ? 'Primary reviewer'
+                                                                : assignmentRolesByProposal[submission.proposal_id] === 'secondary'
+                                                                    ? 'Secondary reviewer'
+                                                                    : 'Member'}
+                                                        </Badge>
+                                                        {assignmentSectionsByProposal[submission.proposal_id] && (
+                                                            <span className="mt-0.5 text-[10px] text-gray-500">
+                                                                Focus: {assignmentSectionsByProposal[submission.proposal_id]}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </TableCell>
@@ -1796,6 +2030,11 @@ export default function ReviewerPage() {
                                         <Badge variant="secondary" className="text-xs capitalize">
                                             {reviewerRoleLabel}
                                         </Badge>
+                                        {reviewerSectionHint && (
+                                            <div className="mt-1 text-[11px] text-gray-500">
+                                                Focus: {reviewerSectionHint}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
@@ -2031,11 +2270,14 @@ export default function ReviewerPage() {
                                                     : "border-green-500 bg-green-50"
                                                 : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-25"
                                         )}
-                                        onClick={() => setRecommendation(prev => ({
-                                            ...prev,
-                                            recommendation: 'approve',
-                                            comments: prev.recommendation === 'approve' ? prev.comments : ''
-                                        }))}
+                                        onClick={() => {
+                                            if (isEthicalClearanceLocked) return;
+                                            setRecommendation(prev => ({
+                                                ...prev,
+                                                recommendation: 'approve',
+                                                comments: prev.recommendation === 'approve' ? prev.comments : ''
+                                            }));
+                                        }}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
@@ -2077,10 +2319,13 @@ export default function ReviewerPage() {
                                                     : "border-yellow-500 bg-yellow-50"
                                                 : "border-gray-200 bg-white hover:border-yellow-300 hover:bg-yellow-25"
                                         )}
-                                        onClick={() => setRecommendation(prev => ({
-                                            ...prev,
-                                            recommendation: 'revisions'
-                                        }))}
+                                        onClick={() => {
+                                            if (isEthicalClearanceLocked) return;
+                                            setRecommendation(prev => ({
+                                                ...prev,
+                                                recommendation: 'revisions'
+                                            }));
+                                        }}
                                     >
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
@@ -2136,6 +2381,7 @@ export default function ReviewerPage() {
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
                                             rows={4}
                                             className="resize-none"
+                                            disabled={isEthicalClearanceLocked}
                                         />
                                     ) : (
                                         <Textarea
@@ -2148,6 +2394,7 @@ export default function ReviewerPage() {
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
                                             rows={2}
                                             className="resize-none"
+                                            disabled={isEthicalClearanceLocked}
                                         />
                                     )}
                                 </div>
@@ -2172,55 +2419,75 @@ export default function ReviewerPage() {
 
                                         {reviewerRoleKey === 'primary' && (
                                             <div className="grid grid-cols-1 gap-3">
-                                                <div className="relative">
-                                                    <Button
-                                                        onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
-                                                        disabled={hasSubmittedProtocolAssessment}
-                                                        className={cn(
-                                                            "w-full flex items-center justify-center gap-2",
-                                                            hasSubmittedProtocolAssessment
-                                                                ? "bg-green-600 hover:bg-green-700"
-                                                                : "bg-blue-600 hover:bg-blue-700"
-                                                        )}
-                                                    >
-                                                        {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
-                                                        <FileSignature className="w-4 h-4" />
-                                                        Protocol Assessment
-                                                    </Button>
-                                                    {hasSubmittedProtocolAssessment && (
-                                                        <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-gray-500 text-center">
-                                                    Primary reviewers must submit the Protocol Assessment.
-                                                </p>
+                                                {hasRevisionResubmission ? (
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            Additional revision cycle detected. Use the comments box below for follow-up notes.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="relative">
+                                                            <Button
+                                                                onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
+                                                                disabled={hasSubmittedProtocolAssessment}
+                                                                className={cn(
+                                                                    "w-full flex items-center justify-center gap-2",
+                                                                    hasSubmittedProtocolAssessment
+                                                                        ? "bg-green-600 hover:bg-green-700"
+                                                                        : "bg-blue-600 hover:bg-blue-700"
+                                                                )}
+                                                            >
+                                                                {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
+                                                                <FileSignature className="w-4 h-4" />
+                                                                Protocol Assessment
+                                                            </Button>
+                                                            {hasSubmittedProtocolAssessment && (
+                                                                <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            Primary reviewers must submit the Protocol Assessment.
+                                                        </p>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
 
                                         {reviewerRoleKey === 'secondary' && (
                                             <div className="grid grid-cols-1 gap-3">
-                                                <div className="relative">
-                                                    <Button
-                                                        onClick={() => handleOpenPDFTemplate('informed_consent')}
-                                                        disabled={hasSubmittedInformedConsent}
-                                                        className={cn(
-                                                            "w-full flex items-center justify-center gap-2",
-                                                            hasSubmittedInformedConsent
-                                                                ? "bg-green-600 hover:bg-green-700"
-                                                                : "bg-indigo-600 hover:bg-indigo-700"
-                                                        )}
-                                                    >
-                                                        {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
-                                                        <FileSignature className="w-4 h-4" />
-                                                        Informed Consent
-                                                    </Button>
-                                                    {hasSubmittedInformedConsent && (
-                                                        <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-gray-500 text-center">
-                                                    Secondary reviewers must submit the Informed Consent Assessment.
-                                                </p>
+                                                {hasRevisionResubmission ? (
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            Additional revision cycle detected. Use the comments box below for follow-up notes.
+                                                        </p>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <div className="relative">
+                                                            <Button
+                                                                onClick={() => handleOpenPDFTemplate('informed_consent')}
+                                                                disabled={hasSubmittedInformedConsent}
+                                                                className={cn(
+                                                                    "w-full flex items-center justify-center gap-2",
+                                                                    hasSubmittedInformedConsent
+                                                                        ? "bg-green-600 hover:bg-green-700"
+                                                                        : "bg-indigo-600 hover:bg-indigo-700"
+                                                                )}
+                                                            >
+                                                                {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
+                                                                <FileSignature className="w-4 h-4" />
+                                                                Informed Consent
+                                                            </Button>
+                                                            {hasSubmittedInformedConsent && (
+                                                                <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs text-gray-500 text-center">
+                                                            Secondary reviewers must submit the Informed Consent Assessment.
+                                                        </p>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
 
@@ -2249,26 +2516,32 @@ export default function ReviewerPage() {
                                             // Show Ethical Clearance button for Approve
                                             <Button
                                                 onClick={() => handleOpenPDFTemplate('ethical_clearance')}
+                                                disabled={isEthicalClearanceLocked}
                                                 className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
                                             >
                                                 <FileSignature className="w-4 h-4" />
-                                                Fill & Send Ethical Clearance Form
+                                                {isEthicalClearanceLocked ? 'Ethical Clearance Sent' : 'Fill & Send Ethical Clearance Form'}
                                             </Button>
                                         ) : (
                                             // Show Decision Letter button for Revisions
                                             <Button
                                                 onClick={() => handleOpenPDFTemplate('decision_letter')}
+                                                disabled={isDecisionLetterLocked}
                                                 className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700"
                                             >
                                                 <FileSignature className="w-4 h-4" />
-                                                Fill & Send Decision Letter
+                                                {isDecisionLetterLocked ? 'Decision Letter Locked' : 'Fill & Send Decision Letter'}
                                             </Button>
                                         )}
                                         
                                         <p className="text-xs text-gray-500 text-center">
-                                            {recommendation.recommendation === 'approve' 
-                                                ? 'This will open the Ethical Clearance form for you to fill and send to the researcher'
-                                                : 'This will open the Decision Letter template for you to customize and send to the researcher'
+                                            {recommendation.recommendation === 'approve'
+                                                ? isEthicalClearanceLocked
+                                                    ? 'Ethical Clearance has already been sent for this proposal.'
+                                                    : 'This will open the Ethical Clearance form for you to fill and send to the researcher'
+                                                : isDecisionLetterLocked
+                                                    ? 'Decision Letters are only allowed for the first revision cycle. Use comments below for further revision requests.'
+                                                    : 'This will open the Decision Letter template for you to customize and send to the researcher'
                                             }
                                         </p>
                                     </div>
@@ -2305,7 +2578,9 @@ export default function ReviewerPage() {
                                             onClick={submitRecommendation}
                                             disabled={
                                                 (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
-                                                (!isChairperson && !canSubmitRecommendation)
+                                                (!isChairperson && !canSubmitRecommendation) ||
+                                                isEthicalClearanceLocked ||
+                                                (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)
                                             }
                                             className="flex items-center gap-2"
                                         >
@@ -2321,7 +2596,7 @@ export default function ReviewerPage() {
                                 </div>
                                 
                                 {/* Warning message for incomplete forms */}
-                                {!isChairperson && needsAnyAssessment && !canSubmitRecommendation && (
+                                {!isChairperson && !hasRevisionResubmission && needsAnyAssessment && !canSubmitRecommendation && (
                                     <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
                                         <p className="text-sm text-orange-800">
                                             {needsProtocolAssessment

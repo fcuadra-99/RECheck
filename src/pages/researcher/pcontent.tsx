@@ -555,17 +555,18 @@ export default function PhaseContent({
         const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);
         const revisionTargetNames = new Set((historyFiles || []).map((doc) => doc.name.toLowerCase()));
         const hasRevisionTargets = revisionTargetNames.size > 0;
+        const hasRevisionComments = historyComments.length > 0 || Boolean(latestComment);
 
         return (
             <div className="space-y-4">
-                {(isResendStatus || submission.status === "Revise Proposal") && docs.length > 0 && hasRevisionTargets && (
+                {(isResendStatus || submission.status === "Revise Proposal") && hasRevisionComments && (
                     <div className="space-y-4">
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                             <div className="flex items-start gap-2">
                                 <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                                 <div className="text-sm text-amber-800">
-                                    <div className="font-medium">Revision Required</div>
-                                    <div>Please revise the following documents based on reviewer feedback:</div>
+                                    <div className="font-medium">Revision Notes</div>
+                                    <div>Please review the latest revision notes from the committee:</div>
                                 </div>
                             </div>
                         </div>
@@ -639,7 +640,7 @@ export default function PhaseContent({
                                 </div>
                             </div>
 
-                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms", "Send Revision"].includes(submission.status) &&
+                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms", "Send Revision", "Revise Proposal"].includes(submission.status) &&
                                 !doc.needsSignature && !doc.needsAnswer) ? (
                                 <label
                                     htmlFor={`file-${doc.name}`}
@@ -1064,16 +1065,22 @@ export default function PhaseContent({
         );
     };
 
-    const [historyComments, setHistoryComments] = useState<{ comment: string; actor: string; history_date: string }[]>([]);
+    const [historyComments, setHistoryComments] = useState<{
+        comment: string;
+        actor: string;
+        history_date: string;
+        history_type: string;
+        action?: string | null;
+    }[]>([]);
     const fetchHistoryComments = async (proposalId: number) => {
         try {
             const { data, error } = await supabase
                 .from("history")
-                .select("comment, actor, history_date")
+                .select("comment, actor, history_date, history_type, action")
                 .eq("paper_id", proposalId)
-                .eq("history_type", "review")
+                .in("history_type", ["review", "review_decision", "assessment_followup_comment"])
                 .order("history_date", { ascending: false })
-                .limit(1);
+                .limit(5);
 
             if (error) {
                 console.error("Error fetching history comments:", error);
@@ -1098,6 +1105,12 @@ export default function PhaseContent({
         loadHistoryComments();
     }, [submission?.proposal_id]);
 
+    const getCommentHeading = (historyType: string) => {
+        if (historyType === 'review_decision') return 'Comment from Chairperson';
+        if (historyType === 'assessment_followup_comment') return 'Follow-up Comment from Reviewer';
+        return 'Reviewer Comment';
+    };
+
     const RevisionComments = () => {
         if (historyComments.length === 0) {
             return null;
@@ -1109,8 +1122,8 @@ export default function PhaseContent({
                     <div className="flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                         <div className="text-sm text-blue-800">
-                            <div className="font-medium">Reviewer Comments</div>
-                            <div>Please review the following comments from the chairperson:</div>
+                            <div className="font-medium">Revision Notes</div>
+                            <div>Please review the latest comments from the committee:</div>
                         </div>
                     </div>
                 </div>
@@ -1118,9 +1131,7 @@ export default function PhaseContent({
                 {historyComments.map((comment, index) => (
                     <div key={index} className="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-4">
                         <div className="flex justify-between items-start mb-2">
-                            <div className="font-medium text-blue-900">
-                                Comment from Chairperson
-                            </div>
+                            <div className="font-medium text-blue-900">{getCommentHeading(comment.history_type)}</div>
                             <div className="text-xs text-blue-700">
                                 {new Date(comment.history_date).toLocaleDateString()} at{' '}
                                 {new Date(comment.history_date).toLocaleTimeString()}

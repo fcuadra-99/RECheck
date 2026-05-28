@@ -150,6 +150,23 @@ export const SReview = () => {
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [reviewType, setReviewType] = React.useState<"Full Board" | "Expedited" | "Exempt" | null>(null);
   const [requiredReviewerCount, setRequiredReviewerCount] = React.useState<number>(0);
+  const [reviewerSectionSelections, setReviewerSectionSelections] = React.useState<Record<string, string>>({});
+  const memberSectionOptions = [
+    'Respondents - Participants',
+    'Data Gathering',
+    'ICF, STUDY PROCEDURE'
+  ];
+
+  const getRoleForReviewer = (reviewerId: string) => {
+    return reviewerRoles[reviewerId] || (reviewerId === currentUserId ? 'primary' : 'member');
+  };
+
+  const getReviewerSectionHint = (reviewerId: string) => {
+    const role = getRoleForReviewer(reviewerId);
+    if (role === 'secondary') return 'ICF';
+    if (role === 'member') return reviewerSectionSelections[reviewerId] || null;
+    return null;
+  };
 
   // New states for risk assessment form
   const [showRiskAssessmentForm, setShowRiskAssessmentForm] = React.useState(false);
@@ -344,9 +361,9 @@ export const SReview = () => {
 
         // Set required reviewer count based on review type
         if (reviewType === "Full Board") {
-          setRequiredReviewerCount(6);
+          setRequiredReviewerCount(5);
         } else if (reviewType === "Expedited") {
-          setRequiredReviewerCount(4);
+          setRequiredReviewerCount(3);
         } else if (reviewType === "Exempt") {
           setRequiredReviewerCount(1);
         }
@@ -626,6 +643,18 @@ export const SReview = () => {
           acc[reviewerId] = reviewerRoles[reviewerId] || (reviewerId === currentUserId ? 'primary' : 'member');
           return acc;
         }, {});
+        const reviewerSections = selectedReviewers.reduce<Record<string, string>>((acc, reviewerId) => {
+          const role = getRoleForReviewer(reviewerId);
+          const hint = role === 'secondary'
+            ? 'ICF'
+            : role === 'member'
+              ? reviewerSectionSelections[reviewerId]
+              : null;
+          if (hint) {
+            acc[reviewerId] = hint;
+          }
+          return acc;
+        }, {});
 
         const primaryCount = Object.values(assignmentRoles).filter((role) => role === 'primary').length;
         if (primaryCount !== 1) {
@@ -672,7 +701,8 @@ export const SReview = () => {
           comment: `Assigned to ${selectedReviewers.length} reviewer(s) for ${reviewType} review: ${reviewerNames}. Protocol Code: ${protocolCode}`,
           affected_files: JSON.stringify({
             reviewerDocs,
-            reviewerRoles: assignmentRoles
+            reviewerRoles: assignmentRoles,
+            reviewerSections
           }),
           actor: actorId,
           action: "Assign Reviewers",
@@ -1288,29 +1318,54 @@ export const SReview = () => {
                       </Badge>
 
                       {isSelected && (
-                        <select
-                          className="border rounded px-2 py-1 text-xs"
-                          value={reviewerRoles[reviewer.id] || (reviewer.id === currentUserId ? 'primary' : 'member')}
-                          onClick={(event) => event.stopPropagation()}
-                          onMouseDown={(event) => event.stopPropagation()}
-                          onChange={(event) => {
-                            event.stopPropagation();
-                            const value = event.target.value as 'primary' | 'secondary' | 'member';
-                            setReviewerRoles((prev) => {
-                              const next: Record<string, 'primary' | 'secondary' | 'member'> = { ...prev, [reviewer.id]: value };
-                              if (value === 'primary') {
-                                Object.keys(next).forEach((id) => {
-                                  if (id !== reviewer.id) next[id] = 'member';
-                                });
-                              }
-                              return next;
-                            });
-                          }}
-                        >
-                          <option value="primary">Primary reviewer</option>
-                          <option value="secondary">Secondary reviewer</option>
-                          <option value="member">Member</option>
-                        </select>
+                        <div className="flex flex-col items-start">
+                          <select
+                            className="border rounded px-2 py-1 text-xs"
+                            value={reviewerRoles[reviewer.id] || (reviewer.id === currentUserId ? 'primary' : 'member')}
+                            onClick={(event) => event.stopPropagation()}
+                            onMouseDown={(event) => event.stopPropagation()}
+                            onChange={(event) => {
+                              event.stopPropagation();
+                              const value = event.target.value as 'primary' | 'secondary' | 'member';
+                              setReviewerRoles((prev) => {
+                                const next: Record<string, 'primary' | 'secondary' | 'member'> = { ...prev, [reviewer.id]: value };
+                                if (value === 'primary') {
+                                  Object.keys(next).forEach((id) => {
+                                    if (id !== reviewer.id) next[id] = 'member';
+                                  });
+                                }
+                                return next;
+                              });
+                            }}
+                          >
+                            <option value="primary">Primary reviewer</option>
+                            <option value="secondary">Secondary reviewer - ICF</option>
+                            <option value="member">Member</option>
+                          </select>
+                          {getRoleForReviewer(reviewer.id) === 'member' && (
+                            <select
+                              className="mt-1 border rounded px-2 py-1 text-[10px] text-gray-700"
+                              value={reviewerSectionSelections[reviewer.id] || ''}
+                              onClick={(event) => event.stopPropagation()}
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                event.stopPropagation();
+                                const value = event.target.value;
+                                setReviewerSectionSelections((prev) => ({ ...prev, [reviewer.id]: value }));
+                              }}
+                            >
+                              <option value="">Select section focus</option>
+                              {memberSectionOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          )}
+                          {getReviewerSectionHint(reviewer.id) && (
+                            <span className="mt-1 text-[10px] text-gray-500">
+                              Will review: {getReviewerSectionHint(reviewer.id)}
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       <div className="flex items-center gap-2">
