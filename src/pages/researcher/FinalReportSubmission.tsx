@@ -17,6 +17,8 @@ import {
   Award
 } from 'lucide-react';
 import FinalReportForm from '@/components/forms/FinalReportForm';
+import UndergradFinalEndorsement from '@/components/forms/UndergradFinalEndorsement';
+import PreFinalEndorsement from '@/components/forms/PreFinalEndorsement';
 
 interface Proposal {
   date: string;
@@ -78,6 +80,37 @@ const FinalReportSubmission: React.FC = () => {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewTitle, setPreviewTitle] = useState('');
   const [printOnPreviewOpen, setPrintOnPreviewOpen] = useState(false);
+  const [selectedProposalDetails, setSelectedProposalDetails] = useState<any>(null);
+  const [proposalDetailsLoading, setProposalDetailsLoading] = useState(false);
+  const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+
+  useEffect(() => {
+    async function fetchProposalDetails() {
+      if (!selectedReport?.proposal_date) {
+        setSelectedProposalDetails(null);
+        return;
+      }
+      setProposalDetailsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('proposals')
+          .select('*')
+          .eq('date', selectedReport.proposal_date)
+          .single();
+        if (!error && data) {
+          setSelectedProposalDetails(data);
+        } else {
+          setSelectedProposalDetails(null);
+        }
+      } catch (err) {
+        console.error('Error fetching proposal details:', err);
+        setSelectedProposalDetails(null);
+      } finally {
+        setProposalDetailsLoading(false);
+      }
+    }
+    fetchProposalDetails();
+  }, [selectedReport?.id]);
 
   async function loadReports() {
     setLoading(true);
@@ -95,15 +128,14 @@ const FinalReportSubmission: React.FC = () => {
   }
   
   function handlePreviewCertificate() {
-    // In a real implementation, this would fetch and display the certificate
-    // For now, we'll just show an alert
-    alert('Certificate preview would open in a new window. This is a placeholder for the actual preview functionality.');
+    setShowCertificatePreview(true);
   }
   
   function handleDownloadCertificate(reportTitle: string) {
-    // In a real implementation, this would generate and download a PDF certificate
-    // For now, we'll just show an alert
-    alert(`Certificate for "${reportTitle}" would be downloaded. This is a placeholder for the actual certificate generation.`);
+    setShowCertificatePreview(true);
+    setTimeout(() => {
+      window.print();
+    }, 500);
   }
 
   async function loadProposals() {
@@ -422,6 +454,65 @@ const FinalReportSubmission: React.FC = () => {
     );
   }
 
+  if (showCertificatePreview && selectedReport && selectedProposalDetails) {
+    const isUndergrad = selectedProposalDetails.category === 'Undergraduate';
+    const isGraduate = selectedProposalDetails.category === 'Graduate';
+    
+    const endorsementData = {
+      date: new Date(selectedReport.last_updated_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      name: selectedProposalDetails.researcher_full_name || selectedReport.researcher_name || '',
+      affiliation: 'University of the Immaculate Conception\nBonifacio Street, Davao City',
+      title: selectedProposalDetails.proposal_title || selectedReport.title || '',
+      protocolCode: selectedProposalDetails.protocol_id || '',
+      salutation: 'Ms./Mr. :',
+      receiptDate: new Date(selectedReport.submitted_at).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">
+              Certificate Preview: {selectedReport.title}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
+              >
+                Print / Download PDF
+              </button>
+              <button
+                onClick={() => setShowCertificatePreview(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Back to Details
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            {isUndergrad && (
+              <UndergradFinalEndorsement initialData={endorsementData} isReadOnly={true} />
+            )}
+            {isGraduate && (
+              <PreFinalEndorsement initialData={endorsementData} isReadOnly={true} />
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show submission form if toggled
   if (showSubmissionForm) {
     return (
@@ -698,45 +789,47 @@ const FinalReportSubmission: React.FC = () => {
                     </div>
                     
                     {/* Certificate of Completion */}
-                    <div className="mt-6 p-6 bg-white rounded-lg shadow-sm border border-green-200 certificate-section">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Award className="w-5 h-5 text-green-600" />
-                        Certificate of Approval
-                      </h3>
-                      <div className="flex flex-col items-center justify-center py-6 px-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
-                        <div className="text-center mb-6">
-                          <Award className="w-16 h-16 text-green-600 mx-auto mb-4" />
-                          <h3 className="text-lg font-bold text-gray-900">Research Ethics Committee</h3>
-                          <p className="text-sm text-gray-600 mt-1">Certificate of Approval</p>
-                        </div>
-                        
-                        <div className="w-full max-w-md text-center">
-                          <p className="text-gray-700 mb-4">
-                            This certificate confirms that the final report for the research project titled 
-                            <span className="font-medium"> {selectedReport.title}</span> has been reviewed and approved by the Ethics Committee.
-                          </p>
+                    {selectedProposalDetails && selectedProposalDetails.category !== 'External' && (
+                      <div className="mt-6 p-6 bg-white rounded-lg shadow-sm border border-green-200 certificate-section">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <Award className="w-5 h-5 text-green-600" />
+                          {selectedProposalDetails.category === 'Undergraduate' ? 'Endorsement for Final Defense' : 'Endorsement for Pre-final Defense'}
+                        </h3>
+                        <div className="flex flex-col items-center justify-center py-6 px-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
+                          <div className="text-center mb-6">
+                            <Award className="w-16 h-16 text-green-600 mx-auto mb-4" />
+                            <h3 className="text-lg font-bold text-gray-900">Research Ethics Committee</h3>
+                            <p className="text-sm text-gray-600 mt-1">Official Endorsement</p>
+                          </div>
                           
-                          <p className="text-sm text-gray-600 mb-6">
-                            Approval Date: {formatDate(selectedReport.last_updated_at)}
-                          </p>
+                          <div className="w-full max-w-md text-center">
+                            <p className="text-gray-700 mb-4">
+                              This endorsement confirms that your study titled 
+                              <span className="font-medium"> "{selectedProposalDetails.proposal_title || selectedReport.title}"</span> has officially been approved and released for your defense.
+                            </p>
+                            
+                            <p className="text-sm text-gray-600 mb-6">
+                              Approval Date: {formatDate(selectedReport.last_updated_at)}
+                            </p>
 
-                          <div className="mt-6 flex justify-center space-x-4">
-                            <button 
-                              onClick={() => handleDownloadCertificate(selectedReport.title)}
-                              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2">
-                              <Download className="w-4 h-4" />
-                              Download Certificate
-                            </button>
-                            <button 
-                              onClick={handlePreviewCertificate}
-                              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2">
-                              <Eye className="w-4 h-4" />
-                              Preview
-                            </button>
+                            <div className="mt-6 flex justify-center space-x-4">
+                              <button 
+                                onClick={() => handleDownloadCertificate(selectedReport.title)}
+                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2">
+                                <Download className="w-4 h-4" />
+                                Download / Print
+                              </button>
+                              <button 
+                                onClick={handlePreviewCertificate}
+                                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-2">
+                                <Eye className="w-4 h-4" />
+                                Preview
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
 

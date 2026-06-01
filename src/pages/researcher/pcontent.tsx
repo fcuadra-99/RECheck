@@ -278,19 +278,58 @@ export default function PhaseContent({
                         .select("*")
                         .eq("proposal_id", submission.proposal_id)
                         .eq("doc_type", doc.name)
-                        .order("uploaded_at", { ascending: false })
+                        .order("revision_number", { ascending: false })
                         .limit(1);
 
                     originalRecord = existingRecords?.[0];
                     newRevision = originalRecord?.revision_number
                         ? originalRecord.revision_number + 1
-                        : 2; // Default to v2 if resending but no previous record
+                        : 2;
+                }
+
+                const isReviseProposal = submission.status === "Revise Proposal";
+
+                // For Revise Proposal: scan storage bucket to find highest existing version
+                if (isReviseProposal) {
+                    const baseName = doc.name.replace(/\.pdf$/i, '');
+                    const folders = ['Send Manuscript', 'Send Forms'];
+                    let highestVersion = 1; // original file is implicitly v1
+
+                    for (const folder of folders) {
+                        const { data: files } = await supabase.storage
+                            .from("documents")
+                            .list(`${submission.proposal_id}/${folder}`);
+
+                        if (files) {
+                            for (const f of files) {
+                                // Match files like v2_Revised Manuscript.pdf, v3_Revised Manuscript.pdf
+                                const match = f.name.match(/^v(\d+)_(.+)$/i);
+                                if (match) {
+                                    const version = parseInt(match[1], 10);
+                                    const matchedBase = match[2].replace(/\.pdf$/i, '');
+                                    if (matchedBase.toLowerCase() === baseName.toLowerCase() && version > highestVersion) {
+                                        highestVersion = version;
+                                    }
+                                }
+                                // Also check if the original (non-versioned) file exists
+                                const fBase = f.name.replace(/\.pdf$/i, '');
+                                if (fBase.toLowerCase() === baseName.toLowerCase()) {
+                                    // Original file exists, so at least v1
+                                    if (highestVersion < 1) highestVersion = 1;
+                                }
+                            }
+                        }
+                    }
+
+                    newRevision = highestVersion + 1;
+                    console.log(`[Revision] doc="${doc.name}" storageHighest=${highestVersion} newRevision=${newRevision}`);
                 }
 
                 const getStorageFilename = (docName: string): string => {
                     if (docName === 'All Grades') return 'All Grades.pdf';
                     const baseName = docName.replace(/\.pdf$/i, '');
-                    return newRevision > 1 ? `v${newRevision}_${baseName}.pdf` : `${baseName}.pdf`;
+                    // Only add vX_ prefix for Phase 5 (Revise Proposal) after chairperson decision letter
+                    return (isReviseProposal && newRevision > 1) ? `v${newRevision}_${baseName}.pdf` : `${baseName}.pdf`;
                 };
 
                 let filePath: string = "";
@@ -327,10 +366,11 @@ export default function PhaseContent({
                 }
 
                 if (isResend) {
-                    const updatedRecord = {
+                    const updatedRecord: any = {
                         ...(filePath ? { file_path: filePath } : {}),
                         uploaded_at: new Date().toISOString(),
-                        revision_number: newRevision,
+                        // Only bump revision_number for Phase 5 (Revise Proposal)
+                        revision_number: isReviseProposal ? newRevision : (originalRecord?.revision_number || 1),
                     };
 
                     if (originalRecord) {

@@ -1317,6 +1317,14 @@ export default function ReviewerPage() {
                 ? hasSubmittedInformedConsent
                 : true));
 
+    const isDecisionLocked =
+        (!isChairperson && hasUserSubmittedRecommendation) ||
+        activeSubmission?.status === 'Reviewed' ||
+        activeSubmission?.status === 'Revise Proposal' ||
+        activeSubmission?.status === 'Approved' ||
+        isEthicalClearanceLocked ||
+        isActiveSubmissionArchived;
+
     const activeSubmissions = submissions
         .filter((submission) => !archivedProposalIds.has(submission.proposal_id))
         .sort((a, b) => +new Date(b.date) - +new Date(a.date));
@@ -2369,15 +2377,16 @@ export default function ReviewerPage() {
                                     {/* Approve Card */}
                                     <div
                                         className={cn(
-                                            "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
+                                            "border-2 rounded-lg p-4 transition-all duration-200",
+                                            isDecisionLocked ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:border-green-300 hover:bg-green-50",
                                             recommendation.recommendation === 'approve'
                                                 ? isChairperson
-                                                    ? "border-green-600 bg-green-100"
+                                                    ? "border-green-600 bg-green-50"
                                                     : "border-green-500 bg-green-50"
-                                                : "border-gray-200 bg-white hover:border-green-300 hover:bg-green-25"
+                                                : "border-gray-200 bg-white"
                                         )}
                                         onClick={() => {
-                                            if (isEthicalClearanceLocked) return;
+                                            if (isDecisionLocked) return;
                                             setRecommendation(prev => ({
                                                 ...prev,
                                                 recommendation: 'approve',
@@ -2418,15 +2427,16 @@ export default function ReviewerPage() {
                                     {/* Revisions Card */}
                                     <div
                                         className={cn(
-                                            "border-2 rounded-lg p-4 cursor-pointer transition-all duration-200",
+                                            "border-2 rounded-lg p-4 transition-all duration-200",
+                                            isDecisionLocked ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:border-yellow-300 hover:bg-yellow-50",
                                             recommendation.recommendation === 'revisions'
                                                 ? isChairperson
                                                     ? "border-yellow-600 bg-yellow-100"
                                                     : "border-yellow-500 bg-yellow-50"
-                                                : "border-gray-200 bg-white hover:border-yellow-300 hover:bg-yellow-25"
+                                                : "border-gray-200 bg-white"
                                         )}
                                         onClick={() => {
-                                            if (isEthicalClearanceLocked) return;
+                                            if (isDecisionLocked) return;
                                             setRecommendation(prev => ({
                                                 ...prev,
                                                 recommendation: 'revisions'
@@ -2487,7 +2497,7 @@ export default function ReviewerPage() {
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
                                             rows={4}
                                             className="resize-none"
-                                            disabled={isEthicalClearanceLocked}
+                                            disabled={isDecisionLocked}
                                         />
                                     ) : (
                                         <Textarea
@@ -2500,7 +2510,7 @@ export default function ReviewerPage() {
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
                                             rows={2}
                                             className="resize-none"
-                                            disabled={isEthicalClearanceLocked}
+                                            disabled={isDecisionLocked}
                                         />
                                     )}
                                 </div>
@@ -2662,42 +2672,30 @@ export default function ReviewerPage() {
                                     {isChairperson && (
                                         <div className="text-sm text-purple-600 flex items-center gap-2">
                                             <Crown className="w-4 h-4" />
-                                            Your decision will move the proposal to the next phase
+                                            {isDecisionLocked 
+                                                ? 'Final decision has been submitted for this cycle' 
+                                                : 'Your decision will move the proposal to the next phase'}
                                         </div>
                                     )}
                                     <div className="flex gap-2 ml-auto">
-                                        {hasUserSubmittedRecommendation && !isChairperson && (
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => {
-                                                    setRecommendation(prev => ({
-                                                        ...prev,
-                                                        comments: '',
-                                                        recommendation: 'approve'
-                                                    }));
-                                                }}
+                                        {!isDecisionLocked && (
+                                            <RippleButton
+                                                onClick={submitRecommendation}
+                                                disabled={
+                                                    (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
+                                                    (!isChairperson && !canSubmitRecommendation) ||
+                                                    isDecisionLocked ||
+                                                    (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)
+                                                }
+                                                className="flex items-center gap-2"
                                             >
-                                                Edit Recommendation
-                                            </Button>
-                                        )}
-                                        <RippleButton
-                                            onClick={submitRecommendation}
-                                            disabled={
-                                                (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
-                                                (!isChairperson && !canSubmitRecommendation) ||
-                                                isEthicalClearanceLocked ||
-                                                (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)
-                                            }
-                                            className="flex items-center gap-2"
-                                        >
-                                            <Send className="w-4 h-4" />
-                                            {isChairperson
-                                                ? 'Submit Final Decision'
-                                                : hasUserSubmittedRecommendation
-                                                    ? 'Update Recommendation'
+                                                <Send className="w-4 h-4" />
+                                                {isChairperson
+                                                    ? 'Submit Final Decision'
                                                     : 'Submit Recommendation'
-                                            }
-                                        </RippleButton>
+                                                }
+                                            </RippleButton>
+                                        )}
                                     </div>
                                 </div>
                                 
