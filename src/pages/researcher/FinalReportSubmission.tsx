@@ -81,7 +81,6 @@ const FinalReportSubmission: React.FC = () => {
   const [previewTitle, setPreviewTitle] = useState('');
   const [printOnPreviewOpen, setPrintOnPreviewOpen] = useState(false);
   const [selectedProposalDetails, setSelectedProposalDetails] = useState<any>(null);
-  const [proposalDetailsLoading, setProposalDetailsLoading] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
 
   useEffect(() => {
@@ -90,7 +89,6 @@ const FinalReportSubmission: React.FC = () => {
         setSelectedProposalDetails(null);
         return;
       }
-      setProposalDetailsLoading(true);
       try {
         const { data, error } = await supabase
           .from('proposals')
@@ -105,8 +103,6 @@ const FinalReportSubmission: React.FC = () => {
       } catch (err) {
         console.error('Error fetching proposal details:', err);
         setSelectedProposalDetails(null);
-      } finally {
-        setProposalDetailsLoading(false);
       }
     }
     fetchProposalDetails();
@@ -131,7 +127,7 @@ const FinalReportSubmission: React.FC = () => {
     setShowCertificatePreview(true);
   }
   
-  function handleDownloadCertificate(reportTitle: string) {
+  function handleDownloadCertificate() {
     setShowCertificatePreview(true);
     setTimeout(() => {
       window.print();
@@ -814,7 +810,7 @@ const FinalReportSubmission: React.FC = () => {
 
                             <div className="mt-6 flex justify-center space-x-4">
                               <button 
-                                onClick={() => handleDownloadCertificate(selectedReport.title)}
+                                onClick={() => handleDownloadCertificate()}
                                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors flex items-center gap-2">
                                 <Download className="w-4 h-4" />
                                 Download / Print

@@ -66,8 +66,7 @@ const FinalReportDetail: React.FC = () => {
   // Load predefined fields based on selected PDF
   const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
   const { fields: predefinedFields, loading: fieldsLoading } = useTemplateFields(template?.id || null);
-  const [certificateUrl, setCertificateUrl] = useState<string | null>(null);
-  console.log (certificateUrl, showCertificatePreview);
+
   
   // Debug logging
   console.log('🔍 Chairperson FinalReportDetail - selectedPdfName:', selectedPdfName, 'template:', template?.id, 'fields:', predefinedFields?.length, 'loading:', fieldsLoading);
