@@ -66,6 +66,13 @@ interface DocumentItem {
     phase: 'phase1' | 'phase3';
 }
 
+interface ChairpersonDocumentItem {
+    name: string;
+    url: string;
+    type: 'ethical_clearance' | 'decision_letter';
+    format: 'json' | 'pdf';
+}
+
 interface ReviewRecommendation {
     recommendation: 'approve' | 'revisions';
     comments: string;
@@ -92,6 +99,7 @@ export default function ReviewerPage() {
     // selected / ui state
     const [activeSubmission, setActiveSubmission] = useState<Submission | null>(null);
     const [submissionDocuments, setSubmissionDocuments] = useState<DocumentItem[]>([]);
+    const [chairpersonDocuments, setChairpersonDocuments] = useState<ChairpersonDocumentItem[]>([]);
     const [recommendation, setRecommendation] = useState<ReviewRecommendation>({
         recommendation: 'approve',
         comments: '',
@@ -120,6 +128,12 @@ export default function ReviewerPage() {
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
     const [printAssessmentOnOpen, setPrintAssessmentOnOpen] = useState(false);
     const [archivedOpen, setArchivedOpen] = useState(false);
+    const [chairpersonPreviewOpen, setChairpersonPreviewOpen] = useState(false);
+    const [chairpersonPreviewType, setChairpersonPreviewType] = useState<'ethical_clearance' | 'decision_letter' | null>(null);
+    const [chairpersonPreviewFormat, setChairpersonPreviewFormat] = useState<'json' | 'pdf' | null>(null);
+    const [chairpersonPreviewData, setChairpersonPreviewData] = useState<Record<string, any>>({});
+    const [chairpersonPreviewTitle, setChairpersonPreviewTitle] = useState<string>('');
+    const [chairpersonPreviewUrl, setChairpersonPreviewUrl] = useState<string | null>(null);
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
@@ -456,7 +470,11 @@ export default function ReviewerPage() {
             const reviewerAllowedDocs = userId ? (meta?.reviewerDocs?.[userId] || []) : [];
             const allowedDocSet = new Set(reviewerAllowedDocs.map((doc) => doc.trim().toLowerCase()));
             const filteredDocuments = allowedDocSet.size > 0
-                ? documents.filter((doc) => allowedDocSet.has(doc.name.trim().toLowerCase()))
+                ? documents.filter((doc) => {
+                    const docNameNoExt = doc.name.trim().toLowerCase().replace(/\.pdf$/i, '');
+                    const normalizedName = docNameNoExt.replace(/^v\d+_/, '');
+                    return allowedDocSet.has(normalizedName) || allowedDocSet.has(docNameNoExt) || allowedDocSet.has(doc.name.trim().toLowerCase());
+                })
                 : documents;
 
             setSubmissionDocuments(filteredDocuments);
@@ -482,6 +500,7 @@ export default function ReviewerPage() {
             await loadRevisionCycleInfo(activeSubmission.proposal_id);
             await loadDecisionLetterInfo(activeSubmission.proposal_id);
             await loadEthicalClearanceInfo(activeSubmission.proposal_id);
+            setChairpersonDocuments(isChairperson ? await loadChairpersonDecisionDocuments(activeSubmission.proposal_id) : []);
 
             const assignmentDate = meta?.assignmentDate || null;
             const latestSubmissionDate = await fetchLatestSubmissionDate(activeSubmission.proposal_id);
@@ -755,6 +774,48 @@ export default function ReviewerPage() {
         }
     };
 
+    const loadChairpersonDecisionDocuments = async (proposalId: number): Promise<ChairpersonDocumentItem[]> => {
+        try {
+            const path = `${proposalId}/Decisions`;
+            const { data, error } = await supabase.storage.from('documents').list(path);
+
+            if (error) {
+                if (!error.message.includes('not found')) {
+                    console.error('Error loading chairperson decision documents:', error);
+                }
+                return [];
+            }
+
+            if (!data || data.length === 0) return [];
+
+            const signedFiles = await Promise.all(
+                data.map(async (file: any) => {
+                    const { data: signed, error: signError } = await supabase.storage
+                        .from('documents')
+                        .createSignedUrl(`${path}/${file.name}`, 60 * 60);
+
+                    if (signError || !signed?.signedUrl) {
+                        console.error('Signed URL error for chairperson document:', signError?.message || 'unknown error');
+                        return null;
+                    }
+
+                    const lowerName = String(file.name || '').toLowerCase();
+                    return {
+                        name: file.name,
+                        url: signed.signedUrl,
+                        type: lowerName.includes('ethical_clearance') ? 'ethical_clearance' : 'decision_letter',
+                        format: lowerName.endsWith('.json') ? 'json' : 'pdf',
+                    } as ChairpersonDocumentItem;
+                })
+            );
+
+            return signedFiles.filter((file): file is ChairpersonDocumentItem => file !== null);
+        } catch (error) {
+            console.error('Failed to load chairperson decision documents:', error);
+            return [];
+        }
+    };
+
     const extractFileName = (filePath: string) => {
         const raw = filePath.split('/').pop() || filePath;
         return raw.trim();
@@ -802,11 +863,23 @@ export default function ReviewerPage() {
         }
 
         for (const doc of proposalDocs || []) {
-            const docName = (doc.doc_type || doc.file_name || extractFileName(doc.file_path || ''))?.trim();
-            if (!docName) continue;
+            const docNameBase = (doc.doc_type || doc.file_name || extractFileName(doc.file_path || ''))?.trim();
+            if (!docNameBase) continue;
+
+            let docName = docNameBase;
+            if (doc.revision_number && doc.revision_number > 1) {
+                const cleanBase = docNameBase.replace(/\.pdf$/i, '');
+                docName = `v${doc.revision_number}_${cleanBase}`;
+                if (docNameBase.toLowerCase().endsWith('.pdf')) {
+                    docName += '.pdf';
+                }
+            }
 
             const key = docName.toLowerCase();
-            if (seen.has(key)) continue;
+            const baseKey = docNameBase.toLowerCase();
+            const baseKeyNoExt = docNameBase.replace(/\.pdf$/i, '').toLowerCase();
+
+            if (seen.has(key) || seen.has(baseKey) || seen.has(baseKeyNoExt)) continue;
 
             let url = '';
             if (doc.file_path) {
@@ -831,27 +904,33 @@ export default function ReviewerPage() {
                 phase: getPhaseFromDocType(doc.doc_type || docName, doc.file_path)
             });
             seen.add(key);
+            seen.add(baseKey);
+            seen.add(baseKeyNoExt);
         }
 
         for (const [key, formName] of formDataNameMap.entries()) {
-            if (seen.has(key)) continue;
+            const baseKeyNoExt = key.replace(/\.pdf$/i, '');
+            if (seen.has(key) || seen.has(baseKeyNoExt)) continue;
             documents.push({
                 name: formName,
                 url: buildFormDataVirtualPath(proposalId, formName),
                 phase: 'phase3'
             });
             seen.add(key);
+            seen.add(baseKeyNoExt);
         }
 
         for (const file of [...phase1Files, ...phase3Files]) {
             const key = file.name.toLowerCase();
-            if (seen.has(key)) continue;
+            const baseKeyNoExt = file.name.replace(/\.pdf$/i, '').toLowerCase();
+            if (seen.has(key) || seen.has(baseKeyNoExt)) continue;
             documents.push({
                 name: file.name,
                 url: file.url,
                 phase: phase1Files.includes(file) ? 'phase1' : 'phase3'
             });
             seen.add(key);
+            seen.add(baseKeyNoExt);
         }
 
         return documents;
@@ -947,6 +1026,39 @@ export default function ReviewerPage() {
         }
     };
 
+    const getChairpersonDocumentLabel = (type: 'ethical_clearance' | 'decision_letter') => {
+        return type === 'ethical_clearance' ? 'Ethical Clearance' : 'Decision Letter';
+    };
+
+    const openChairpersonDocument = async (doc: ChairpersonDocumentItem) => {
+        setChairpersonPreviewTitle(getChairpersonDocumentLabel(doc.type));
+        setChairpersonPreviewType(doc.type);
+        setChairpersonPreviewFormat(doc.format);
+        setChairpersonPreviewUrl(doc.url);
+
+        if (doc.format === 'json') {
+            try {
+                const response = await fetch(doc.url);
+                if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+
+                const text = await response.text();
+                const parsed = JSON.parse(text);
+                if (!parsed || typeof parsed !== 'object') throw new Error('Invalid chairperson document JSON');
+
+                setChairpersonPreviewData(parsed);
+                setChairpersonPreviewOpen(true);
+                return;
+            } catch (error) {
+                console.error('Error loading chairperson document preview:', error);
+                toast.error('Failed to load document preview');
+                return;
+            }
+        }
+
+        setChairpersonPreviewData({});
+        setChairpersonPreviewOpen(true);
+    };
+
     useEffect(() => {
         if (!showAssessmentPreview || !printAssessmentOnOpen) return;
 
@@ -969,6 +1081,18 @@ export default function ReviewerPage() {
             document.body.classList.remove('form-print-active');
         };
     }, [showAssessmentPreview]);
+
+    useEffect(() => {
+        if (chairpersonPreviewOpen) {
+            document.body.classList.add('form-print-active');
+        } else {
+            document.body.classList.remove('form-print-active');
+        }
+
+        return () => {
+            document.body.classList.remove('form-print-active');
+        };
+    }, [chairpersonPreviewOpen]);
 
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
@@ -1380,6 +1504,11 @@ export default function ReviewerPage() {
     const handleSubmitEthicalClearance = async () => {
         if (!activeSubmission || !userId) return;
 
+        if (isEthicalClearanceLocked) {
+            toast.info('Ethical Clearance has already been sent for this proposal.');
+            return;
+        }
+
         try {
             const loadingId = toast.loading("Sending ethical clearance...");
 
@@ -1435,6 +1564,9 @@ export default function ReviewerPage() {
                 next.add(activeSubmission.proposal_id);
                 return next;
             });
+
+            await loadEthicalClearanceInfo(activeSubmission.proposal_id);
+            await loadSubmissionData();
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -1580,6 +1712,9 @@ export default function ReviewerPage() {
                 next.add(activeSubmission.proposal_id);
                 return next;
             });
+
+            await loadDecisionLetterInfo(activeSubmission.proposal_id);
+            await loadSubmissionData();
 
             setShowPDFTemplate(false);
             setTemplateType(null);
@@ -2049,6 +2184,42 @@ export default function ReviewerPage() {
                             )}
                         </div>
 
+                        {isChairperson && chairpersonDocuments.length > 0 && (
+                            <div className="space-y-4 mb-6 border-t pt-6">
+                                <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-100 text-emerald-800 text-xs font-medium">
+                                    <FileSignature className="w-3.5 h-3.5" />
+                                    <span className="uppercase tracking-wide">Chairperson Sent Documents</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {chairpersonDocuments.map((doc, index) => (
+                                        <div key={index} className="border rounded-lg p-4 bg-white shadow-sm">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <FileSignature className="h-5 w-5 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                                    <div className="min-w-0 flex-1">
+                                                        <h3 className="font-medium text-gray-900 break-words">
+                                                            {getChairpersonDocumentLabel(doc.type)}
+                                                        </h3>
+                                                        <p className="text-xs text-gray-500 mt-1 break-all">{doc.name}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 flex-shrink-0">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => openChairpersonDocument(doc)}
+                                                    >
+                                                        <Eye className="h-4 w-4 mr-2" />
+                                                        View
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Submitted Assessment Forms - For Chairperson */}
                         {isChairperson && (
                             <div className="space-y-4 mb-6 border-t pt-6">
@@ -2322,8 +2493,8 @@ export default function ReviewerPage() {
                                         <Textarea
                                             id="comments"
                                             placeholder={isChairperson
-                                                ? "Optional comments for approval decision..."
-                                                : "Optional comments for approval..."
+                                                ? ""
+                                                : ""
                                             }
                                             value={recommendation.comments}
                                             onChange={(e) => setRecommendation(prev => ({ ...prev, comments: e.target.value }))}
@@ -2926,6 +3097,66 @@ export default function ReviewerPage() {
                                 <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
                             ) : (
                                 <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {chairpersonPreviewOpen && chairpersonPreviewType && (
+                <div
+                    className="fixed inset-0 z-50 bg-gray-100 overflow-auto p-4 form-print-root"
+                    onClick={() => {
+                        setChairpersonPreviewOpen(false);
+                        setChairpersonPreviewType(null);
+                        setChairpersonPreviewFormat(null);
+                        setChairpersonPreviewData({});
+                        setChairpersonPreviewUrl(null);
+                        setChairpersonPreviewTitle('');
+                    }}
+                >
+                    <div className="max-w-[1000px] mx-auto form-print-shell" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex items-center justify-between p-4 border-b bg-white rounded-t-md print:hidden">
+                            <div className="font-semibold text-lg truncate pr-4">{chairpersonPreviewTitle}</div>
+                            <div className="flex items-center gap-2">
+                                {chairpersonPreviewFormat === 'json' && (
+                                    <Button variant="outline" onClick={() => window.print()}>
+                                        Print
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                        setChairpersonPreviewOpen(false);
+                                        setChairpersonPreviewType(null);
+                                        setChairpersonPreviewFormat(null);
+                                        setChairpersonPreviewData({});
+                                        setChairpersonPreviewUrl(null);
+                                        setChairpersonPreviewTitle('');
+                                    }}
+                                >
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="bg-white">
+                            {chairpersonPreviewFormat === 'json' ? (
+                                <div className="pointer-events-none select-none">
+                                    {chairpersonPreviewType === 'ethical_clearance' ? (
+                                        <EthicalClearanceForm savedData={chairpersonPreviewData} />
+                                    ) : (
+                                        <DecisionLetterForm savedData={chairpersonPreviewData} />
+                                    )}
+                                </div>
+                            ) : chairpersonPreviewUrl ? (
+                                <iframe
+                                    src={chairpersonPreviewUrl}
+                                    className="h-[calc(100vh-7rem)] w-full border-0"
+                                    title={chairpersonPreviewTitle}
+                                />
+                            ) : (
+                                <div className="p-6 text-center text-gray-500">Loading preview...</div>
                             )}
                         </div>
                     </div>

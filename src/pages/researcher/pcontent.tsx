@@ -268,11 +268,29 @@ export default function PhaseContent({
                 if (!uploadedFiles[doc.name] && submission.status === "Revise Proposal") {
                     continue;
                 }
+                const isResend = ["Resend Manuscript", "Resend Forms", "Send Revision", "Revise Proposal"].includes(submission.status);
+                let newRevision = 1;
+                let originalRecord: any = null;
+
+                if (isResend) {
+                    const { data: existingRecords } = await supabase
+                        .from("proposal_documents")
+                        .select("*")
+                        .eq("proposal_id", submission.proposal_id)
+                        .eq("doc_type", doc.name)
+                        .order("uploaded_at", { ascending: false })
+                        .limit(1);
+
+                    originalRecord = existingRecords?.[0];
+                    newRevision = originalRecord?.revision_number
+                        ? originalRecord.revision_number + 1
+                        : 2; // Default to v2 if resending but no previous record
+                }
 
                 const getStorageFilename = (docName: string): string => {
                     if (docName === 'All Grades') return 'All Grades.pdf';
                     const baseName = docName.replace(/\.pdf$/i, '');
-                    return `${baseName}.pdf`;
+                    return newRevision > 1 ? `v${newRevision}_${baseName}.pdf` : `${baseName}.pdf`;
                 };
 
                 let filePath: string = "";
@@ -288,6 +306,14 @@ export default function PhaseContent({
                             aa = uploadStatus.replace("Resend ", "Send ");
                         }
 
+                        if (submission.status === "Revise Proposal" || submission.status === "Send Revision" || aa === "Assign Review") {
+                            if (doc.name.toLowerCase().includes("manuscript")) {
+                                aa = "Send Manuscript";
+                            } else {
+                                aa = "Send Forms";
+                            }
+                        }
+
                         const storageFilename = getStorageFilename(doc.name);
                         const path = `${submission.proposal_id}/${aa || 'other'}/${storageFilename}`;
                         const renamedFile = new File([file], storageFilename, { type: file.type });
@@ -300,24 +326,9 @@ export default function PhaseContent({
                     }
                 }
 
-                if (["Resend Manuscript", "Resend Forms"].includes(submission.status)) {
-                    const { data: existingRecords } = await supabase
-                        .from("proposal_documents")
-                        .select("*")
-                        .eq("proposal_id", submission.proposal_id)
-                        .eq("doc_type", doc.name)
-                        .order("uploaded_at", { ascending: false })
-                        .limit(1);
-
-                    const originalRecord = existingRecords?.[0];
-                    //adasd
-                    // ✅ Insert or update new record with bumped revision #
-                    const newRevision = originalRecord?.revision_number
-                        ? originalRecord.revision_number + 1
-                        : 1;
-
+                if (isResend) {
                     const updatedRecord = {
-                        file_path: filePath,
+                        ...(filePath ? { file_path: filePath } : {}),
                         uploaded_at: new Date().toISOString(),
                         revision_number: newRevision,
                     };
@@ -340,10 +351,10 @@ export default function PhaseContent({
 
                         const { error: insertError } = await supabase
                             .from("proposal_documents")
-                            .insert(record);
+                            .insert([record]);
 
                         if (insertError) {
-                            throw new Error(insertError.message || "Failed to insert document record");
+                            throw new Error(insertError.message || "Failed to create document record");
                         }
                     }
                 }
@@ -1831,28 +1842,7 @@ export default function PhaseContent({
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
     if (submission.status === "Revise Proposal" || submission.status === "Send Revision") {
         const manuscriptDocs = [
-            { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
-            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
-            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
-            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false },
-            submission.category === "Graduate"
-                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: submission.status !== "Revise Proposal", needsSignature: false, needsAnswer: false }
-                : null,
-        ].filter(Boolean) as DocumentItem[];
-
-        const formsDocs = getFormsDocuments(submission);
-        return [...manuscriptDocs, ...formsDocs];
-    }
-
-    if (submission.status === "Send Revision") {
-        const manuscriptDocs = [
             { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },
-            { name: "Minutes of Proposal Defense", templateUrl: "/templates/minutes.pdf", required: true, needsSignature: false, needsAnswer: false },
-            { name: "Updated CV", templateUrl: "/templates/cv.pdf", required: true, needsSignature: false, needsAnswer: false },
-            { name: "All Grades", templateUrl: "/templates/grades.pdf", required: true, needsSignature: false, needsAnswer: false },
-            submission.category === "Graduate"
-                ? { name: "Receipt for Defense Proposal", templateUrl: "/templates/receipt.pdf", required: true, needsSignature: false, needsAnswer: false }
-                : null,
         ].filter(Boolean) as DocumentItem[];
 
         const formsDocs = getFormsDocuments(submission);
