@@ -109,6 +109,17 @@ const FinalReportDetail: React.FC = () => {
   }, [showFinalReportFormView, printOnFormViewOpen]);
 
   useEffect(() => {
+    if (showCertificatePreview) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showCertificatePreview]);
+
+  useEffect(() => {
     if (showFinalReportFormView) {
       document.body.classList.add('form-print-active');
     } else {

@@ -108,6 +108,17 @@ const FinalReportSubmission: React.FC = () => {
     fetchProposalDetails();
   }, [selectedReport?.id]);
 
+  useEffect(() => {
+    if (showCertificatePreview) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showCertificatePreview]);
+
   async function loadReports() {
     setLoading(true);
     const { data: user } = await supabase.auth.getUser();

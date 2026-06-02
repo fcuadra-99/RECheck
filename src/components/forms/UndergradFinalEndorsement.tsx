@@ -146,13 +146,13 @@ const UndergradFinalEndorsement: React.FC<EndorsementProps> = ({ initialData, is
               <td style={{ 
                 borderRight: `2px solid ${magenta}`, 
                 verticalAlign: 'top',
-                paddingTop: '20px',
-                height: '800px' // Ensure the left border extends down
+                paddingTop: '20px'
               }}>
               </td>
               <td style={{ 
                 paddingLeft: '15px',
                 paddingTop: '30px',
+                paddingBottom: '200px',
                 verticalAlign: 'top'
               }}>
                 <div style={{ textAlign: 'center', fontWeight: 'bold', marginBottom: '30px' }}>
