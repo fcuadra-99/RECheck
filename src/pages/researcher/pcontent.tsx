@@ -1451,14 +1451,15 @@ export default function PhaseContent({
                         return;
                     }
 
-                    if (!data || data.length === 0) {
+                    const filteredData = data.filter(file => !file.name.toLowerCase().includes('draft'));
+                    if (filteredData.length === 0) {
                         setDecisionDocs([]);
                         setLoading(false);
                         return;
                     }
 
                     const docs = await Promise.all(
-                        data.map(async (file) => {
+                        filteredData.map(async (file) => {
                             const { data: signedData, error: signError } = await supabase.storage
                                 .from('documents')
                                 .createSignedUrl(`${submission.proposal_id}/Decisions/${file.name}`, 60 * 60);

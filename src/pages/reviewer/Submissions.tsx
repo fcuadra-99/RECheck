@@ -163,6 +163,23 @@ export default function ReviewerPage() {
     const [ethicalClearanceSentCount, setEthicalClearanceSentCount] = useState(0);
     const [hasSubmittedChairpersonRevisionNote, setHasSubmittedChairpersonRevisionNote] = useState(false);
 
+    // Local form completion tracking (before final submission)
+    const [hasCompletedProtocolAssessment, setHasCompletedProtocolAssessment] = useState(false);
+    const [hasCompletedInformedConsent, setHasCompletedInformedConsent] = useState(false);
+    const [hasCompletedEthicalClearance, setHasCompletedEthicalClearance] = useState(false);
+    const [hasCompletedDecisionLetter, setHasCompletedDecisionLetter] = useState(false);
+    const [isPassingToAdmin, setIsPassingToAdmin] = useState(false);
+    const [hasPassedToAdmin, setHasPassedToAdmin] = useState(false);
+    const [decisionLetterDraftKey, setDecisionLetterDraftKey] = useState(0);
+
+    useEffect(() => {
+        setHasCompletedProtocolAssessment(false);
+        setHasCompletedInformedConsent(false);
+        setHasCompletedEthicalClearance(false);
+        setHasCompletedDecisionLetter(false);
+        setHasPassedToAdmin(false);
+    }, [activeSubmission?.proposal_id]);
+
     const [showFormPreview, setShowFormPreview] = useState(false);
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
 
@@ -461,6 +478,7 @@ export default function ReviewerPage() {
             setDecisionLetterSentCount(0);
             setEthicalClearanceSentCount(0);
             setHasSubmittedChairpersonRevisionNote(false);
+            setHasPassedToAdmin(false);
             return;
         }
 
@@ -501,6 +519,15 @@ export default function ReviewerPage() {
             await loadDecisionLetterInfo(activeSubmission.proposal_id);
             await loadEthicalClearanceInfo(activeSubmission.proposal_id);
             setChairpersonDocuments(isChairperson ? await loadChairpersonDecisionDocuments(activeSubmission.proposal_id) : []);
+
+            // Check if decision letter has already been passed to admin for this proposal
+            const { data: passedToAdminHistory } = await supabase
+                .from("history")
+                .select("history_id")
+                .eq("paper_id", activeSubmission.proposal_id)
+                .eq("history_type", "passed_to_admin")
+                .limit(1);
+            setHasPassedToAdmin(Boolean(passedToAdminHistory && passedToAdminHistory.length > 0));
 
             const assignmentDate = meta?.assignmentDate || null;
             const latestSubmissionDate = await fetchLatestSubmissionDate(activeSubmission.proposal_id);
@@ -786,10 +813,11 @@ export default function ReviewerPage() {
                 return [];
             }
 
-            if (!data || data.length === 0) return [];
+            const filteredData = data.filter(file => !file.name.toLowerCase().includes('draft'));
+            if (filteredData.length === 0) return [];
 
             const signedFiles = await Promise.all(
-                data.map(async (file: any) => {
+                filteredData.map(async (file: any) => {
                     const { data: signed, error: signError } = await supabase.storage
                         .from('documents')
                         .createSignedUrl(`${path}/${file.name}`, 60 * 60);
@@ -1116,15 +1144,27 @@ export default function ReviewerPage() {
             return;
         }
 
-        // Check if assessment forms are submitted (for non-chairperson reviewers)
-        if (!isChairperson && !hasRevisionResubmission) {
-            if (needsProtocolAssessment && !hasSubmittedProtocolAssessment) {
-                toast.error("Please submit the Protocol Assessment before submitting your recommendation");
+        // Check if assessment forms are completed
+        if (!hasCompletedRequiredReviewerForms) {
+            if (isPrimaryReviewer && !hasSubmittedProtocolAssessment && !hasCompletedProtocolAssessment) {
+                toast.error("Please fill and complete the Protocol Assessment before submitting");
                 return;
             }
 
-            if (needsInformedConsent && !hasSubmittedInformedConsent) {
-                toast.error("Please submit the Informed Consent Assessment before submitting your recommendation");
+            if (isSecondaryReviewer && !hasSubmittedInformedConsent && !hasCompletedInformedConsent) {
+                toast.error("Please fill and complete the Informed Consent Assessment before submitting");
+                return;
+            }
+        }
+
+        // Check if decision documents are completed (for chairperson)
+        if (isChairperson) {
+            if (recommendation.recommendation === 'approve' && !isEthicalClearanceLocked && !hasCompletedEthicalClearance) {
+                toast.error("Please fill and complete the Ethical Clearance Form before submitting your final decision");
+                return;
+            }
+            if (recommendation.recommendation === 'revisions' && !isDecisionLetterLocked && !hasCompletedDecisionLetter && !hasSubmittedChairpersonRevisionNote) {
+                toast.error("Please fill and complete the Decision Letter before submitting your final decision");
                 return;
             }
         }
@@ -1133,6 +1173,139 @@ export default function ReviewerPage() {
 
         try {
             const reviewWindowStart = getActiveReviewWindowStart();
+
+            // 1. Upload Protocol Reviewer Assessment if completed locally
+            if (hasCompletedProtocolAssessment) {
+                const filename = `Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+                const json = JSON.stringify(reviewerAssessmentData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const paHistoryData = {
+                    history_type: 'reviewer_assessment_submitted',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Reviewer assessment form submitted',
+                    actor: userId,
+                    action: 'REVIEWER_ASSESSMENT_SUBMITTED',
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: paHistoryError } = await supabase.from("history").insert(paHistoryData);
+                if (paHistoryError) throw paHistoryError;
+
+                setHasCompletedProtocolAssessment(false);
+                setHasSubmittedProtocolAssessment(true);
+            }
+
+            // 2. Upload Informed Consent Assessment if completed locally
+            if (hasCompletedInformedConsent) {
+                const filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+                const json = JSON.stringify(informedConsentData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const icHistoryData = {
+                    history_type: 'informed_consent_assessment_submitted',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Informed consent assessment form submitted',
+                    actor: userId,
+                    action: 'INFORMED_CONSENT_ASSESSMENT_SUBMITTED',
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: icHistoryError } = await supabase.from("history").insert(icHistoryData);
+                if (icHistoryError) throw icHistoryError;
+
+                setHasCompletedInformedConsent(false);
+                setHasSubmittedInformedConsent(true);
+            }
+
+            // 3. Upload Ethical Clearance if completed locally by Chairperson
+            if (isChairperson && recommendation.recommendation === 'approve' && hasCompletedEthicalClearance) {
+                const filename = `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
+                const json = JSON.stringify(ethicalClearanceData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const ecHistoryData = {
+                    history_type: 'ethical_clearance_sent',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Ethical Clearance sent to researcher',
+                    actor: userId,
+                    action: 'ETHICAL_CLEARANCE_SENT',
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: ecHistoryError } = await supabase.from("history").insert(ecHistoryData);
+                if (ecHistoryError) throw ecHistoryError;
+
+                setHasCompletedEthicalClearance(false);
+                await loadEthicalClearanceInfo(activeSubmission.proposal_id);
+            }
+
+            // 4. Upload Decision Letter if completed locally by Chairperson
+            if (isChairperson && recommendation.recommendation === 'revisions' && hasCompletedDecisionLetter) {
+                const revisionTargetsArray = Array.isArray(decisionLetterData.revisionTargets)
+                    ? decisionLetterData.revisionTargets.filter(Boolean)
+                    : [];
+                const affectedFiles = revisionTargetsArray.map((name: string) => ({
+                    name,
+                    required: true,
+                }));
+
+                const filename = `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
+                const json = JSON.stringify(decisionLetterData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const dlHistoryData = {
+                    history_type: 'decision_letter_sent',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Decision Letter sent to researcher',
+                    actor: userId,
+                    action: 'DECISION_LETTER_SENT',
+                    history_date: new Date().toISOString(),
+                    affected_files: affectedFiles.length > 0 ? affectedFiles : null,
+                };
+
+                const { error: dlHistoryError } = await supabase.from("history").insert(dlHistoryData);
+                if (dlHistoryError) throw dlHistoryError;
+
+                setHasCompletedDecisionLetter(false);
+                await loadDecisionLetterInfo(activeSubmission.proposal_id);
+            }
 
             // Check if user has already submitted a recommendation
             let existingRecQuery = supabase
@@ -1229,12 +1402,29 @@ export default function ReviewerPage() {
                     return next;
                 });
 
+                // Update local states immediately so that UI reacts in real-time
+                setActiveSubmission((prev) => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        status: nextStatus,
+                        updated_on: new Date().toISOString()
+                    };
+                });
+
+                setSubmissions((prev) =>
+                    prev.map((sub) =>
+                        sub.proposal_id === activeSubmission.proposal_id
+                            ? { ...sub, status: nextStatus, updated_on: new Date().toISOString() }
+                            : sub
+                    )
+                );
+
                 toast.success(
                     `Proposal ${recommendation.recommendation === 'approve' ? 'approved and moved to Data Collection' : 'sent for revisions'}`,
                     { id: loadingId }
                 );
             } else {
-                await loadSubmissionData();
                 setReviewedProposalIds((prev) => {
                     const next = new Set(prev);
                     next.add(activeSubmission.proposal_id);
@@ -1246,6 +1436,10 @@ export default function ReviewerPage() {
                     { id: loadingId }
                 );
             }
+
+            // Reload data and assessment forms for the current proposal
+            await loadSubmissionData();
+            await loadAssessmentForms(getActiveReviewWindowStart());
 
         } catch (err: any) {
             console.error("Failed to submit recommendation:", err);
@@ -1305,23 +1499,32 @@ export default function ReviewerPage() {
     const hasDecisionLetterSent = decisionLetterSentCount > 0;
     const isDecisionLetterLocked = hasDecisionLetterSent || hasRevisionResubmission;
     const isEthicalClearanceLocked = ethicalClearanceSentCount > 0;
-    const needsProtocolAssessment = !isChairperson && reviewerRoleKey === 'primary';
-    const needsInformedConsent = !isChairperson && reviewerRoleKey === 'secondary';
+    const isPrimaryReviewer = reviewerRoleKey === 'primary';
+    const isSecondaryReviewer = reviewerRoleKey === 'secondary';
+    const needsProtocolAssessment = !isChairperson && isPrimaryReviewer;
+    const needsInformedConsent = !isChairperson && isSecondaryReviewer;
     const needsAnyAssessment = needsProtocolAssessment || needsInformedConsent;
     const isRoleAssigned = isChairperson || reviewerRoleKey !== null;
-    const canSubmitRecommendation = isRoleAssigned && (isChairperson || (hasRevisionResubmission
+
+    const hasCompletedRequiredReviewerForms = hasRevisionResubmission
         ? true
-        : needsProtocolAssessment
-            ? hasSubmittedProtocolAssessment
-            : needsInformedConsent
-                ? hasSubmittedInformedConsent
-                : true));
+        : (isPrimaryReviewer ? (hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment) : true) &&
+          (isSecondaryReviewer ? (hasSubmittedInformedConsent || hasCompletedInformedConsent) : true);
+
+    const canSubmitRecommendation = isRoleAssigned && (
+        isChairperson
+            ? (recommendation.recommendation === 'approve'
+                ? (isEthicalClearanceLocked || hasCompletedEthicalClearance) && hasCompletedRequiredReviewerForms
+                : (isDecisionLetterLocked || hasCompletedDecisionLetter || hasSubmittedChairpersonRevisionNote) && hasCompletedRequiredReviewerForms)
+            : hasCompletedRequiredReviewerForms
+    );
 
     const isDecisionLocked =
         (!isChairperson && hasUserSubmittedRecommendation) ||
         activeSubmission?.status === 'Reviewed' ||
         activeSubmission?.status === 'Revise Proposal' ||
         activeSubmission?.status === 'Approved' ||
+        activeSubmission?.status === 'Data Collection' ||
         isEthicalClearanceLocked ||
         isActiveSubmissionArchived;
 
@@ -1335,8 +1538,102 @@ export default function ReviewerPage() {
 
     const displayedSubmissions = activeSubmissions.slice(0, 3);
 
+    /* Done Handlers for PDF/Custom Forms */
+    const handleDoneProtocolAssessment = () => {
+        setHasCompletedProtocolAssessment(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Protocol assessment marked as done. Remember to submit your recommendation.");
+    };
+
+    const handleDoneInformedConsent = () => {
+        setHasCompletedInformedConsent(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Informed consent assessment marked as done. Remember to submit your recommendation.");
+    };
+
+    const handleDoneEthicalClearance = () => {
+        setHasCompletedEthicalClearance(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Ethical clearance marked as done. Remember to submit your final decision.");
+    };
+
+    const saveDecisionLetterDraft = async (dataToSave: Record<string, any>) => {
+        if (!activeSubmission) return;
+        try {
+            const json = JSON.stringify(dataToSave, null, 2);
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/Decision_Letter_Draft.json`;
+            await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: true
+                });
+        } catch (err) {
+            console.error("Failed to auto-save decision letter draft:", err);
+        }
+    };
+
+    const handleDoneDecisionLetter = async () => {
+        await saveDecisionLetterDraft(decisionLetterData);
+        setHasCompletedDecisionLetter(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Decision letter marked as done. Remember to submit your final decision.");
+    };
+
+    const handlePassToAdminAssistant = async () => {
+        if (!activeSubmission || !userId || isPassingToAdmin || hasPassedToAdmin) return;
+        setIsPassingToAdmin(true);
+        const loadingId = toast.loading("Passing to Admin Assistant...");
+        try {
+            const json = JSON.stringify(decisionLetterData, null, 2);
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/Decision_Letter_Draft.json`;
+            const { error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: true
+                });
+
+            if (uploadError) throw uploadError;
+
+            const historyData = {
+                history_type: "passed_to_admin",
+                paper_id: activeSubmission.proposal_id,
+                comment: "Chairperson passed Decision Letter draft to Admin Assistant for dates check",
+                actor: userId,
+                action: "PASSED_TO_ADMIN",
+                history_date: new Date().toISOString(),
+            };
+
+            const { error: historyError } = await supabase.from("history").insert(historyData);
+            if (historyError) throw historyError;
+
+            toast.success("Decision Letter draft passed to Admin Assistant", { id: loadingId });
+            setHasPassedToAdmin(true);
+            setShowPDFTemplate(false);
+            setTemplateType(null);
+            setTemplateUrl('');
+            
+            await loadSubmissionData();
+        } catch (err: any) {
+            console.error("Error passing to Admin Assistant:", err);
+            toast.error(`Error: ${err.message || 'Unknown error'}`, { id: loadingId });
+        } finally {
+            setIsPassingToAdmin(false);
+        }
+    };
+
     /* Open PDF Template Handler */
     const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
+        if (!activeSubmission) return;
         try {
             if (type === 'ethical_clearance' && isEthicalClearanceLocked) {
                 toast.info('Ethical Clearance has already been sent for this proposal.');
@@ -1388,17 +1685,76 @@ export default function ReviewerPage() {
             
             // Get the template URL from public folder
             const templatePath = `/templates/${templateFilename}`;
-            
-            setTemplateUrl(templatePath);
-            setTemplateType(type);
-            setShowPDFTemplate(true);
 
             if (type === 'decision_letter') {
-                const savedTargets = Array.isArray(decisionLetterData.revisionTargets)
-                    ? decisionLetterData.revisionTargets
-                    : [];
-                setRevisionTargets(savedTargets);
+                const loadingToastId = toast.loading("Loading Decision Letter draft...");
+                try {
+                    const { data: fileBlob, error: downloadError } = await supabase.storage
+                        .from('documents')
+                        .download(`${activeSubmission.proposal_id}/Decisions/Decision_Letter_Draft.json`);
+
+                    if (!downloadError && fileBlob) {
+                        const text = await fileBlob.text();
+                        const parsed = JSON.parse(text);
+                        setDecisionLetterData(parsed || {});
+                        
+                        const savedTargets = Array.isArray(parsed?.revisionTargets)
+                            ? parsed.revisionTargets
+                            : [];
+                        setRevisionTargets(savedTargets);
+                    } else {
+                        const researcherProfile = profiles.find((x) => x.id === activeSubmission.researcher);
+                        const researcherName = researcherProfile 
+                            ? `${researcherProfile.fname ?? ""} ${researcherProfile.lname ?? ""}`.trim()
+                            : "";
+                        
+                        const defaultData = {
+                            date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+                            researcherName: researcherName,
+                            dearName: researcherName,
+                            protocolCode: activeSubmission.protocol_id || "",
+                            reviewType: activeSubmission.review_type || "",
+                            subject: "Research Ethics Review",
+                            institutionLine1: "University of the Immaculate Conception",
+                            institutionLine2: "Bonifacio St., Davao City",
+                            proposalSummary: "Overall, the study has evidence of scientific soundness, with the researcher having satisfactorily written all/or majority of following parts of the paper:",
+                            informedConsentSummary: "Generally, the ICF is adequately written. However, there are some additions in the sections to address other dimensions of ethics review.",
+                            chairName: "GIRLIE MAE P. ZABALA, PhD",
+                            chairTitle: "Chair, UIC-REC",
+                            revisionTargets: [],
+                            fields: {
+                                date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+                                researcherName: researcherName,
+                                dearName: researcherName,
+                                protocolCode: activeSubmission.protocol_id || "",
+                                reviewType: activeSubmission.review_type || "",
+                                subject: "Research Ethics Review",
+                                institutionLine1: "University of the Immaculate Conception",
+                                institutionLine2: "Bonifacio St., Davao City",
+                                proposalSummary: "Overall, the study has evidence of scientific soundness, with the researcher having satisfactorily written all/or majority of following parts of the paper:",
+                                informedConsentSummary: "Generally, the ICF is adequately written. However, there are some additions in the sections to address other dimensions of ethics review.",
+                                chairName: "GIRLIE MAE P. ZABALA, PhD",
+                                chairTitle: "Chair, UIC-REC",
+                            }
+                        };
+                        setDecisionLetterData(defaultData);
+                        setRevisionTargets([]);
+                    }
+                } catch (err) {
+                    console.error("Error downloading draft decision letter:", err);
+                    setDecisionLetterData({});
+                    setRevisionTargets([]);
+                } finally {
+                    toast.dismiss(loadingToastId);
+                }
             }
+
+            setTemplateUrl(templatePath);
+            setTemplateType(type);
+            if (type === 'decision_letter') {
+                setDecisionLetterDraftKey(prev => prev + 1);
+            }
+            setShowPDFTemplate(true);
         } catch (error) {
             console.error('Error loading template:', error);
             toast.error('Failed to load template');
@@ -1446,292 +1802,6 @@ export default function ReviewerPage() {
         } catch (error: any) {
             console.error("Failed to archive proposal:", error);
             toast.error(`Failed to archive proposal: ${error.message || "Unknown error"}`);
-        }
-    };
-
-    const handleSubmitReviewerAssessment = async () => {
-        if (!activeSubmission || !userId) return;
-
-        if (hasRevisionResubmission) {
-            toast.info('Protocol Assessment is locked for revision cycles. Use follow-up notes instead.');
-            return;
-        }
-
-        if (!isChairperson && reviewerRoleKey !== 'primary') {
-            toast.error('Only primary reviewers can submit the Protocol Assessment.');
-            return;
-        }
-
-        if (hasSubmittedProtocolAssessment) {
-            toast.info('Protocol Reviewer Assessment already submitted. Editing is locked.');
-            return;
-        }
-
-        try {
-            const loadingId = toast.loading("Submitting protocol reviewer assessment...");
-
-            const filename = `Reviewer_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
-            const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
-            const json = JSON.stringify(reviewerAssessmentData, null, 2);
-
-            const { error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
-                    contentType: 'application/json',
-                    upsert: false
-                });
-
-            if (uploadError) throw uploadError;
-
-            const historyData = {
-                history_type: 'reviewer_assessment_submitted',
-                paper_id: activeSubmission.proposal_id,
-                comment: 'Reviewer assessment form submitted',
-                actor: userId,
-                action: 'REVIEWER_ASSESSMENT_SUBMITTED',
-                history_date: new Date().toISOString(),
-            };
-
-            const { error: historyError } = await supabase.from("history").insert(historyData);
-            if (historyError) throw historyError;
-
-            setHasSubmittedProtocolAssessment(true);
-            await loadAssessmentForms(getActiveReviewWindowStart());
-
-            setShowPDFTemplate(false);
-            setTemplateType(null);
-            setTemplateUrl('');
-
-            toast.success('Protocol reviewer assessment submitted successfully', { id: loadingId });
-        } catch (error: any) {
-            console.error('Error submitting reviewer assessment:', error);
-            toast.error(`Failed to submit assessment: ${error.message || 'Unknown error'}`);
-        }
-    };
-
-    const handleSubmitEthicalClearance = async () => {
-        if (!activeSubmission || !userId) return;
-
-        if (isEthicalClearanceLocked) {
-            toast.info('Ethical Clearance has already been sent for this proposal.');
-            return;
-        }
-
-        try {
-            const loadingId = toast.loading("Sending ethical clearance...");
-
-            const filename = `Ethical_Clearance_${activeSubmission.proposal_id}_${Date.now()}.json`;
-            const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
-            const json = JSON.stringify(ethicalClearanceData, null, 2);
-
-            const { error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
-                    contentType: 'application/json',
-                    upsert: false
-                });
-
-            if (uploadError) throw uploadError;
-
-            const historyData = {
-                history_type: 'ethical_clearance_sent',
-                paper_id: activeSubmission.proposal_id,
-                comment: 'Ethical Clearance sent to researcher',
-                actor: userId,
-                action: 'ETHICAL_CLEARANCE_SENT',
-                history_date: new Date().toISOString(),
-            };
-
-            const { error: historyError } = await supabase.from("history").insert(historyData);
-            if (historyError) throw historyError;
-
-            const { error: statusError } = await supabase
-                .from("proposals")
-                .update({
-                    status: "Data Collection",
-                    updated_on: new Date().toISOString()
-                })
-                .eq("proposal_id", activeSubmission.proposal_id);
-
-            if (statusError) throw statusError;
-
-            const decisionHistoryData = {
-                history_type: "review_decision",
-                paper_id: activeSubmission.proposal_id,
-                comment: "Chairperson approved proposal and sent Ethical Clearance",
-                actor: userId,
-                action: "CHAIRPERSON_DECISION_APPROVE",
-                history_date: new Date().toISOString(),
-            };
-
-            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
-            if (decisionError) throw decisionError;
-
-            setReviewedProposalIds((prev) => {
-                const next = new Set(prev);
-                next.add(activeSubmission.proposal_id);
-                return next;
-            });
-
-            await loadEthicalClearanceInfo(activeSubmission.proposal_id);
-            await loadSubmissionData();
-
-            setShowPDFTemplate(false);
-            setTemplateType(null);
-            setTemplateUrl('');
-
-            toast.success('Ethical Clearance sent - Proposal approved and moved to Data Collection', { id: loadingId });
-        } catch (error: any) {
-            console.error('Error sending ethical clearance:', error);
-            toast.error(`Failed to send ethical clearance: ${error.message || 'Unknown error'}`);
-        }
-    };
-
-    const handleSubmitInformedConsentAssessment = async () => {
-        if (!activeSubmission || !userId) return;
-
-        if (hasRevisionResubmission) {
-            toast.info('Informed Consent Assessment is locked for revision cycles. Use follow-up notes instead.');
-            return;
-        }
-
-        if (!isChairperson && reviewerRoleKey !== 'secondary') {
-            toast.error('Only secondary reviewers can submit the Informed Consent Assessment.');
-            return;
-        }
-
-        if (hasSubmittedInformedConsent) {
-            toast.info('Informed Consent Assessment already submitted. Editing is locked.');
-            return;
-        }
-
-        try {
-            const loadingId = toast.loading("Submitting informed consent assessment...");
-
-            const filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
-            const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
-            const json = JSON.stringify(informedConsentData, null, 2);
-
-            const { error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
-                    contentType: 'application/json',
-                    upsert: false
-                });
-
-            if (uploadError) throw uploadError;
-
-            const historyData = {
-                history_type: 'informed_consent_assessment_submitted',
-                paper_id: activeSubmission.proposal_id,
-                comment: 'Informed consent assessment form submitted',
-                actor: userId,
-                action: 'INFORMED_CONSENT_ASSESSMENT_SUBMITTED',
-                history_date: new Date().toISOString(),
-            };
-
-            const { error: historyError } = await supabase.from("history").insert(historyData);
-            if (historyError) throw historyError;
-
-            setHasSubmittedInformedConsent(true);
-            await loadAssessmentForms(getActiveReviewWindowStart());
-
-            setShowPDFTemplate(false);
-            setTemplateType(null);
-            setTemplateUrl('');
-
-            toast.success('Informed consent assessment submitted successfully', { id: loadingId });
-        } catch (error: any) {
-            console.error('Error submitting informed consent assessment:', error);
-            toast.error(`Failed to submit assessment: ${error.message || 'Unknown error'}`);
-        }
-    };
-
-
-    const handleSubmitDecisionLetter = async () => {
-        if (!activeSubmission || !userId) return;
-
-        if (isDecisionLetterLocked) {
-            toast.info('Decision Letters are only allowed on the first revision request. Use comments for additional revisions.');
-            return;
-        }
-
-        try {
-            const loadingId = toast.loading("Sending decision letter...");
-
-            const revisionTargets = Array.isArray(decisionLetterData.revisionTargets)
-                ? decisionLetterData.revisionTargets.filter(Boolean)
-                : [];
-            const affectedFiles = revisionTargets.map((name: string) => ({
-                name,
-                required: true,
-            }));
-
-            const filename = `Decision_Letter_${activeSubmission.proposal_id}_${Date.now()}.json`;
-            const uploadPath = `${activeSubmission.proposal_id}/Decisions/${filename}`;
-            const json = JSON.stringify(decisionLetterData, null, 2);
-
-            const { error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
-                    contentType: 'application/json',
-                    upsert: false
-                });
-
-            if (uploadError) throw uploadError;
-
-            const historyData = {
-                history_type: 'decision_letter_sent',
-                paper_id: activeSubmission.proposal_id,
-                comment: 'Decision Letter sent to researcher',
-                actor: userId,
-                action: 'DECISION_LETTER_SENT',
-                history_date: new Date().toISOString(),
-                affected_files: affectedFiles.length > 0 ? affectedFiles : null,
-            };
-
-            const { error: historyError } = await supabase.from("history").insert(historyData);
-            if (historyError) throw historyError;
-
-            const { error: statusError } = await supabase
-                .from("proposals")
-                .update({
-                    status: "Revise Proposal",
-                    updated_on: new Date().toISOString()
-                })
-                .eq("proposal_id", activeSubmission.proposal_id);
-
-            if (statusError) throw statusError;
-
-            const decisionHistoryData = {
-                history_type: "review_decision",
-                paper_id: activeSubmission.proposal_id,
-                comment: "Chairperson requested revisions for proposal and sent Decision Letter",
-                actor: userId,
-                action: "CHAIRPERSON_DECISION_REVISIONS",
-                history_date: new Date().toISOString(),
-            };
-
-            const { error: decisionError } = await supabase.from("history").insert(decisionHistoryData);
-            if (decisionError) throw decisionError;
-
-            setReviewedProposalIds((prev) => {
-                const next = new Set(prev);
-                next.add(activeSubmission.proposal_id);
-                return next;
-            });
-
-            await loadDecisionLetterInfo(activeSubmission.proposal_id);
-            await loadSubmissionData();
-
-            setShowPDFTemplate(false);
-            setTemplateType(null);
-            setTemplateUrl('');
-
-            toast.success('Decision Letter sent - Proposal moved to Revise Proposal', { id: loadingId });
-        } catch (error: any) {
-            console.error('Error sending decision letter:', error);
-            toast.error(`Failed to send decision letter: ${error.message || 'Unknown error'}`);
         }
     };
 
@@ -1846,6 +1916,24 @@ export default function ReviewerPage() {
                     next.add(activeSubmission.proposal_id);
                     return next;
                 });
+
+                // Update local states immediately
+                setActiveSubmission((prev) => {
+                    if (!prev) return null;
+                    return {
+                        ...prev,
+                        status: nextStatus,
+                        updated_on: new Date().toISOString()
+                    };
+                });
+
+                setSubmissions((prev) =>
+                    prev.map((sub) =>
+                        sub.proposal_id === activeSubmission.proposal_id
+                            ? { ...sub, status: nextStatus, updated_on: new Date().toISOString() }
+                            : sub
+                    )
+                );
 
                 toast.success(
                     `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,
@@ -2542,30 +2630,30 @@ export default function ReviewerPage() {
                                                         </p>
                                                     </div>
                                                 ) : (
-                                                    <>
-                                                        <div className="relative">
-                                                            <Button
-                                                                onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
-                                                                disabled={hasSubmittedProtocolAssessment}
-                                                                className={cn(
-                                                                    "w-full flex items-center justify-center gap-2",
-                                                                    hasSubmittedProtocolAssessment
-                                                                        ? "bg-green-600 hover:bg-green-700"
-                                                                        : "bg-blue-600 hover:bg-blue-700"
-                                                                )}
-                                                            >
-                                                                {hasSubmittedProtocolAssessment && <Check className="w-4 h-4" />}
-                                                                <FileSignature className="w-4 h-4" />
-                                                                Protocol Assessment
-                                                            </Button>
-                                                            {hasSubmittedProtocolAssessment && (
-                                                                <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                    <div className="relative">
+                                                        <Button
+                                                            onClick={() => handleOpenPDFTemplate('reviewer_assessment')}
+                                                            disabled={hasSubmittedProtocolAssessment}
+                                                            className={cn(
+                                                                "w-full flex items-center justify-center gap-2",
+                                                                (hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment)
+                                                                    ? "bg-green-600 hover:bg-green-700"
+                                                                    : "bg-blue-600 hover:bg-blue-700"
                                                             )}
-                                                        </div>
-                                                        <p className="text-xs text-gray-500 text-center">
-                                                            Primary reviewers must submit the Protocol Assessment.
+                                                        >
+                                                            {(hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment) && <Check className="w-4 h-4" />}
+                                                            <FileSignature className="w-4 h-4" />
+                                                            Protocol Assessment
+                                                        </Button>
+                                                        {(hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment) && (
+                                                            <div className="text-xs text-center text-green-600 mt-1">
+                                                                {hasSubmittedProtocolAssessment ? 'Submitted ✓' : 'Done (Pending submit) ✓'}
+                                                            </div>
+                                                        )}
+                                                        <p className="text-xs text-gray-500 text-center mt-2">
+                                                            Primary reviewers must complete the Protocol Assessment.
                                                         </p>
-                                                    </>
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
@@ -2586,21 +2674,23 @@ export default function ReviewerPage() {
                                                                 disabled={hasSubmittedInformedConsent}
                                                                 className={cn(
                                                                     "w-full flex items-center justify-center gap-2",
-                                                                    hasSubmittedInformedConsent
+                                                                    (hasSubmittedInformedConsent || hasCompletedInformedConsent)
                                                                         ? "bg-green-600 hover:bg-green-700"
                                                                         : "bg-indigo-600 hover:bg-indigo-700"
                                                                 )}
                                                             >
-                                                                {hasSubmittedInformedConsent && <Check className="w-4 h-4" />}
+                                                                {(hasSubmittedInformedConsent || hasCompletedInformedConsent) && <Check className="w-4 h-4" />}
                                                                 <FileSignature className="w-4 h-4" />
                                                                 Informed Consent
                                                             </Button>
-                                                            {hasSubmittedInformedConsent && (
-                                                                <div className="text-xs text-center text-green-600 mt-1">Submitted ✓</div>
+                                                            {(hasSubmittedInformedConsent || hasCompletedInformedConsent) && (
+                                                                <div className="text-xs text-center text-green-600 mt-1">
+                                                                    {hasSubmittedInformedConsent ? 'Submitted ✓' : 'Done (Pending submit) ✓'}
+                                                                </div>
                                                             )}
                                                         </div>
                                                         <p className="text-xs text-gray-500 text-center">
-                                                            Secondary reviewers must submit the Informed Consent Assessment.
+                                                            Secondary reviewers must complete the Informed Consent Assessment.
                                                         </p>
                                                     </>
                                                 )}
@@ -2630,34 +2720,64 @@ export default function ReviewerPage() {
                                         
                                         {recommendation.recommendation === 'approve' ? (
                                             // Show Ethical Clearance button for Approve
-                                            <Button
-                                                onClick={() => handleOpenPDFTemplate('ethical_clearance')}
-                                                disabled={isEthicalClearanceLocked}
-                                                className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700"
-                                            >
-                                                <FileSignature className="w-4 h-4" />
-                                                {isEthicalClearanceLocked ? 'Ethical Clearance Sent' : 'Fill & Send Ethical Clearance Form'}
-                                            </Button>
+                                            <div className="relative w-full">
+                                                <Button
+                                                    onClick={() => handleOpenPDFTemplate('ethical_clearance')}
+                                                    disabled={isEthicalClearanceLocked}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-center gap-2",
+                                                        (isEthicalClearanceLocked || hasCompletedEthicalClearance)
+                                                            ? "bg-green-600 hover:bg-green-700"
+                                                            : "bg-green-600 hover:bg-green-700"
+                                                    )}
+                                                >
+                                                    {(isEthicalClearanceLocked || hasCompletedEthicalClearance) && <Check className="w-4 h-4" />}
+                                                    <FileSignature className="w-4 h-4" />
+                                                    {isEthicalClearanceLocked 
+                                                        ? 'Ethical Clearance Sent ✓' 
+                                                        : hasCompletedEthicalClearance 
+                                                            ? 'Ethical Clearance Done ✓' 
+                                                            : 'Fill Ethical Clearance Form'}
+                                                </Button>
+                                                {hasCompletedEthicalClearance && !isEthicalClearanceLocked && (
+                                                    <div className="text-xs text-center text-green-600 mt-1">Done (Pending submit) ✓</div>
+                                                )}
+                                            </div>
                                         ) : (
                                             // Show Decision Letter button for Revisions
-                                            <Button
-                                                onClick={() => handleOpenPDFTemplate('decision_letter')}
-                                                disabled={isDecisionLetterLocked}
-                                                className="w-full flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700"
-                                            >
-                                                <FileSignature className="w-4 h-4" />
-                                                {isDecisionLetterLocked ? 'Decision Letter Locked' : 'Fill & Send Decision Letter'}
-                                            </Button>
+                                            <div className="relative w-full">
+                                                <Button
+                                                    onClick={() => handleOpenPDFTemplate('decision_letter')}
+                                                    disabled={isDecisionLetterLocked}
+                                                    className={cn(
+                                                        "w-full flex items-center justify-center gap-2",
+                                                        (isDecisionLetterLocked || hasCompletedDecisionLetter)
+                                                            ? "bg-yellow-600 hover:bg-yellow-700"
+                                                            : "bg-yellow-600 hover:bg-yellow-700"
+                                                    )}
+                                                >
+                                                    {(isDecisionLetterLocked || hasCompletedDecisionLetter) && <Check className="w-4 h-4" />}
+                                                    <FileSignature className="w-4 h-4" />
+                                                    {isDecisionLetterLocked 
+                                                        ? 'Decision Letter Locked' 
+                                                        : hasCompletedDecisionLetter 
+                                                            ? 'Decision Letter Done ✓' 
+                                                            : 'Fill Decision Letter'}
+                                                </Button>
+                                                {hasCompletedDecisionLetter && !isDecisionLetterLocked && (
+                                                    <div className="text-xs text-center text-green-600 mt-1">Done (Pending submit) ✓</div>
+                                                )}
+                                            </div>
                                         )}
                                         
                                         <p className="text-xs text-gray-500 text-center">
                                             {recommendation.recommendation === 'approve'
                                                 ? isEthicalClearanceLocked
                                                     ? 'Ethical Clearance has already been sent for this proposal.'
-                                                    : 'This will open the Ethical Clearance form for you to fill and send to the researcher'
+                                                    : 'This will open the Ethical Clearance form for you to fill'
                                                 : isDecisionLetterLocked
                                                     ? 'Decision Letters are only allowed for the first revision cycle. Use comments below for further revision requests.'
-                                                    : 'This will open the Decision Letter template for you to customize and send to the researcher'
+                                                    : 'This will open the Decision Letter template for you to customize'
                                             }
                                         </p>
                                     </div>
@@ -2683,7 +2803,7 @@ export default function ReviewerPage() {
                                                 onClick={submitRecommendation}
                                                 disabled={
                                                     (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
-                                                    (!isChairperson && !canSubmitRecommendation) ||
+                                                    !canSubmitRecommendation ||
                                                     isDecisionLocked ||
                                                     (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)
                                                 }
@@ -2704,8 +2824,19 @@ export default function ReviewerPage() {
                                     <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
                                         <p className="text-sm text-orange-800">
                                             {needsProtocolAssessment
-                                                ? '⚠️ Please complete and submit the Protocol Assessment before submitting your recommendation.'
-                                                : '⚠️ Please complete and submit the Informed Consent Assessment before submitting your recommendation.'}
+                                                ? '⚠️ Please fill and complete the Protocol Assessment before submitting your recommendation.'
+                                                : '⚠️ Please fill and complete the Informed Consent Assessment before submitting your recommendation.'}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Warning message for incomplete chairperson forms */}
+                                {isChairperson && !isDecisionLocked && !canSubmitRecommendation && (
+                                    <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
+                                        <p className="text-sm text-orange-800">
+                                            {recommendation.recommendation === 'approve'
+                                                ? '⚠️ Please fill and complete the Ethical Clearance Form before submitting your final decision.'
+                                                : '⚠️ Please fill and complete the Decision Letter before submitting your final decision.'}
                                         </p>
                                     </div>
                                 )}
@@ -2821,8 +2952,8 @@ export default function ReviewerPage() {
                                         >
                                             Cancel
                                         </Button>
-                                        <Button onClick={handleSubmitEthicalClearance}>
-                                            Send Ethical Clearance
+                                        <Button onClick={handleDoneEthicalClearance}>
+                                            Done
                                         </Button>
                                     </div>
                                 </div>
@@ -2849,9 +2980,28 @@ export default function ReviewerPage() {
                                         >
                                             Cancel
                                         </Button>
-                                        <Button onClick={handleSubmitDecisionLetter}>
-                                            Send Decision Letter
+                                        <Button onClick={handleDoneDecisionLetter}>
+                                            Done
                                         </Button>
+                                        {isChairperson && (
+                                            <Button
+                                                variant="secondary"
+                                                onClick={handlePassToAdminAssistant}
+                                                disabled={isPassingToAdmin || hasPassedToAdmin}
+                                                className={cn(
+                                                    "border",
+                                                    hasPassedToAdmin
+                                                        ? "bg-green-50 text-green-700 border-green-200 cursor-not-allowed"
+                                                        : "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:text-blue-800"
+                                                )}
+                                            >
+                                                {hasPassedToAdmin 
+                                                    ? "Already Passed ✓" 
+                                                    : isPassingToAdmin 
+                                                        ? "Passing..." 
+                                                        : "Pass to Admin Assistant"}
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -2881,8 +3031,8 @@ export default function ReviewerPage() {
                                                             onCheckedChange={() => toggleRevisionTarget(doc.name)}
                                                         >
                                                             <div className="flex w-full items-center justify-between gap-2">
-                                                                <span className="truncate">{doc.name}</span>
-                                                                <Badge variant={getPhaseBadge(doc.phase).variant}>{getPhaseBadge(doc.phase).label}</Badge>
+                                                                 <span className="truncate">{doc.name}</span>
+                                                                 <Badge variant={getPhaseBadge(doc.phase).variant}>{getPhaseBadge(doc.phase).label}</Badge>
                                                             </div>
                                                         </DropdownMenuCheckboxItem>
                                                     ))
@@ -2910,6 +3060,7 @@ export default function ReviewerPage() {
                                 </div>
 
                                 <DecisionLetterForm
+                                    key={decisionLetterDraftKey}
                                     savedData={decisionLetterData}
                                     onSave={(patch) => setDecisionLetterData((prev) => ({ ...prev, ...patch }))}
                                 />
@@ -2932,10 +3083,10 @@ export default function ReviewerPage() {
                                             Cancel
                                         </Button>
                                         <Button
-                                            onClick={handleSubmitReviewerAssessment}
+                                            onClick={handleDoneProtocolAssessment}
                                             disabled={hasSubmittedProtocolAssessment}
                                         >
-                                            Submit Form
+                                            Done
                                         </Button>
                                     </div>
                                 </div>
@@ -2963,10 +3114,10 @@ export default function ReviewerPage() {
                                             Cancel
                                         </Button>
                                         <Button
-                                            onClick={handleSubmitInformedConsentAssessment}
+                                            onClick={handleDoneInformedConsent}
                                             disabled={hasSubmittedInformedConsent}
                                         >
-                                            Submit Form
+                                            Done
                                         </Button>
                                     </div>
                                 </div>

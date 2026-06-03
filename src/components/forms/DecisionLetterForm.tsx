@@ -642,9 +642,7 @@ export default function DecisionLetterForm({ savedData = {}, onSave, isReadOnly 
                   />
                 </div>
 
-                <div style={{ textAlign: "center", fontWeight: "bold", margin: "30px 0 15px 0", fontSize: "11pt" }}>
-                  REFLECT THE TITLE OF THE RESEARCH IN THE ICF
-                </div>
+          
 
                 <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid black" }}>
                   <thead>
