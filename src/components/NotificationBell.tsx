@@ -61,6 +61,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     const [isEditingDecisionLetter, setIsEditingDecisionLetter] = useState(false);
     const [decisionLetterData, setDecisionLetterData] = useState<Record<string, any>>({});
     const [isSavingDecisionLetter, setIsSavingDecisionLetter] = useState(false);
+    const [isDecisionLetterReadOnly, setIsDecisionLetterReadOnly] = useState(false);
     const [proposalDetails, setProposalDetails] = useState<{title: string, protocolCode: string, researcherName: string} | null>(null);
 
     // Fetch user's role on mount/userId change
@@ -375,6 +376,22 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     setDecisionLetterData({});
                 }
 
+                let readOnly = false;
+                if (userRole === "Admin Assistant" || userRole === "admin assistant") {
+                    const { data: latestHistory } = await supabase
+                        .from("history")
+                        .select("history_type")
+                        .eq("paper_id", proposalId)
+                        .in("history_type", ["passed_to_admin", "passed_back_to_chairperson"])
+                        .order("history_date", { ascending: false })
+                        .limit(1);
+
+                    if (latestHistory && latestHistory.length > 0 && latestHistory[0].history_type === "passed_back_to_chairperson") {
+                        readOnly = true;
+                    }
+                }
+                setIsDecisionLetterReadOnly(readOnly);
+
                 setSelectedProposalId(proposalId);
                 setIsEditingDecisionLetter(true);
                 setOpen(false);
@@ -524,26 +541,35 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                             </div>
                         </DialogHeader>
 
+                        {isDecisionLetterReadOnly && (
+                            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800 flex items-center gap-2">
+                                <span className="font-semibold">Note:</span> This decision letter draft has already been passed back to the Chairperson and is now read-only.
+                            </div>
+                        )}
+
                         <div className="my-4">
                             <DecisionLetterForm
                                 savedData={decisionLetterData}
                                 onSave={(patch) => setDecisionLetterData((prev) => ({ ...prev, ...patch }))}
+                                isReadOnly={isDecisionLetterReadOnly}
                             />
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4 border-t">
                             <Button variant="outline" onClick={() => setIsEditingDecisionLetter(false)}>
-                                Cancel
+                                {isDecisionLetterReadOnly ? "Close" : "Cancel"}
                             </Button>
-                            <Button 
-                                onClick={handleSaveAdminDecisionLetter}
-                                disabled={isSavingDecisionLetter}
-                                className="bg-blue-600 hover:bg-blue-700 text-white"
-                            >
-                                {isSavingDecisionLetter 
-                                    ? "Sending..." 
-                                    : (userRole === "Admin Assistant" || userRole === "admin assistant" ? "Send back to Chairperson" : "Save Changes")}
-                            </Button>
+                            {!isDecisionLetterReadOnly && (
+                                <Button 
+                                    onClick={handleSaveAdminDecisionLetter}
+                                    disabled={isSavingDecisionLetter}
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                    {isSavingDecisionLetter 
+                                        ? "Sending..." 
+                                        : (userRole === "Admin Assistant" || userRole === "admin assistant" ? "Send back to Chairperson" : "Save Changes")}
+                                </Button>
+                            )}
                         </div>
                     </DialogContent>
                 </Dialog>

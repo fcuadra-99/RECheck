@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BookOpen } from 'lucide-react';
+import { toast } from 'sonner';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import { TemplateDownloadService } from '../../services/templateDownloadService';
 import { TemplateSubmissionService } from '../../services/templateSubmissionService';
@@ -27,6 +28,78 @@ export default function FormsTemplates() {
   const [protocolAmendmentData, setProtocolAmendmentData] = useState<Record<string, any>>({});
   const [continuingReviewData, setContinuingReviewData] = useState<Record<string, any>>({});
   const [earlyTerminationData, setEarlyTerminationData] = useState<Record<string, any>>({});
+  const [existingSubmissions, setExistingSubmissions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadSubmissions = async () => {
+      if (!user?.id) {
+        setExistingSubmissions([]);
+        return;
+      }
+      try {
+        const templateService = new TemplateSubmissionService();
+        const result = await templateService.getResearcherSubmissions(user.id);
+        if (result.success) {
+          const subs = result.submissions || [];
+          const resolvedSubs = await Promise.all(subs.map(async (sub) => {
+            if (sub.metadata?.proposal_id) {
+              return {
+                ...sub,
+                proposalId: Number(sub.metadata.proposal_id)
+              };
+            }
+            if (sub.file_name.endsWith('.json')) {
+              try {
+                const res = await fetch(sub.file_url);
+                if (res.ok) {
+                  const parsed = await res.json();
+                  const parsedProposalId = parsed.proposalId;
+                  if (parsedProposalId) {
+                    return {
+                      ...sub,
+                      proposalId: Number(parsedProposalId)
+                    };
+                  }
+                  const protocolCode = parsed.controlNo || parsed.staffControlNo || parsed.protocolCodeValue || parsed.protocolCode;
+                  const title = parsed.studyProtocolTitle || parsed.titleOfStudy;
+                  return {
+                    ...sub,
+                    protocolCode,
+                    title
+                  };
+                }
+              } catch (e) {
+                console.error('Error fetching fallback JSON:', e);
+              }
+            }
+            return sub;
+          }));
+          setExistingSubmissions(resolvedSubs);
+        }
+      } catch (err) {
+        console.error('Failed to load submissions:', err);
+      }
+    };
+
+    loadSubmissions();
+  }, [user?.id, selectedAction]);
+
+  const filteredProposalOptions = proposalOptions.filter(option => {
+    const isSubmitted = existingSubmissions.some(sub => {
+      if (sub.template_name !== selectedTemplate) return false;
+      if (sub.proposalId !== undefined) {
+        return sub.proposalId === option.id;
+      }
+      if (sub.protocolCode && option.protocolCode) {
+        return sub.protocolCode.trim().toLowerCase() === option.protocolCode.trim().toLowerCase();
+      }
+      if (sub.title && option.title) {
+        return sub.title.trim().toLowerCase() === option.title.trim().toLowerCase();
+      }
+      return false;
+    });
+    return !isSubmitted;
+  });
 
   useEffect(() => {
     const loadProposals = async () => {
@@ -88,6 +161,7 @@ export default function FormsTemplates() {
   const handleCancel = () => {
     setSelectedAction(null);
     setSelectedTemplate('');
+    setSelectedProposalId(null);
     setProgressReportData({});
     setNewEventReportData({});
     setNonComplianceReportData({});
@@ -120,11 +194,33 @@ export default function FormsTemplates() {
     setEarlyTerminationData((prev) => ({ ...prev, ...patch }));
   };
 
-  const handleProgressReportSubmit = async () => {
+  const submitOnlineForm = async (
+    formData: Record<string, any>,
+    clearFormData: () => void,
+    errorLogMessage: string
+  ) => {
     if (!selectedTemplate || !templateDetails) return;
 
+    if (!selectedProposalId) {
+      toast.error('Please select a proposal first.');
+      return;
+    }
+
+    const alreadySubmitted = existingSubmissions.some(sub => 
+      sub.template_name === selectedTemplate && 
+      (sub.proposalId === selectedProposalId || 
+       (sub.protocolCode && selectedProposal?.protocolCode && sub.protocolCode.trim().toLowerCase() === selectedProposal.protocolCode.trim().toLowerCase()) ||
+       (sub.title && selectedProposal?.title && sub.title.trim().toLowerCase() === selectedProposal.title.trim().toLowerCase()))
+    );
+
+    if (alreadySubmitted) {
+      toast.error(`A ${selectedTemplate} has already been submitted for this proposal.`);
+      return;
+    }
+
+    const loadingId = toast.loading('Submitting form...');
     try {
-      const json = JSON.stringify(progressReportData, null, 2);
+      const json = JSON.stringify(formData, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const file = new File(
         [blob],
@@ -138,215 +234,47 @@ export default function FormsTemplates() {
         template_category: templateDetails.category,
         file,
         description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
+        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+        metadata: {
+          proposal_id: selectedProposalId
+        }
       };
 
       const submissionService = new TemplateSubmissionService();
       const result = await submissionService.createSubmission(submissionData);
 
       if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
+        toast.success('Form submitted successfully! Your submission will be reviewed.', { id: loadingId });
         setSelectedAction(null);
         setSelectedTemplate('');
-        setProgressReportData({});
+        setSelectedProposalId(null);
+        clearFormData();
       } else {
         throw new Error(result.error || 'Unknown error during submission');
       }
     } catch (error) {
-      console.error('Error submitting progress report form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error(errorLogMessage, error);
+      toast.error(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     }
   };
 
-  const handleNewEventReportSubmit = async () => {
-    if (!selectedTemplate || !templateDetails) return;
+  const handleProgressReportSubmit = () => 
+    submitOnlineForm(progressReportData, () => setProgressReportData({}), 'Error submitting progress report form:');
 
-    try {
-      const json = JSON.stringify(newEventReportData, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const file = new File(
-        [blob],
-        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
+  const handleNewEventReportSubmit = () => 
+    submitOnlineForm(newEventReportData, () => setNewEventReportData({}), 'Error submitting reportable negative event form:');
 
-      const submissionData = {
-        submission_title: `${selectedTemplate} Submission`,
-        template_name: selectedTemplate,
-        template_category: templateDetails.category,
-        file,
-        description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
-      };
+  const handleNonComplianceReportSubmit = () => 
+    submitOnlineForm(nonComplianceReportData, () => setNonComplianceReportData({}), 'Error submitting non-compliance report form:');
 
-      const submissionService = new TemplateSubmissionService();
-      const result = await submissionService.createSubmission(submissionData);
+  const handleProtocolAmendmentSubmit = () => 
+    submitOnlineForm(protocolAmendmentData, () => setProtocolAmendmentData({}), 'Error submitting protocol amendment form:');
 
-      if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
-        setSelectedAction(null);
-        setSelectedTemplate('');
-        setNewEventReportData({});
-      } else {
-        throw new Error(result.error || 'Unknown error during submission');
-      }
-    } catch (error) {
-      console.error('Error submitting reportable negative event form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
+  const handleContinuingReviewSubmit = () => 
+    submitOnlineForm(continuingReviewData, () => setContinuingReviewData({}), 'Error submitting continuing review form:');
 
-  const handleNonComplianceReportSubmit = async () => {
-    if (!selectedTemplate || !templateDetails) return;
-
-    try {
-      const json = JSON.stringify(nonComplianceReportData, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const file = new File(
-        [blob],
-        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
-
-      const submissionData = {
-        submission_title: `${selectedTemplate} Submission`,
-        template_name: selectedTemplate,
-        template_category: templateDetails.category,
-        file,
-        description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
-      };
-
-      const submissionService = new TemplateSubmissionService();
-      const result = await submissionService.createSubmission(submissionData);
-
-      if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
-        setSelectedAction(null);
-        setSelectedTemplate('');
-        setNonComplianceReportData({});
-      } else {
-        throw new Error(result.error || 'Unknown error during submission');
-      }
-    } catch (error) {
-      console.error('Error submitting non-compliance report form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const handleProtocolAmendmentSubmit = async () => {
-    if (!selectedTemplate || !templateDetails) return;
-
-    try {
-      const json = JSON.stringify(protocolAmendmentData, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const file = new File(
-        [blob],
-        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
-
-      const submissionData = {
-        submission_title: `${selectedTemplate} Submission`,
-        template_name: selectedTemplate,
-        template_category: templateDetails.category,
-        file,
-        description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
-      };
-
-      const submissionService = new TemplateSubmissionService();
-      const result = await submissionService.createSubmission(submissionData);
-
-      if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
-        setSelectedAction(null);
-        setSelectedTemplate('');
-        setProtocolAmendmentData({});
-      } else {
-        throw new Error(result.error || 'Unknown error during submission');
-      }
-    } catch (error) {
-      console.error('Error submitting protocol amendment form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const handleContinuingReviewSubmit = async () => {
-    if (!selectedTemplate || !templateDetails) return;
-
-    try {
-      const json = JSON.stringify(continuingReviewData, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const file = new File(
-        [blob],
-        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
-
-      const submissionData = {
-        submission_title: `${selectedTemplate} Submission`,
-        template_name: selectedTemplate,
-        template_category: templateDetails.category,
-        file,
-        description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
-      };
-
-      const submissionService = new TemplateSubmissionService();
-      const result = await submissionService.createSubmission(submissionData);
-
-      if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
-        setSelectedAction(null);
-        setSelectedTemplate('');
-        setContinuingReviewData({});
-      } else {
-        throw new Error(result.error || 'Unknown error during submission');
-      }
-    } catch (error) {
-      console.error('Error submitting continuing review form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  const handleEarlyTerminationSubmit = async () => {
-    if (!selectedTemplate || !templateDetails) return;
-
-    try {
-      const json = JSON.stringify(earlyTerminationData, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const file = new File(
-        [blob],
-        `${selectedTemplate.replace(/\s+/g, '_')}_filled.json`,
-        { type: 'application/json', lastModified: Date.now() }
-      );
-
-      const submissionData = {
-        submission_title: `${selectedTemplate} Submission`,
-        template_name: selectedTemplate,
-        template_category: templateDetails.category,
-        file,
-        description: `Completed form data for ${selectedTemplate}`,
-        priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent'
-      };
-
-      const submissionService = new TemplateSubmissionService();
-      const result = await submissionService.createSubmission(submissionData);
-
-      if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
-        setSelectedAction(null);
-        setSelectedTemplate('');
-        setEarlyTerminationData({});
-      } else {
-        throw new Error(result.error || 'Unknown error during submission');
-      }
-    } catch (error) {
-      console.error('Error submitting early termination form:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
+  const handleEarlyTerminationSubmit = () => 
+    submitOnlineForm(earlyTerminationData, () => setEarlyTerminationData({}), 'Error submitting early termination form:');
 
   const handleFormSave = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
     console.log('=== handleFormSave called ===');
@@ -378,11 +306,12 @@ export default function FormsTemplates() {
       };
       
       // Submit the form
+      const loadingId = toast.loading('Submitting form...');
       const submissionService = new TemplateSubmissionService();
       const result = await submissionService.createSubmission(submissionData);
       
       if (result.success) {
-        alert('Form submitted successfully! Your submission will be reviewed.');
+        toast.success('Form submitted successfully! Your submission will be reviewed.', { id: loadingId });
       } else {
         throw new Error(result.error || 'Unknown error during submission');
       }
@@ -394,7 +323,7 @@ export default function FormsTemplates() {
       console.log('=== handleFormSave completed ===');
     } catch (error) {
       console.error('Error in handleFormSave:', error);
-      alert(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to submit form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -432,7 +361,7 @@ export default function FormsTemplates() {
                 onSave={handleProgressReportSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -472,7 +401,7 @@ export default function FormsTemplates() {
                 onSave={handleNewEventReportSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -512,7 +441,7 @@ export default function FormsTemplates() {
                 onSave={handleNonComplianceReportSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -552,7 +481,7 @@ export default function FormsTemplates() {
                 onSave={handleProtocolAmendmentSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -592,7 +521,7 @@ export default function FormsTemplates() {
                 onSave={handleContinuingReviewSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -632,7 +561,7 @@ export default function FormsTemplates() {
                 onSave={handleEarlyTerminationSave}
                 proposalTitle={selectedProposal?.title || ''}
                 protocolCode={selectedProposal?.protocolCode || null}
-                proposalOptions={proposalOptions}
+                proposalOptions={filteredProposalOptions}
                 selectedProposalId={selectedProposalId}
                 onSelectProposal={setSelectedProposalId}
               />
@@ -683,7 +612,10 @@ export default function FormsTemplates() {
                 <select
                   id="template-select"
                   value={selectedTemplate}
-                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedTemplate(e.target.value);
+                    setSelectedProposalId(null);
+                  }}
                   className="w-full px-4 py-3.5 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
                 >
                   <option value="">Choose a form...</option>

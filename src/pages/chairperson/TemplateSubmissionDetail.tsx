@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { supabase } from '../../DB';
 import { TemplateSubmissionService, type ReviewerProfile } from '../../services/templateSubmissionService';
 import PDFFormFiller from '../../components/PDFFormFiller';
@@ -41,7 +42,7 @@ interface TemplateSubmission {
   signature_image?: string;
   metadata?: {
     assignedReviewerIds?: string[];
-    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
+    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2' | 'secretariat'>;
     assignedByName?: string;
     assignedAt?: string;
     reviewerSubmissions?: Record<string, {
@@ -55,7 +56,7 @@ interface TemplateSubmission {
   };
 }
 
-type ReviewerRole = 'primary_1' | 'primary_2';
+type ReviewerRole = 'primary_1' | 'primary_2' | 'secretariat';
 
 export default function TemplateSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -93,6 +94,11 @@ export default function TemplateSubmissionDetail() {
       submission?.status === 'rejected' ||
       submission?.status === 'needs_revision'
   );
+  const isReviewComplete = Boolean(submission && (
+    submission.status === 'approved' ||
+    submission.status === 'rejected' ||
+    submission.status === 'needs_revision'
+  ));
   const { fields: predefinedFields } = useTemplateFields(template?.id || null);
   const autoOpenView = searchParams.get('view') === '1';
 
@@ -237,7 +243,7 @@ export default function TemplateSubmissionDetail() {
 
       if (error) {
         console.error('Error updating submission:', error);
-        alert('Failed to submit review. Please try again.');
+        toast.error('Failed to submit review. Please try again.');
         return;
       }
       
@@ -250,11 +256,11 @@ export default function TemplateSubmissionDetail() {
         reviewed_at: new Date().toISOString()
       } : null);
 
-      alert(`Submission ${reviewDecision} successfully!`);
+      toast.success(`Submission reviewed successfully! Status updated to ${reviewDecision}.`);
       
     } catch (error) {
       console.error('Error submitting review:', error);
-      alert('Failed to submit review. Please try again.');
+      toast.error('Failed to submit review. Please try again.');
     } finally {
       setReviewing(false);
     }
@@ -294,6 +300,7 @@ export default function TemplateSubmissionDetail() {
   const getReviewerRoleLabel = (role?: ReviewerRole) => {
     if (role === 'primary_1') return 'Primary Reviewer 1';
     if (role === 'primary_2') return 'Primary Reviewer 2';
+    if (role === 'secretariat') return 'Secretariat Staff';
     return 'Unassigned';
   };
 
@@ -305,8 +312,13 @@ export default function TemplateSubmissionDetail() {
   const handleAssignReviewers = async () => {
     if (!submission) return;
 
+    if (isReviewComplete) {
+      toast.error('Review is already complete. Reviewers cannot be assigned.');
+      return;
+    }
+
     if (selectedReviewerIds.length < 1 || selectedReviewerIds.length > 4) {
-      alert('Please select 1 to 4 staff members.');
+      toast.error('Please select 1 to 4 staff members.');
       return;
     }
 
@@ -315,7 +327,7 @@ export default function TemplateSubmissionDetail() {
       .filter(Boolean) as ReviewerRole[];
     const uniqueRoles = new Set(activeRoles);
     if (activeRoles.length !== uniqueRoles.size) {
-      alert('Primary Reviewer roles must be unique.');
+      toast.error('Assigned roles must be unique.');
       return;
     }
 
@@ -325,6 +337,7 @@ export default function TemplateSubmissionDetail() {
         .map((id) => [id, selectedReviewerRoles[id]])
     ) as Record<string, ReviewerRole>;
 
+    const loadingId = toast.loading('Assigning reviewers...');
     try {
       setAssigningReviewers(true);
       const templateService = new TemplateSubmissionService();
@@ -334,11 +347,11 @@ export default function TemplateSubmissionDetail() {
         throw new Error(result.error || 'Failed to assign reviewers');
       }
 
-      alert('Submission successfully passed to reviewers.');
+      toast.success('Submission successfully passed to reviewers.', { id: loadingId });
       await fetchSubmission();
     } catch (error) {
       console.error('Error assigning reviewers:', error);
-      alert(`Failed to assign reviewers: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to assign reviewers: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     } finally {
       setAssigningReviewers(false);
     }
@@ -348,7 +361,7 @@ export default function TemplateSubmissionDetail() {
     if (!submission) return;
 
     if (isStaffInputSubmitted) {
-      alert('Staff input has already been submitted. Editing is locked.');
+      toast.error('Staff input has already been submitted. Editing is locked.');
       return;
     }
 
@@ -366,7 +379,7 @@ export default function TemplateSubmissionDetail() {
         setShowCustomFormFiller(true);
       } catch (error) {
         console.error('Error loading custom form data:', error);
-        alert(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        toast.error(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
         setCustomFormLoading(false);
       }
@@ -409,7 +422,7 @@ export default function TemplateSubmissionDetail() {
       setShowCustomFormView(true);
     } catch (error) {
       console.error('Error loading submitted form:', error);
-      alert(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setCustomFormLoading(false);
     }
@@ -449,7 +462,7 @@ export default function TemplateSubmissionDetail() {
       setShowCustomFormView(true);
     } catch (error) {
       console.error('Error downloading submission:', error);
-      alert(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -497,7 +510,7 @@ export default function TemplateSubmissionDetail() {
 
     const info = terminationInfo || (await loadTerminationInfo());
     if (!info) {
-      alert('Unable to locate protocol code or proposal title from the submitted form.');
+      toast.error('Unable to locate protocol code or proposal title from the submitted form.');
       return;
     }
 
@@ -506,6 +519,7 @@ export default function TemplateSubmissionDetail() {
     );
     if (!confirmed) return;
 
+    const loadingId = toast.loading('Terminating proposal...');
     try {
       setTerminatingProposal(true);
       const templateService = new TemplateSubmissionService();
@@ -521,12 +535,13 @@ export default function TemplateSubmissionDetail() {
 
       const updatedCount = result.updatedCount ?? 0;
       const alreadyArchivedCount = result.alreadyArchivedCount ?? 0;
-      alert(
-        `Termination complete. Updated ${updatedCount} proposal(s). Already archived: ${alreadyArchivedCount}.`
+      toast.success(
+        `Termination complete. Updated ${updatedCount} proposal(s). Already archived: ${alreadyArchivedCount}.`,
+        { id: loadingId }
       );
     } catch (error) {
       console.error('Error terminating proposal:', error);
-      alert(`Failed to terminate proposal: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to terminate proposal: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     } finally {
       setTerminatingProposal(false);
     }
@@ -536,10 +551,11 @@ export default function TemplateSubmissionDetail() {
     if (!submission) return;
 
     if (isStaffInputSubmitted) {
-      alert('Staff input has already been submitted. Editing is locked.');
+      toast.error('Staff input has already been submitted. Editing is locked.');
       return;
     }
 
+    const loadingId = toast.loading('Saving reviewed form data...');
     try {
       const json = JSON.stringify(customFormData, null, 2);
       const jsonBlob = new Blob([json], { type: 'application/json' });
@@ -570,12 +586,12 @@ export default function TemplateSubmissionDetail() {
 
       if (updateError) throw updateError;
 
-      alert('Form data reviewed and saved successfully!');
+      toast.success('Form data reviewed and saved successfully!', { id: loadingId });
       setShowCustomFormFiller(false);
       fetchSubmission();
     } catch (error) {
       console.error('Error saving custom form:', error);
-      alert(`Failed to save form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to save form data: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     }
   };
 
@@ -624,13 +640,14 @@ export default function TemplateSubmissionDetail() {
 
   const handleSavePdf = async (pdfBytes: Uint8Array, formData: Record<string, string | boolean>) => {
     if (isStaffInputSubmitted) {
-      alert('Staff input has already been submitted. Editing is locked.');
+      toast.error('Staff input has already been submitted. Editing is locked.');
       return;
     }
 
     console.log('Chairperson filled PDF:', formData);
     console.log('PDF size:', pdfBytes.length, 'bytes');
     
+    const loadingId = toast.loading('Saving filled PDF...');
     try {
       // Convert PDF bytes to File
       const pdfArray = Array.from(pdfBytes);
@@ -666,12 +683,12 @@ export default function TemplateSubmissionDetail() {
 
       if (updateError) throw updateError;
 
-      alert('PDF filled and saved successfully!');
+      toast.success('PDF filled and saved successfully!', { id: loadingId });
       setShowPdfFiller(false);
       fetchSubmission(); // Refresh the submission data
     } catch (error) {
       console.error('Error saving filled PDF:', error);
-      alert(`Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     }
   };
 
@@ -938,7 +955,7 @@ export default function TemplateSubmissionDetail() {
                         type="checkbox"
                         checked={selectedReviewerIds.includes(reviewer.id)}
                         onChange={() => toggleReviewerSelection(reviewer.id)}
-                        disabled={!selectedReviewerIds.includes(reviewer.id) && selectedReviewerIds.length >= 4}
+                        disabled={isReviewComplete || (!selectedReviewerIds.includes(reviewer.id) && selectedReviewerIds.length >= 4)}
                       />
                       <span>
                         <span className="block font-medium text-gray-900">{reviewer.name}</span>
@@ -950,11 +967,13 @@ export default function TemplateSubmissionDetail() {
                             <select
                               value={selectedReviewerRoles[reviewer.id] || ''}
                               onChange={(e) => updateReviewerRole(reviewer.id, e.target.value as ReviewerRole | '')}
+                              disabled={isReviewComplete}
                               className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500"
                             >
                               <option value="">Select role</option>
                               <option value="primary_1">Primary Reviewer 1</option>
                               <option value="primary_2">Primary Reviewer 2</option>
+                              <option value="secretariat">Secretariat Staff</option>
                             </select>
                           </span>
                         )}
@@ -965,11 +984,17 @@ export default function TemplateSubmissionDetail() {
               </div>
               <button
                 onClick={handleAssignReviewers}
-                disabled={assigningReviewers || selectedReviewerIds.length < 1}
+                disabled={assigningReviewers || selectedReviewerIds.length < 1 || isReviewComplete}
                 className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition"
               >
                 {assigningReviewers ? 'Passing...' : 'Pass to Selected Staff'}
               </button>
+
+              {isReviewComplete && (
+                <div className="mt-3 rounded border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800 font-medium">
+                  This submission review is complete ({submission.status.replace('_', ' ')}). Assigned reviewers cannot be updated.
+                </div>
+              )}
 
               {submission.metadata?.assignedReviewerIds && submission.metadata.assignedReviewerIds.length > 0 && (
                 <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded p-2">

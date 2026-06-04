@@ -44,6 +44,7 @@ export interface CreateTemplateSubmissionData {
     file: File;
     description?: string;
     priority?: 'low' | 'medium' | 'high' | 'urgent';
+    metadata?: any;
 }
 export interface ReviewTemplateSubmissionData {
     status: 'approved' | 'rejected' | 'revision_requested' | 'needs_revision';
@@ -58,6 +59,13 @@ export declare class TemplateSubmissionService {
     createSubmission(data: CreateTemplateSubmissionData): Promise<{
         success: boolean;
         submissionId?: string;
+        error?: string;
+    }>;
+    /**
+     * Update/resubmit an existing template submission (for researcher revision)
+     */
+    updateSubmission(submissionId: string, file: File): Promise<{
+        success: boolean;
         error?: string;
     }>;
     /**
@@ -100,7 +108,7 @@ export declare class TemplateSubmissionService {
     /**
      * Assign one to four staff members to a submission
      */
-    assignReviewers(submissionId: string, reviewerIds: string[], reviewerRoles?: Record<string, 'primary_1' | 'primary_2'>): Promise<{
+    assignReviewers(submissionId: string, reviewerIds: string[], reviewerRoles?: Record<string, 'primary_1' | 'primary_2' | 'secretariat'>): Promise<{
         success: boolean;
         error?: string;
     }>;

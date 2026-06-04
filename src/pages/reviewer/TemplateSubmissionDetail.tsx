@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Download, Eye, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import PDFFormFiller from '@/components/PDFFormFiller';
 import { supabase } from '@/DB';
 import { TemplateDownloadService } from '@/services/templateDownloadService';
@@ -23,7 +24,7 @@ interface TemplateSubmissionView {
   status: string;
   metadata?: {
     assignedReviewerIds?: string[];
-    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
+    assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2' | 'secretariat'>;
     reviewerSubmissions?: Record<string, {
       reviewerId: string;
       reviewerName: string;
@@ -47,13 +48,13 @@ export default function ReviewerTemplateSubmissionDetail() {
   const [loading, setLoading] = useState(true);
   const [reviewerId, setReviewerId] = useState('');
   const [saving, setSaving] = useState(false);
-  const [reviewerComments, setReviewerComments] = useState('');
 
   const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [showCustomFormView, setShowCustomFormView] = useState(false);
   const [showCustomFormFiller, setShowCustomFormFiller] = useState(false);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [customFormLoading, setCustomFormLoading] = useState(false);
+  const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
 
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.templateType) : null;
   const isCustomJsonTemplate = Boolean(
@@ -101,10 +102,7 @@ export default function ReviewerTemplateSubmissionDetail() {
           metadata: data.metadata || {}
         });
 
-        const existing = data.metadata?.reviewerSubmissions?.[currentReviewerId];
-        if (existing?.comments) {
-          setReviewerComments(existing.comments);
-        }
+
       } finally {
         setLoading(false);
       }
@@ -112,6 +110,70 @@ export default function ReviewerTemplateSubmissionDetail() {
 
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (!showCustomFormView || !printOnViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showCustomFormView, printOnViewOpen]);
+
+  useEffect(() => {
+    if (showCustomFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showCustomFormView]);
+
+  const handleDownloadSubmission = async () => {
+    if (!submission) return;
+
+    try {
+      if (!isCustomJsonTemplate) {
+        const response = await fetch(submission.fileUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const fileName = submission.fileName || 'download';
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+        return;
+      }
+
+      setCustomFormLoading(true);
+      const response = await fetch(submission.fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setPrintOnViewOpen(true);
+      setShowCustomFormView(true);
+    } catch (error) {
+      console.error('Error downloading submission:', error);
+      toast.error(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCustomFormLoading(false);
+    }
+  };
 
   const reviewerSubmission = useMemo(() => {
     if (!submission || !reviewerId) return null;
@@ -137,6 +199,7 @@ export default function ReviewerTemplateSubmissionDetail() {
     const role = submission.metadata?.assignedReviewerRoles?.[reviewerId];
     if (role === 'primary_1') return 'Primary Reviewer 1';
     if (role === 'primary_2') return 'Primary Reviewer 2';
+    if (role === 'secretariat') return 'Secretariat Staff';
     return '-';
   };
 
@@ -160,7 +223,7 @@ export default function ReviewerTemplateSubmissionDetail() {
       setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
       setShowCustomFormView(true);
     } catch (error) {
-      alert(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setCustomFormLoading(false);
     }
@@ -168,6 +231,10 @@ export default function ReviewerTemplateSubmissionDetail() {
 
   const handleOpenFill = async () => {
     if (!submission) return;
+    if (isReviewerAlreadySubmitted) {
+      toast.error('You have already submitted your review.');
+      return;
+    }
 
     if (!isCustomJsonTemplate) {
       setShowPdfFiller(true);
@@ -186,7 +253,7 @@ export default function ReviewerTemplateSubmissionDetail() {
       setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
       setShowCustomFormFiller(true);
     } catch (error) {
-      alert(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setCustomFormLoading(false);
     }
@@ -217,21 +284,26 @@ export default function ReviewerTemplateSubmissionDetail() {
 
   const submitReviewerFile = async (file: File) => {
     if (!submission) return;
+    if (isReviewerAlreadySubmitted) {
+      toast.error('You have already submitted your review.');
+      return;
+    }
 
+    const loadingId = toast.loading(`Submitting ${actorLabel.toLowerCase()} update...`);
     try {
       setSaving(true);
       const service = new TemplateSubmissionService();
-      const result = await service.submitReviewerUpdate(submission.id, file, reviewerComments);
+      const result = await service.submitReviewerUpdate(submission.id, file, '');
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit reviewer update');
       }
 
-      alert(`${actorLabel} update submitted. Chairperson can now review your updated form.`);
+      toast.success(`${actorLabel} update submitted. Chairperson can now review your updated form.`, { id: loadingId });
       setShowPdfFiller(false);
       setShowCustomFormFiller(false);
       await refreshSubmission();
     } catch (error) {
-      alert(`Submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Submission failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     } finally {
       setSaving(false);
     }
@@ -336,23 +408,30 @@ export default function ReviewerTemplateSubmissionDetail() {
     );
   }
 
-  if (showCustomFormView) {
+  if (showCustomFormView && submission) {
     return (
-      <div className="min-h-screen bg-gray-100">
-        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
             <div className="text-sm font-medium text-gray-700">Submitted Form View: {submission.templateType}</div>
             <button
-              onClick={() => setShowCustomFormView(false)}
+              onClick={() => {
+                setShowCustomFormView(false);
+                if (id) {
+                  navigate(`${baseRoute}/${id}`, { replace: true });
+                }
+              }}
               className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
             >
               Back to Details
             </button>
           </div>
         </div>
-        <div className="py-6 px-2 sm:px-4">
-          <div className="max-w-7xl mx-auto">
-            <div style={{ pointerEvents: 'none' }}>{renderCustomForm()}</div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            <div style={{ pointerEvents: 'none' }}>
+              {renderCustomForm()}
+            </div>
           </div>
         </div>
       </div>
@@ -432,24 +511,12 @@ export default function ReviewerTemplateSubmissionDetail() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">{actorLabel} Actions</h2>
 
-          <div className="mb-4">
-            <label htmlFor="reviewer-comments" className="block text-sm font-medium text-gray-700 mb-2">
-              {actorLabel} Comments (optional)
-            </label>
-            <textarea
-              id="reviewer-comments"
-              rows={4}
-              value={reviewerComments}
-              onChange={(e) => setReviewerComments(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Add notes for chairperson..."
-            />
-          </div>
+
 
           <div className="flex flex-wrap gap-3">
             <button
               onClick={handleOpenFill}
-              disabled={customFormLoading || saving}
+              disabled={customFormLoading || saving || isReviewerAlreadySubmitted}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300"
             >
               <Eye className="w-4 h-4 mr-2" />
@@ -465,14 +532,14 @@ export default function ReviewerTemplateSubmissionDetail() {
               {isCustomJsonTemplate ? 'View Form' : 'View PDF'}
             </button>
 
-            <a
-              href={submission.fileUrl}
-              download={submission.fileName}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            <button
+              onClick={handleDownloadSubmission}
+              disabled={customFormLoading || saving}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
               <Download className="w-4 h-4 mr-2" />
               Download Current File
-            </a>
+            </button>
           </div>
 
           {isReviewerAlreadySubmitted && (

@@ -9,7 +9,11 @@ import EthicsStudyProtocolNonComplianceReport from '@/components/forms/REC_FO_00
 import EthicsStudyProtocolAmendmentForm from '@/components/forms/REC_FO_0018';
 import EthicsContinuingReviewApplicationForm from '@/components/forms/REC_FO_0023';
 import EthicsEarlyStudyTerminationApplicationForm from '@/components/forms/REC_FO_0022';
-import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, AlertCircle, Download, Eye } from 'lucide-react';
+import { ArrowLeft, FileText, Calendar, CheckCircle, XCircle, AlertCircle, Download, Eye, Edit3 } from 'lucide-react';
+import { toast } from 'sonner';
+import PDFFormFiller from '../../components/PDFFormFiller';
+import { useTemplateFields } from '@/hooks/useTemplateFields';
+import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 
 interface TemplateSubmission {
   id: string;
@@ -34,12 +38,15 @@ export default function TemplateSubmissionDetail() {
   const [submission, setSubmission] = useState<TemplateSubmission | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCustomFormView, setShowCustomFormView] = useState(false);
+  const [showCustomFormFiller, setShowCustomFormFiller] = useState(false);
+  const [showPdfFiller, setShowPdfFiller] = useState(false);
   const [customFormLoading, setCustomFormLoading] = useState(false);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
-  const isResearcherLocked = Boolean(submission);
+  const isResearcherLocked = submission && submission.status !== 'needs_revision' && submission.status !== 'revision_requested';
 
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
+  const { fields: predefinedFields } = useTemplateFields(template?.id || null);
   const isCustomJsonTemplate = Boolean(
     template?.id &&
       ['progress-report', 'new-event-report', 'non-compliance-report', 'protocol-amendment', 'continuing-review', 'early-termination'].includes(template.id)
@@ -169,7 +176,7 @@ export default function TemplateSubmissionDetail() {
       setShowCustomFormView(true);
     } catch (error) {
       console.error('Error loading submitted form:', error);
-      alert(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to load submitted form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setCustomFormLoading(false);
     }
@@ -209,8 +216,99 @@ export default function TemplateSubmissionDetail() {
       setShowCustomFormView(true);
     } catch (error) {
       console.error('Error downloading submission:', error);
-      alert(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to download submission: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  const handleEditSubmission = async () => {
+    if (!submission) return;
+
+    if (!isCustomJsonTemplate) {
+      setShowPdfFiller(true);
+      return;
+    }
+
+    try {
+      setCustomFormLoading(true);
+      const response = await fetch(submission.file_url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch form data: ${response.status} ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      const parsed = JSON.parse(text);
+      setCustomFormData(parsed && typeof parsed === 'object' ? parsed : {});
+      setShowCustomFormFiller(true);
+    } catch (error) {
+      console.error('Error loading form data for editing:', error);
+      toast.error(`Failed to load form data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setCustomFormLoading(false);
+    }
+  };
+
+  const handleSaveCustomForm = async () => {
+    if (!submission) return;
+
+    const loadingId = toast.loading('Submitting revision...');
+    try {
+      setCustomFormLoading(true);
+      const json = JSON.stringify(customFormData, null, 2);
+      const jsonBlob = new Blob([json], { type: 'application/json' });
+      const updatedFile = new File([jsonBlob], `${submission.template_type}_filled.json`, {
+        type: 'application/json',
+        lastModified: Date.now(),
+      });
+
+      const templateService = new TemplateSubmissionService();
+      const result = await templateService.updateSubmission(submission.id, updatedFile);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update submission');
+      }
+
+      toast.success('Revision submitted successfully!', { id: loadingId });
+      setShowCustomFormFiller(false);
+      fetchSubmission();
+    } catch (error) {
+      console.error('Error saving custom form:', error);
+      toast.error(`Failed to submit revision: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
+    } finally {
+      setCustomFormLoading(false);
+    }
+  };
+
+  const handleSavePdf = async (pdfBytes: Uint8Array, _formData: Record<string, string | boolean>) => {
+    if (!submission) return;
+
+    const loadingId = toast.loading('Submitting PDF revision...');
+    try {
+      const pdfArray = Array.from(pdfBytes);
+      const pdfBlob = new Blob([new Uint8Array(pdfArray)], { type: 'application/pdf' });
+      const pdfFile = new File(
+        [pdfBlob],
+        `${submission.template_type}_filled.pdf`,
+        { type: 'application/pdf', lastModified: Date.now() }
+      );
+
+      const templateService = new TemplateSubmissionService();
+      const result = await templateService.updateSubmission(submission.id, pdfFile);
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to update submission');
+      }
+
+      toast.success('PDF revision submitted successfully!', { id: loadingId });
+      setShowPdfFiller(false);
+      fetchSubmission();
+    } catch (error) {
+      console.error('Error saving PDF revision:', error);
+      toast.error(`Failed to submit PDF revision: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
+    }
+  };
+
+  const handleCustomFormPatch = (patch: Record<string, any>) => {
+    setCustomFormData((prev) => ({ ...prev, ...patch }));
   };
 
   useEffect(() => {
@@ -236,7 +334,10 @@ export default function TemplateSubmissionDetail() {
     };
   }, [showCustomFormView]);
 
-  const renderCustomForm = (formData: Record<string, any> = customFormData) => {
+  const renderCustomForm = (
+    formData: Record<string, any> = customFormData,
+    onSave: (patch: Record<string, any>) => void = handleCustomFormPatch,
+  ) => {
     if (!submission || !template?.id) return null;
 
     const commonProps = {
@@ -246,7 +347,7 @@ export default function TemplateSubmissionDetail() {
       proposalTitle: formData.titleOfStudy || formData.studyProtocolTitle || submission.template_type,
       formName: submission.original_filename,
       savedData: formData,
-      onSave: undefined,
+      onSave: showCustomFormFiller ? onSave : undefined,
     };
 
     if (template.id === 'progress-report') {
@@ -327,6 +428,50 @@ export default function TemplateSubmissionDetail() {
     );
   }
 
+  if (showCustomFormFiller && submission) {
+    return (
+      <div className="min-h-screen bg-gray-100">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Edit and Resubmit: {submission.template_type}</div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowCustomFormFiller(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveCustomForm}
+                disabled={customFormLoading}
+                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              >
+                {customFormLoading ? 'Submitting...' : 'Submit Revision'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4">
+          <div className="max-w-7xl mx-auto">
+            {renderCustomForm(customFormData, handleCustomFormPatch)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showPdfFiller && submission) {
+    return (
+      <PDFFormFiller
+        templateUrl={submission.file_url}
+        templateName={submission.template_type}
+        onSave={handleSavePdf}
+        onCancel={() => setShowPdfFiller(false)}
+        predefinedFields={predefinedFields}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -398,14 +543,31 @@ export default function TemplateSubmissionDetail() {
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </button>
+                {!isResearcherLocked && (
+                  <button
+                    onClick={handleEditSubmission}
+                    disabled={customFormLoading}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-amber-600 hover:bg-amber-700 animate-pulse"
+                  >
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Edit and Resubmit
+                  </button>
+                )}
               </div>
             </div>
 
-            {isResearcherLocked && (
+            {isResearcherLocked ? (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                 <h2 className="text-lg font-medium text-yellow-900 mb-2">Editing Locked</h2>
                 <p className="text-sm text-yellow-800">
                   You have already submitted your input. This form is now view-only.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
+                <h2 className="text-lg font-medium text-amber-900 mb-2">Revision Requested</h2>
+                <p className="text-sm text-amber-800">
+                  The chairperson has requested a revision. Click the "Edit and Resubmit" button to update your submission.
                 </p>
               </div>
             )}

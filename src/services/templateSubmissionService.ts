@@ -37,7 +37,7 @@ export interface TemplateSubmission {
 
 interface ReviewerAssignmentMetadata {
   assignedReviewerIds?: string[];
-  assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2'>;
+  assignedReviewerRoles?: Record<string, 'primary_1' | 'primary_2' | 'secretariat'>;
   assignedById?: string;
   assignedByName?: string;
   assignedAt?: string;
@@ -103,6 +103,7 @@ export interface CreateTemplateSubmissionData {
   file: File;
   description?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
+  metadata?: any;
 }
 
 export interface ReviewTemplateSubmissionData {
@@ -168,7 +169,8 @@ export class TemplateSubmissionService {
         submission_date: new Date().toISOString(),
         priority: data.priority || 'medium',
         document_hash: documentHash,
-        status: 'pending'
+        status: 'pending',
+        metadata: data.metadata || {}
       };
 
       console.log('Creating template submission with data:', submissionData);
@@ -194,6 +196,56 @@ export class TemplateSubmissionService {
       return { success: true, submissionId: submission.id };
     } catch (error) {
       console.error('Error creating template submission:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }
+
+  /**
+   * Update/resubmit an existing template submission (for researcher revision)
+   */
+  async updateSubmission(submissionId: string, file: File): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) {
+        return { success: false, error: 'User not authenticated' };
+      }
+
+      // Upload file to storage
+      const fileUploadResult = await this.uploadFile(file, user.user.id);
+      if (!fileUploadResult.success) {
+        return { success: false, error: fileUploadResult.error };
+      }
+
+      // Calculate document hash
+      const documentHash = await this.calculateFileHash(file);
+
+      const now = new Date().toISOString();
+
+      const updateData = {
+        file_url: fileUploadResult.fileUrl!,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        document_hash: documentHash,
+        status: 'pending',
+        submission_date: now,
+        updated_at: now
+      };
+
+      const { error } = await supabase
+        .from('template_submissions')
+        .update(updateData)
+        .eq('id', submissionId)
+        .eq('researcher_id', user.user.id);
+
+      if (error) {
+        console.error('Database update error:', error);
+        return { success: false, error: `Failed to update submission: ${error.message}` };
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error updating template submission:', error);
       return { success: false, error: 'An unexpected error occurred' };
     }
   }
@@ -396,7 +448,7 @@ export class TemplateSubmissionService {
   async assignReviewers(
     submissionId: string,
     reviewerIds: string[],
-    reviewerRoles: Record<string, 'primary_1' | 'primary_2'> = {}
+    reviewerRoles: Record<string, 'primary_1' | 'primary_2' | 'secretariat'> = {}
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const uniqueReviewerIds = Array.from(new Set(reviewerIds.filter(Boolean)));
@@ -427,11 +479,11 @@ export class TemplateSubmissionService {
         return { success: false, error: `Failed to fetch submission: ${submissionError.message}` };
       }
 
-      const allowedRoles = new Set(['primary_1', 'primary_2']);
+      const allowedRoles = new Set(['primary_1', 'primary_2', 'secretariat']);
       const sanitizedRoles = Object.fromEntries(
         Object.entries(reviewerRoles)
           .filter(([reviewerId, role]) => uniqueReviewerIds.includes(reviewerId) && allowedRoles.has(role))
-      ) as Record<string, 'primary_1' | 'primary_2'>;
+      ) as Record<string, 'primary_1' | 'primary_2' | 'secretariat'>;
 
       const existingMetadata = (submission?.metadata || {}) as ReviewerAssignmentMetadata;
       const mergedMetadata: ReviewerAssignmentMetadata = {
@@ -505,7 +557,6 @@ export class TemplateSubmissionService {
       const { data, error } = await supabase
         .from('template_submissions')
         .select('*')
-        .in('status', ['under_review', 'in_review', 'pending'])
         .order('updated_at', { ascending: false });
 
       if (error) {

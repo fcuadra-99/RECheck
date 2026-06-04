@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { supabase } from '../../DB';
 import { listFinalReports, createFinalReportDraft } from '../../services/finalReportService';
 import type { FinalReport } from '../../types/finalReport';
@@ -82,6 +83,43 @@ const FinalReportSubmission: React.FC = () => {
   const [printOnPreviewOpen, setPrintOnPreviewOpen] = useState(false);
   const [selectedProposalDetails, setSelectedProposalDetails] = useState<any>(null);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
+  const [isExternalResearcher, setIsExternalResearcher] = useState(false);
+
+  useEffect(() => {
+    async function determineIfExternal() {
+      if (revisingReport) {
+        const found = proposals.find(p => p.date === revisingReport.proposal_date);
+        if (found) {
+          setIsExternalResearcher(found.category === 'External');
+          return;
+        }
+        try {
+          const { data, error } = await supabase
+            .from('proposals')
+            .select('category')
+            .eq('date', revisingReport.proposal_date)
+            .maybeSingle();
+          if (!error && data) {
+            setIsExternalResearcher(data.category === 'External');
+            return;
+          }
+        } catch (err) {
+          console.error('Error fetching proposal category:', err);
+        }
+      }
+      
+      if (selectedProposal) {
+        const found = proposals.find(p => p.date === selectedProposal);
+        if (found) {
+          setIsExternalResearcher(found.category === 'External');
+          return;
+        }
+      }
+
+      setIsExternalResearcher(false);
+    }
+    determineIfExternal();
+  }, [selectedProposal, revisingReport, proposals]);
 
   useEffect(() => {
     async function fetchProposalDetails() {
@@ -211,29 +249,42 @@ const FinalReportSubmission: React.FC = () => {
     
     setShowFinalReportForm(false);
     setCurrentFillingDocId(null);
-    alert('Template filled successfully! You can now submit your form.');
+    toast.success('Template filled successfully! You can now submit your form.');
   };
 
   async function handleSubmit() {
     if (!revisingReport && (!selectedProposal || !reportTitle.trim())) {
-      alert('Please select a proposal and provide a title.');
+      toast.error('Please select a proposal and provide a title.');
       return;
     }
 
+    if (!revisingReport && selectedProposal) {
+      const alreadySubmitted = reports.some(r => r.proposal_date === selectedProposal);
+      if (alreadySubmitted) {
+        toast.error('A final report for this proposal has already been submitted for review.');
+        return;
+      }
+    }
+
     // Check required documents
-    const missingRequired = documents.filter(doc => doc.required && !doc.file);
+    const missingRequired = documents.filter(doc => {
+      if (isExternalResearcher && doc.id === '2') return false;
+      return doc.required && !doc.file;
+    });
     if (missingRequired.length > 0) {
-      alert('Please upload all required documents (marked with *).');
+      toast.error('Please upload all required documents (marked with *).');
       return;
     }
 
     setSubmitting(true);
+    const loadingId = toast.loading(revisingReport ? 'Submitting revision...' : 'Submitting final report...');
     try {
       const { data: user } = await supabase.auth.getUser();
       const attachmentPaths: string[] = [];
 
       // Upload all document files
       for (const doc of documents) {
+        if (isExternalResearcher && doc.id === '2') continue;
         if (doc.file) {
           const fileName = `${Date.now()}-${doc.file.name}`;
           const filePath = `final-reports/${user.user?.id}/${fileName}`;
@@ -261,7 +312,7 @@ const FinalReportSubmission: React.FC = () => {
 
         if (updateError) throw updateError;
         
-        alert('Revised documents submitted successfully! Your report is now pending review.');
+        toast.success('Revised documents submitted successfully! Your report is now pending review.', { id: loadingId });
       } else {
         // Create new final report
         await createFinalReportDraft({
@@ -270,7 +321,7 @@ const FinalReportSubmission: React.FC = () => {
           attachments: attachmentPaths,
         });
         
-        alert('Final report submitted successfully!');
+        toast.success('Final report submitted successfully!', { id: loadingId });
       }
       
       setShowSubmissionForm(false);
@@ -285,7 +336,7 @@ const FinalReportSubmission: React.FC = () => {
       loadReports();
     } catch (err) {
       console.error(err);
-      alert('Error submitting final report. Please try again.');
+      toast.error('Error submitting final report. Please try again.', { id: loadingId });
     } finally {
       setSubmitting(false);
     }
@@ -336,7 +387,7 @@ const FinalReportSubmission: React.FC = () => {
       setShowFinalReportPreview(true);
     } catch (error) {
       console.error('Error viewing attachment:', error);
-      alert(`Failed to view attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to view attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setPreviewLoading(false);
     }
@@ -386,7 +437,7 @@ const FinalReportSubmission: React.FC = () => {
       setShowFinalReportPreview(true);
     } catch (error) {
       console.error('Error downloading attachment:', error);
-      alert(`Failed to download attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to download attachment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setPreviewLoading(false);
     }
@@ -579,17 +630,24 @@ const FinalReportSubmission: React.FC = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="">Choose an approved proposal...</option>
-                  {proposals.map((proposal) => (
-                    <option key={proposal.date} value={proposal.date}>
-                      [{proposal.category}] {proposal.proposal_title}
-                    </option>
-                  ))}
+                  {proposals.map((proposal) => {
+                    const isSubmitted = reports.some(r => r.proposal_date === proposal.date);
+                    return (
+                      <option key={proposal.date} value={proposal.date} disabled={isSubmitted}>
+                        [{proposal.category}] {proposal.proposal_title}{isSubmitted ? ' (Already Submitted)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
-                {proposals.length === 0 && (
+                {proposals.length === 0 ? (
                   <p className="mt-2 text-sm text-gray-500">
                     No proposals in data collection phase found. Final reports can only be submitted for proposals currently in data collection.
                   </p>
-                )}
+                ) : proposals.every(p => reports.some(r => r.proposal_date === p.date)) ? (
+                  <p className="mt-2 text-sm text-gray-500">
+                    All of your proposals in the data collection phase have already been submitted for final report review.
+                  </p>
+                ) : null}
               </div>
             )}
 
@@ -599,8 +657,10 @@ const FinalReportSubmission: React.FC = () => {
                 {revisingReport ? 'Step 1: Upload your revised documents' : 'Step 2: Upload your documents'}
               </h2>
               <div className="space-y-3">
-                {documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                {documents
+                  .filter(doc => !(isExternalResearcher && doc.id === '2'))
+                  .map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between py-3 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                     <div className="flex items-center gap-3 flex-1">
                       <FileText className="w-5 h-5 text-gray-400" />
                       <span className="text-sm text-gray-700">

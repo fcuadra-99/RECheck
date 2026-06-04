@@ -197,6 +197,11 @@ const FinalReportDetail: React.FC = () => {
   async function handleAssignStaff() {
     if (!report) return;
 
+    if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
+      alert('Reviewers cannot be assigned to a finalized or revision-pending report.');
+      return;
+    }
+
     if (selectedStaffIds.length < 1 || selectedStaffIds.length > 4) {
       alert('Please select 1 to 4 staff members.');
       return;
@@ -395,6 +400,11 @@ const FinalReportDetail: React.FC = () => {
   async function handleSaveFinalReportForm() {
     try {
       if (!report) return;
+      if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
+        alert('This report is finalized and the form cannot be edited.');
+        return;
+      }
+
       if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.json')) {
         throw new Error('No original final report form selected to update.');
       }
@@ -466,11 +476,16 @@ const FinalReportDetail: React.FC = () => {
   }
 
   async function handlePdfSave(pdfBytes: Uint8Array, formData: Record<string, string | boolean>) {
+    if (!report) return;
+    if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
+      alert('This report is finalized and the PDF cannot be edited.');
+      return;
+    }
+
     console.log('Chairperson filled PDF:', formData);
     console.log('PDF size:', pdfBytes.length, 'bytes');
     
     try {
-      if (!report) return;
       if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.pdf')) {
         throw new Error('No original PDF selected to update.');
       }
@@ -588,6 +603,7 @@ const FinalReportDetail: React.FC = () => {
   }
 
   if (showFinalReportFormFiller) {
+    const isCompleted = report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision';
     return (
       <div className="min-h-screen bg-gray-100">
         <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
@@ -602,13 +618,15 @@ const FinalReportDetail: React.FC = () => {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleSaveFinalReportForm}
-                disabled={finalReportFormLoading}
-                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
-              >
-                Save Reviewed Form
-              </button>
+              {!isCompleted && (
+                <button
+                  onClick={handleSaveFinalReportForm}
+                  disabled={finalReportFormLoading}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+                >
+                  Save Reviewed Form
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -617,10 +635,12 @@ const FinalReportDetail: React.FC = () => {
             {finalReportFormLoading ? (
               <div className="text-center py-10 text-gray-600">Loading form data...</div>
             ) : (
-              <FinalReportForm
-                savedData={finalReportFormData}
-                onSave={(patch) => setFinalReportFormData((prev) => ({ ...prev, ...patch }))}
-              />
+              <div style={isCompleted ? { pointerEvents: 'none' } : undefined}>
+                <FinalReportForm
+                  savedData={finalReportFormData}
+                  onSave={(patch) => setFinalReportFormData((prev) => ({ ...prev, ...patch }))}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -828,7 +848,6 @@ const FinalReportDetail: React.FC = () => {
                   {report.attachments.map((filePath, index) => {
                     const fileName = filePath.split('/').pop() || 'Document';
                     const isPdf = fileName.toLowerCase().endsWith('.pdf');
-                    const isFinalReportJson = fileName.toLowerCase().endsWith('.json');
                     
                     return (
                       <div
@@ -840,22 +859,29 @@ const FinalReportDetail: React.FC = () => {
                           <span className="text-sm text-gray-700 font-medium">{fileName}</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {isFinalReportJson && (
+                          {!isPdf && (
                             <button
                               onClick={() => handleOpenFinalReportForm(filePath)}
-                              className="px-3 py-1 text-sm bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors flex items-center gap-1"
+                              className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
                             >
                               <Eye className="w-4 h-4" />
-                              View & Fill Form
+                              {report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision' ? 'View Form' : 'Fill & Review'}
                             </button>
                           )}
                           {isPdf && (
                             <button
-                              onClick={() => handleOpenPdfFiller(filePath)}
+                              onClick={() => {
+                                if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
+                                  const { data } = supabase.storage.from('storage').getPublicUrl(filePath);
+                                  if (data?.publicUrl) window.open(data.publicUrl, '_blank');
+                                } else {
+                                  handleOpenPdfFiller(filePath);
+                                }
+                              }}
                               className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center gap-1"
                             >
                               <Eye className="w-4 h-4" />
-                              Fill & Review
+                              {report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision' ? 'View PDF' : 'Fill & Review'}
                             </button>
                           )}
                           <button
@@ -932,31 +958,44 @@ const FinalReportDetail: React.FC = () => {
                 {assignableStaff.length === 0 ? (
                   <p className="text-xs text-gray-500">No assignable staff found.</p>
                 ) : (
-                  assignableStaff.map((staff) => (
-                    <label key={staff.id} className="flex items-start gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectedStaffIds.includes(staff.id)}
-                        onChange={() => toggleStaffSelection(staff.id)}
-                        disabled={!selectedStaffIds.includes(staff.id) && selectedStaffIds.length >= 4}
-                      />
-                      <span>
-                        <span className="block font-medium text-gray-900">{staff.name}</span>
-                        <span className="block text-xs text-gray-500">
-                          {staff.email}{staff.role ? ` • ${staff.role}` : ''}
+                  assignableStaff.map((staff) => {
+                    const isAssignDisabled = report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision';
+                    return (
+                      <label key={staff.id} className="flex items-start gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedStaffIds.includes(staff.id)}
+                          onChange={() => toggleStaffSelection(staff.id)}
+                          disabled={isAssignDisabled || (!selectedStaffIds.includes(staff.id) && selectedStaffIds.length >= 4)}
+                        />
+                        <span>
+                          <span className="block font-medium text-gray-900">{staff.name}</span>
+                          <span className="block text-xs text-gray-500">
+                            {staff.email}{staff.role ? ` • ${staff.role}` : ''}
+                          </span>
                         </span>
-                      </span>
-                    </label>
-                  ))
+                      </label>
+                    );
+                  })
                 )}
               </div>
               <button
                 onClick={handleAssignStaff}
-                disabled={assigningStaff || selectedStaffIds.length < 1}
+                disabled={assigningStaff || selectedStaffIds.length < 1 || report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision'}
                 className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition mb-6"
               >
                 {assigningStaff ? 'Passing...' : 'Pass to Selected Staff'}
               </button>
+
+              {(report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') && (
+                <div className="mb-6 rounded border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800 font-medium">
+                  {report.status === 'Approved'
+                    ? 'This report is approved. Reviewers cannot be assigned.'
+                    : report.status === 'Rejected'
+                    ? 'This report is rejected. Reviewers cannot be assigned.'
+                    : 'This report is awaiting revision from researcher. Reviewers cannot be assigned.'}
+                </div>
+              )}
 
               {reportAssignments.length > 0 && (
                 <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded p-2">

@@ -102,8 +102,6 @@ const navConfig = {
     url: "/sdevi",
     icon: BookDashed,
     items: [
-      { title: "Report Deviation", url: "/sdevi/report", role: "Researcher" },
-      { title: "My Deviations", url: "/sdevi/submitted", role: "Researcher" },
       { title: "Deviations", url: "/chairperson/deviations", role: "Chairperson" },
       { title: "Resolution Reviews", url: "/chairperson/resolution-reviews", role: "Chairperson" },
     ],

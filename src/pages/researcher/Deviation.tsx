@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { submitDeviationReport } from '../../services/deviationReportService';
 import { FileUploadService, UPLOAD_CONFIGS } from '../../services/fileUploadService';
 import useAuth from '@/hooks/useAuth';
@@ -167,7 +168,7 @@ const DeviationReportForm: React.FC = () => {
       
       if (error) {
         console.error('Submission error:', error);
-        alert('Submission failed: ' + error.message);
+        toast.error('Submission failed: ' + error.message);
         setLoading(false);
       } else if (data && data.length > 0) {
         // Report submitted successfully, now show signature pad
@@ -175,29 +176,30 @@ const DeviationReportForm: React.FC = () => {
         const reportId = data[0].id;
         console.log('Report ID:', reportId);
         
+        toast.success('Deviation report submitted! Please sign to complete.');
         setSubmittedReportId(reportId);
         setShowSignaturePad(true);
       } else {
         console.error('No data returned from submission');
-        alert('Submission failed: No data returned');
+        toast.error('Submission failed: No data returned');
         setLoading(false);
       }
     } catch (err: any) {
       console.error('Exception during submission:', err);
-      alert('Submission failed: ' + (err.message || 'Unknown error occurred'));
+      toast.error('Submission failed: ' + (err.message || 'Unknown error occurred'));
       setLoading(false);
     }
   };
 
   const handleSignatureComplete = (success: boolean) => {
     if (success) {
-      alert('Deviation report submitted and signed successfully!');
+      toast.success('Deviation report submitted and signed successfully!');
       setInvestigator(initialInvestigator);
       setFiles([]);
       setShowSignaturePad(false);
       setSubmittedReportId('');
     } else {
-      alert('Failed to apply signature. Please try again.');
+      toast.error('Failed to apply signature. Please try again.');
     }
   };
 

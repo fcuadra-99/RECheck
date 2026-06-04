@@ -90,6 +90,18 @@ export async function listFinalReports(filter: FinalReportFilter = {}) {
 
 export async function getFinalReport(id: string) {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).single();
+  if (data && data.researcher_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('fname, lname')
+      .eq('id', data.researcher_id)
+      .maybeSingle();
+    if (profile) {
+      data.researcher_name = `${profile.fname || ''} ${profile.lname || ''}`.trim() || data.researcher_id;
+    } else {
+      data.researcher_name = data.researcher_id;
+    }
+  }
   return { data, error };
 }
 
@@ -357,6 +369,25 @@ export async function assignFinalReportToStaff(reportId: string, staffIds: strin
   }
 }
 
+async function enrichReportsWithResearcherNames(reports: any[]) {
+  if (!reports || reports.length === 0) return;
+  const researcherIds = [...new Set(reports.map((r: any) => r.researcher_id).filter(Boolean))];
+  if (researcherIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, fname, lname')
+      .in('id', researcherIds);
+    if (profiles) {
+      reports.forEach((report: any) => {
+        const profile = profiles.find((p: any) => p.id === report.researcher_id);
+        report.researcher_name = profile
+          ? `${profile.fname || ''} ${profile.lname || ''}`.trim() || report.researcher_id
+          : report.researcher_id;
+      });
+    }
+  }
+}
+
 export async function getAssignedFinalReportsForCurrentStaff() {
   try {
     const { data: authData } = await supabase.auth.getUser();
@@ -401,6 +432,8 @@ export async function getAssignedFinalReportsForCurrentStaff() {
         .map((row) => row.final_report)
         .filter(Boolean);
 
+      await enrichReportsWithResearcherNames(reports);
+
       return { success: true as const, reports, assignments: joinedRows as FinalReportAssignment[] };
     }
 
@@ -429,7 +462,10 @@ export async function getAssignedFinalReportsForCurrentStaff() {
       return { success: false as const, error: error.message };
     }
 
-    return { success: true as const, reports: reports || [], assignments: assignments || [] };
+    const reportsList = reports || [];
+    await enrichReportsWithResearcherNames(reportsList);
+
+    return { success: true as const, reports: reportsList, assignments: assignments || [] };
   } catch (error: any) {
     console.error('Failed to fetch assigned final reports:', error);
     return { success: false as const, error: error?.message || 'Failed to fetch assigned reports' };

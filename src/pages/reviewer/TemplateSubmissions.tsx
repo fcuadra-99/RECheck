@@ -94,6 +94,7 @@ export default function ReviewerTemplateSubmissions() {
     const role = (submission.metadata as any)?.assignedReviewerRoles?.[reviewerId] as string | undefined;
     if (role === 'primary_1') return 'Primary Reviewer 1';
     if (role === 'primary_2') return 'Primary Reviewer 2';
+    if (role === 'secretariat') return 'Secretariat Staff';
     return '-';
   };
 

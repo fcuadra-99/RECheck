@@ -21,7 +21,6 @@ export default function AssignedFinalReportDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState('');
-  const [comments, setComments] = useState('');
   const [assignment, setAssignment] = useState<FinalReportAssignment | null>(null);
 
   const [showPdfFiller, setShowPdfFiller] = useState(false);
@@ -30,6 +29,8 @@ export default function AssignedFinalReportDetail() {
   const [finalReportFormData, setFinalReportFormData] = useState<Record<string, any>>({});
   const [initialFormData, setInitialFormData] = useState<Record<string, any>>({});
   const [selectedFilePath, setSelectedFilePath] = useState<string>('');
+  const [showPrintFormView, setShowPrintFormView] = useState(false);
+  const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
 
   const { fields: predefinedFields } = useTemplateFields('protocol-final-report');
 
@@ -74,6 +75,64 @@ export default function AssignedFinalReportDetail() {
 
     load();
   }, [id]);
+
+  useEffect(() => {
+    if (!showPrintFormView || !printOnViewOpen) return;
+
+    const timer = window.setTimeout(() => {
+      window.print();
+      setPrintOnViewOpen(false);
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [showPrintFormView, printOnViewOpen]);
+
+  useEffect(() => {
+    if (showPrintFormView) {
+      document.body.classList.add('form-print-active');
+    } else {
+      document.body.classList.remove('form-print-active');
+    }
+
+    return () => {
+      document.body.classList.remove('form-print-active');
+    };
+  }, [showPrintFormView]);
+
+  const handleDownloadAttachment = async (filePath: string) => {
+    const fileName = filePath.split('/').pop() || 'Document';
+    const isJsonFinalReport = fileName.toLowerCase().endsWith('.json');
+
+    if (!isJsonFinalReport) {
+      const publicUrl = await getPublicUrl(filePath);
+      const link = document.createElement('a');
+      link.href = publicUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.storage.from('storage').download(filePath);
+      if (error || !data) {
+        throw new Error(error?.message || 'Failed to download file.');
+      }
+      const text = await data.text();
+      const parsed = JSON.parse(text);
+      const formData = parsed && typeof parsed === 'object' ? parsed : {};
+      setFinalReportFormData(formData);
+      setPrintOnViewOpen(true);
+      setShowPrintFormView(true);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
+      alert(`Failed to download: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const latestAttachmentPath = useMemo(() => {
     if (!report?.attachments || report.attachments.length === 0) return '';
@@ -177,6 +236,11 @@ export default function AssignedFinalReportDetail() {
       return;
     }
 
+    if (mySubmission) {
+      alert('You have already submitted your review.');
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -208,7 +272,7 @@ export default function AssignedFinalReportDetail() {
         lastModified: Date.now()
       });
 
-      const result = await submitAssignedFinalReportUpdate(report!.id, file, comments, sharedFormPath, mergedData);
+      const result = await submitAssignedFinalReportUpdate(report!.id, file, '', sharedFormPath, mergedData);
       if (!result.success) {
         throw new Error(result.error || 'Failed to submit update');
       }
@@ -262,7 +326,33 @@ export default function AssignedFinalReportDetail() {
     );
   }
 
+  if (showPrintFormView) {
+    return (
+      <div className="min-h-screen bg-gray-100 form-print-root">
+        <div className="sticky top-0 z-30 bg-white border-b border-gray-200 print:hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+            <div className="text-sm font-medium text-gray-700">Final Report View</div>
+            <button
+              onClick={() => setShowPrintFormView(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Back to Details
+            </button>
+          </div>
+        </div>
+        <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
+          <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
+            <div style={{ pointerEvents: 'none' }}>
+              <FinalReportForm savedData={finalReportFormData} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (showFormFiller) {
+    const isSubmitted = Boolean(mySubmission);
     return (
       <div className="min-h-screen bg-gray-100">
         <div className="sticky top-0 z-30 bg-white border-b border-gray-200">
@@ -275,27 +365,31 @@ export default function AssignedFinalReportDetail() {
               >
                 Cancel
               </button>
-              <button
-                onClick={handleSaveFinalReportForm}
-                disabled={saving}
-                className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
-              >
-                {saving ? 'Submitting...' : `Submit ${actorLabel} Update`}
-              </button>
+              {!isSubmitted && (
+                <button
+                  onClick={handleSaveFinalReportForm}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+                >
+                  {saving ? 'Submitting...' : `Submit ${actorLabel} Update`}
+                </button>
+              )}
             </div>
           </div>
         </div>
         <div className="py-6 px-2 sm:px-4">
           <div className="max-w-7xl mx-auto">
-            <FinalReportForm
-              savedData={finalReportFormData}
-              onSave={(patch) => {
-                const next = patch.form && typeof patch.form === 'object'
-                  ? patch.form
-                  : { ...finalReportFormData, ...patch };
-                setFinalReportFormData(next);
-              }}
-            />
+            <div style={isSubmitted ? { pointerEvents: 'none' } : undefined}>
+              <FinalReportForm
+                savedData={finalReportFormData}
+                onSave={(patch) => {
+                  const next = patch.form && typeof patch.form === 'object'
+                    ? patch.form
+                    : { ...finalReportFormData, ...patch };
+                  setFinalReportFormData(next);
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -360,13 +454,7 @@ export default function AssignedFinalReportDetail() {
                         Open
                       </button>
                       <button
-                        onClick={async () => {
-                          const publicUrl = await getPublicUrl(filePath);
-                          const link = document.createElement('a');
-                          link.href = publicUrl;
-                          link.download = fileName;
-                          link.click();
-                        }}
+                        onClick={() => handleDownloadAttachment(filePath)}
                         className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors flex items-center gap-1"
                       >
                         <Download className="w-4 h-4" />
@@ -380,22 +468,13 @@ export default function AssignedFinalReportDetail() {
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">{actorLabel} Comments</h2>
-          <textarea
-            rows={4}
-            value={comments}
-            onChange={(e) => setComments(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Add notes for chairperson..."
-          />
-
-          {mySubmission && (
-            <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        {mySubmission && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
               Your {actorLabel.toLowerCase()} update was submitted on {formatDate(mySubmission.submittedAt)}.
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
