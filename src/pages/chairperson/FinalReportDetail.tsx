@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { supabase } from '../../DB';
 import { assignFinalReportToStaff, getAssignableFinalReportStaff, getFinalReport, getFinalReportAssignments, updateFinalReport, type AssignableStaffProfile, type FinalReportAssignment } from '../../services/finalReportService';
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
@@ -174,7 +175,7 @@ const FinalReportDetail: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading report:', error);
-      alert('Failed to load final report details');
+      toast.error('Failed to load final report details');
     } finally {
       setLoading(false);
     }
@@ -198,26 +199,27 @@ const FinalReportDetail: React.FC = () => {
     if (!report) return;
 
     if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
-      alert('Reviewers cannot be assigned to a finalized or revision-pending report.');
+      toast.error('Reviewers cannot be assigned to a finalized or revision-pending report.');
       return;
     }
 
     if (selectedStaffIds.length < 1 || selectedStaffIds.length > 4) {
-      alert('Please select 1 to 4 staff members.');
+      toast.warning('Please select 1 to 4 staff members.');
       return;
     }
 
+    const loadingId = toast.loading('Passing to selected staff...');
     try {
       setAssigningStaff(true);
       const result = await assignFinalReportToStaff(report.id, selectedStaffIds);
       if (!result.success) {
         throw new Error(result.error || 'Failed to assign staff');
       }
-      alert('Final report passed to assigned staff successfully.');
+      toast.success('Final report passed to assigned staff successfully.', { id: loadingId });
       await loadReport();
     } catch (error) {
       console.error('Error assigning final report staff:', error);
-      alert(`Failed to assign staff: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to assign staff: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     } finally {
       setAssigningStaff(false);
     }
@@ -228,25 +230,26 @@ const FinalReportDetail: React.FC = () => {
     
     // Prevent editing if report is already approved, rejected, or requires revision
     if (report.status === 'Approved' || report.status === 'Rejected') {
-      alert('This report has already been finalized and cannot be edited.');
+      toast.warning('This report has already been finalized and cannot be edited.');
       return;
     }
     
     // Prevent editing if the current status is "Requires Revision" and it's not a resubmission
     // The chairperson can only edit again when researcher resubmits (status changes back to "Pending Review")
     if (report.status === 'Requires Revision') {
-      alert('This report is awaiting revision from the researcher. You can only edit it after they resubmit.');
+      toast.warning('This report is awaiting revision from the researcher. You can only edit it after they resubmit.');
       return;
     }
 
     // Type validation for editStatus - only allow specific statuses
     const validStatuses: FinalReportStatus[] = ['Pending Review', 'Requires Revision', 'Approved', 'Rejected'];
     if (!validStatuses.includes(editStatus as FinalReportStatus)) {
-      alert('Invalid status selected');
+      toast.error('Invalid status selected');
       return;
     }
     
     setSaving(true);
+    const loadingId = toast.loading('Saving changes...');
     try {
       const newStatus = editStatus as FinalReportStatus;
       await updateFinalReport({
@@ -258,19 +261,19 @@ const FinalReportDetail: React.FC = () => {
       
       // If status is being changed to Approved, show success message with certificate info
       if (newStatus === 'Approved') {
-        alert('Final report approved! A certificate is now available for the researcher.');
+        toast.success('Final report approved! A certificate is now available for the researcher.', { id: loadingId });
       } else if (newStatus === 'Rejected') {
-        alert('Final report rejected. The researcher will be notified of the decision.');
+        toast.success('Final report rejected. The researcher will be notified of the decision.', { id: loadingId });
       } else if (newStatus === 'Requires Revision') {
-        alert('Final report sent back for revision. The researcher will be able to resubmit.');
+        toast.success('Final report sent back for revision. The researcher will be able to resubmit.', { id: loadingId });
       } else {
-        alert('Final report updated successfully!');
+        toast.success('Final report updated successfully!', { id: loadingId });
       }
       
       loadReport();
     } catch (error) {
       console.error('Error updating report:', error);
-      alert('Failed to update final report');
+      toast.error('Failed to update final report', { id: loadingId });
     } finally {
       setSaving(false);
     }
@@ -323,7 +326,7 @@ const FinalReportDetail: React.FC = () => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Failed to download file');
+      toast.error('Failed to download file');
     } finally {
       setFinalReportFormLoading(false);
     }
@@ -350,7 +353,7 @@ const FinalReportDetail: React.FC = () => {
       }
     } catch (error) {
       console.error('Error opening PDF:', error);
-      alert('Failed to open PDF for editing');
+      toast.error('Failed to open PDF for editing');
     }
   }
 
@@ -391,24 +394,26 @@ const FinalReportDetail: React.FC = () => {
       setShowFinalReportFormFiller(true);
     } catch (error) {
       console.error('Error opening final report form:', error);
-      alert(`Failed to open final report form: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to open final report form: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setFinalReportFormLoading(false);
     }
   }
 
   async function handleSaveFinalReportForm() {
+    if (!report) return;
+    if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
+      toast.error('This report is finalized and the form cannot be edited.');
+      return;
+    }
+
+    if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.json')) {
+      toast.error('No original final report form selected to update.');
+      return;
+    }
+
+    const loadingId = toast.loading('Saving reviewed form...');
     try {
-      if (!report) return;
-      if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
-        alert('This report is finalized and the form cannot be edited.');
-        return;
-      }
-
-      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.json')) {
-        throw new Error('No original final report form selected to update.');
-      }
-
       const json = JSON.stringify(finalReportFormData, null, 2);
       const jsonBlob = new Blob([json], { type: 'application/json' });
 
@@ -463,33 +468,35 @@ const FinalReportDetail: React.FC = () => {
       if (updateError) throw updateError;
 
       if (uploadError) {
-        alert(`Reviewed form saved successfully (DB). Storage sync warning: ${getErrorMessage(uploadError)}`);
+        toast.warning(`Reviewed form saved (DB). Storage sync warning: ${getErrorMessage(uploadError)}`, { id: loadingId });
       } else {
-        alert('Reviewed form saved successfully!');
+        toast.success('Reviewed form saved successfully!', { id: loadingId });
       }
       setShowFinalReportFormFiller(false);
       loadReport();
     } catch (error) {
       console.error('Error saving reviewed form:', error);
-      alert(`Failed to save reviewed form: ${getErrorMessage(error)}`);
+      toast.error(`Failed to save reviewed form: ${getErrorMessage(error)}`, { id: loadingId });
     }
   }
 
   async function handlePdfSave(pdfBytes: Uint8Array, formData: Record<string, string | boolean>) {
     if (!report) return;
     if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
-      alert('This report is finalized and the PDF cannot be edited.');
+      toast.error('This report is finalized and the PDF cannot be edited.');
       return;
     }
 
     console.log('Chairperson filled PDF:', formData);
     console.log('PDF size:', pdfBytes.length, 'bytes');
     
-    try {
-      if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.pdf')) {
-        throw new Error('No original PDF selected to update.');
-      }
+    if (!activeAttachmentPath || !activeAttachmentPath.toLowerCase().endsWith('.pdf')) {
+      toast.error('No original PDF selected to update.');
+      return;
+    }
 
+    const loadingId = toast.loading('Saving filled PDF...');
+    try {
       // Convert PDF bytes to File
       const pdfArray = Array.from(pdfBytes);
       const pdfBlob = new Blob([new Uint8Array(pdfArray)], { type: 'application/pdf' });
@@ -518,12 +525,12 @@ const FinalReportDetail: React.FC = () => {
 
       if (updateError) throw updateError;
 
-      alert('Filled PDF saved successfully!');
+      toast.success('Filled PDF saved successfully!', { id: loadingId });
       setShowPdfFiller(false);
       loadReport(); // Refresh the report data
     } catch (error) {
       console.error('Error saving filled PDF:', error);
-      alert(`Failed to save filled PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Failed to save filled PDF: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
     }
   }
   

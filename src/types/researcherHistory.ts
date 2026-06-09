@@ -16,6 +16,7 @@ export interface ProposalSummary {
   category: string;
   researcher_id: string;
   researcher_name: string;
+  reviewer_names?: string[];
   current_status: string;
   submission_date: string;
   last_updated: string;

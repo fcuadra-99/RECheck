@@ -32,6 +32,7 @@ export class ResearcherHistoryService {
           description,
           category,
           researcher,
+          reviewer,
           status,
           date,
           updated_on,
@@ -64,18 +65,71 @@ export class ResearcherHistoryService {
 
       if (!proposals || proposals.length === 0) return [];
 
-      // Fetch researcher profiles for all proposals
-      const researcherIds = [...new Set(proposals.map(p => p.researcher))];
+      // Fetch researcher and reviewer profiles for all proposals
+      const researcherIds = proposals.map(p => p.researcher);
+      const reviewerIdsSet = new Set<string>();
+      proposals.forEach(p => {
+        if (p.reviewer) {
+          let rawReviewers: any = p.reviewer;
+          if (typeof rawReviewers === 'string' && (rawReviewers.startsWith('[') || rawReviewers.startsWith('{'))) {
+            try {
+              rawReviewers = JSON.parse(rawReviewers);
+            } catch {
+              // ignore
+            }
+          }
+          if (Array.isArray(rawReviewers)) {
+            rawReviewers.forEach((id: any) => {
+              if (typeof id === 'string') reviewerIdsSet.add(id);
+            });
+          } else if (typeof rawReviewers === 'string') {
+            reviewerIdsSet.add(rawReviewers);
+          }
+        }
+      });
+      const allProfileIds = [...new Set([...researcherIds, ...Array.from(reviewerIdsSet)])].filter(Boolean);
+
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, fname, lname, email')
-        .in('id', researcherIds);
+        .in('id', allProfileIds);
 
       const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-      // Map proposals with researcher names
+      // Map proposals with researcher and reviewer names
       const proposalsWithResearchers: ProposalSummary[] = proposals.map(proposal => {
         const profile = profileMap.get(proposal.researcher);
+        
+        // Resolve reviewers
+        const reviewersList: string[] = [];
+        if (proposal.reviewer) {
+          let rawReviewers: any = proposal.reviewer;
+          if (typeof rawReviewers === 'string' && (rawReviewers.startsWith('[') || rawReviewers.startsWith('{'))) {
+            try {
+              rawReviewers = JSON.parse(rawReviewers);
+            } catch {
+              // ignore
+            }
+          }
+          if (Array.isArray(rawReviewers)) {
+            rawReviewers.forEach((rId: any) => {
+              const rProfile = profileMap.get(rId);
+              if (rProfile) {
+                reviewersList.push(`${rProfile.fname} ${rProfile.lname}`);
+              } else {
+                reviewersList.push(rId);
+              }
+            });
+          } else if (typeof rawReviewers === 'string') {
+            const rProfile = profileMap.get(rawReviewers);
+            if (rProfile) {
+              reviewersList.push(`${rProfile.fname} ${rProfile.lname}`);
+            } else {
+              reviewersList.push(rawReviewers);
+            }
+          }
+        }
+
         return {
           proposal_id: proposal.proposal_id,
           protocol_code: proposal.protocol_id || null,
@@ -84,6 +138,7 @@ export class ResearcherHistoryService {
           category: proposal.category,
           researcher_id: proposal.researcher,
           researcher_name: profile ? `${profile.fname} ${profile.lname}` : 'Unknown',
+          reviewer_names: reviewersList,
           current_status: proposal.status,
           submission_date: proposal.date,
           last_updated: proposal.updated_on || proposal.date,
@@ -99,7 +154,8 @@ export class ResearcherHistoryService {
           p.proposal_title.toLowerCase().includes(searchLower) ||
           p.researcher_name.toLowerCase().includes(searchLower) ||
           p.description.toLowerCase().includes(searchLower) ||
-          (p.protocol_code || '').toLowerCase().includes(searchLower)
+          (p.protocol_code || '').toLowerCase().includes(searchLower) ||
+          (p.reviewer_names || []).some(name => name.toLowerCase().includes(searchLower))
         );
       }
 
@@ -170,6 +226,39 @@ export class ResearcherHistoryService {
       // Create timeline
       const timeline = this.createTimeline(files, comments, history, deviations, finalReports, reviewRecommendations);
 
+      // Resolve reviewers
+      const reviewerNamesList: string[] = [];
+      const reviewerIdsList: string[] = [];
+      if (proposal.reviewer) {
+        let rawReviewers: any = proposal.reviewer;
+        if (typeof rawReviewers === 'string' && (rawReviewers.startsWith('[') || rawReviewers.startsWith('{'))) {
+          try {
+            rawReviewers = JSON.parse(rawReviewers);
+          } catch {
+            // ignore
+          }
+        }
+        if (Array.isArray(rawReviewers)) {
+          rawReviewers.forEach((id: any) => {
+            if (typeof id === 'string') reviewerIdsList.push(id);
+          });
+        } else if (typeof rawReviewers === 'string') {
+          reviewerIdsList.push(rawReviewers);
+        }
+      }
+
+      if (reviewerIdsList.length > 0) {
+        const { data: revProfiles } = await supabase
+          .from('profiles')
+          .select('fname, lname, id')
+          .in('id', reviewerIdsList);
+        
+        const revProfileMap = new Map(revProfiles?.map(p => [p.id, `${p.fname} ${p.lname}`]) || []);
+        reviewerIdsList.forEach(rId => {
+          reviewerNamesList.push(revProfileMap.get(rId) || rId);
+        });
+      }
+
       const proposalSummary: ProposalSummary = {
         proposal_id: proposal.proposal_id,
         protocol_code: proposal.protocol_id || null,
@@ -178,6 +267,7 @@ export class ResearcherHistoryService {
         category: proposal.category,
         researcher_id: proposal.researcher,
         researcher_name: `${researcher.fname} ${researcher.lname}`,
+        reviewer_names: reviewerNamesList,
         current_status: proposal.status,
         submission_date: proposal.date,
         last_updated: proposal.updated_on || proposal.date,

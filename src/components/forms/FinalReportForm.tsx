@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import SignatureCell from "./SignatureCell";
 
 interface FinalReportFormProps {
@@ -47,10 +47,6 @@ interface FinalReportState {
   primaryReviewer1SignatureDraw: string;
   primaryReviewer1Signature: string;
   primaryReviewer1Name: string;
-  primaryReviewer2Date: string;
-  primaryReviewer2SignatureDraw: string;
-  primaryReviewer2Signature: string;
-  primaryReviewer2Name: string;
   secretariatDate: string;
   secretariatSignatureDraw: string;
   secretariatSignature: string;
@@ -102,10 +98,6 @@ const DEFAULT_STATE: FinalReportState = {
   primaryReviewer1SignatureDraw: "",
   primaryReviewer1Signature: "",
   primaryReviewer1Name: "",
-  primaryReviewer2Date: "",
-  primaryReviewer2SignatureDraw: "",
-  primaryReviewer2Signature: "",
-  primaryReviewer2Name: "",
   secretariatDate: "",
   secretariatSignatureDraw: "",
   secretariatSignature: "",
@@ -173,8 +165,19 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
     });
   };
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const textareas = containerRef.current.querySelectorAll("textarea");
+    textareas.forEach((el) => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [form, savedData]);
+
   return (
-    <div>
+    <div ref={containerRef}>
       <div style={pageContainer}>
         <table style={headerTable}>
           <tbody>
@@ -439,20 +442,6 @@ export default function FinalReportForm({ savedData = {}, onSave }: FinalReportF
             <tr>
               <td style={sigLabelCell}>Date: <input style={inlineLineInput} value={form.primaryReviewer1Date} onChange={(e) => savePatch({ primaryReviewer1Date: e.target.value })} /></td>
               <td style={sigValueCell}>Name <input style={lineInput} value={form.primaryReviewer1Name} onChange={(e) => savePatch({ primaryReviewer1Name: e.target.value })} /></td>
-            </tr>
-            <tr>
-              <td style={sigLabelCell}><strong>PRIMARY REVIEWER 2</strong></td>
-              <td style={sigValueCell}>
-                Signature
-                <div style={signatureDrawWrap}>
-                  <SignatureCell value={form.primaryReviewer2SignatureDraw} onChange={(val) => savePatch({ primaryReviewer2SignatureDraw: val })} />
-                </div>
-                <input style={lineInput} value={form.primaryReviewer2Signature} onChange={(e) => savePatch({ primaryReviewer2Signature: e.target.value })} />
-              </td>
-            </tr>
-            <tr>
-              <td style={sigLabelCell}>Date: <input style={inlineLineInput} value={form.primaryReviewer2Date} onChange={(e) => savePatch({ primaryReviewer2Date: e.target.value })} /></td>
-              <td style={sigValueCell}>Name <input style={lineInput} value={form.primaryReviewer2Name} onChange={(e) => savePatch({ primaryReviewer2Name: e.target.value })} /></td>
             </tr>
             <tr>
               <td style={sigLabelCell}><strong>SECRETARIAT STAFF</strong></td>

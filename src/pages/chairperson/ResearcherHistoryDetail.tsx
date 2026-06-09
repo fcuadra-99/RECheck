@@ -635,9 +635,9 @@ export default function ResearcherHistoryDetail() {
                 </h1>
                 <p className="text-gray-600 mb-4">{history.proposal.description}</p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="flex flex-wrap gap-x-6 gap-y-4">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-gray-400" />
+                    <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Researcher</p>
                       <p className="text-sm font-medium text-gray-900">
@@ -646,7 +646,7 @@ export default function ResearcherHistoryDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gray-400" />
+                    <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Submitted</p>
                       <p className="text-sm font-medium text-gray-900">
@@ -655,7 +655,7 @@ export default function ResearcherHistoryDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-gray-400" />
+                    <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Protocol Code</p>
                       <p className="text-sm font-medium text-gray-900">
@@ -664,11 +664,22 @@ export default function ResearcherHistoryDetail() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Folder className="w-4 h-4 text-gray-400" />
+                    <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500">Category</p>
                       <p className="text-sm font-medium text-gray-900">
                         {history.proposal.category}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 max-w-md">
+                    <Users className="w-4 h-4 text-gray-400 flex-shrink-0 mt-1" />
+                    <div>
+                      <p className="text-xs text-gray-500">Reviewers</p>
+                      <p className="text-sm font-medium text-gray-900 break-words whitespace-normal">
+                        {history.proposal.reviewer_names && history.proposal.reviewer_names.length > 0
+                          ? history.proposal.reviewer_names.join(', ')
+                          : 'Unassigned'}
                       </p>
                     </div>
                   </div>

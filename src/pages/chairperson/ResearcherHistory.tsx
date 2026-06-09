@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { researcherHistoryService } from '../../services/researcherHistoryService';
 import type { ProposalSummary, ResearcherHistoryFilters } from '../../types/researcherHistory';
 import { 
@@ -14,7 +15,8 @@ import {
   Filter,
   Download,
   TrendingUp,
-  Archive
+  Archive,
+  Users
 } from 'lucide-react';
 
 export default function ResearcherHistory() {
@@ -200,6 +202,56 @@ export default function ResearcherHistory() {
     undergraduate: proposals.filter(p => p.category === 'Undergraduate').length
   };
 
+  const handleExportToExcel = () => {
+    try {
+      // Map proposals data into a clean structure for the spreadsheet
+      const exportData = proposals.map((proposal) => {
+        const statusInfo = proposalStatuses[proposal.proposal_id];
+        const status = statusInfo?.status || proposal.current_status;
+        const isCompleted = statusInfo?.isCompleted || proposal.completed;
+        const displayStatus = isCompleted ? 'Completed' : status;
+
+        return {
+          'Proposal ID': `#${proposal.proposal_id}`,
+          'Protocol Code': proposal.protocol_code || 'N/A',
+          'Proposal Title': proposal.proposal_title,
+          'Description': proposal.description || '',
+          'Researcher Name': proposal.researcher_name,
+          'Category': proposal.category, // External, Graduate, Undergraduate
+          'Assigned Reviewers': proposal.reviewer_names && proposal.reviewer_names.length > 0 ? proposal.reviewer_names.join(', ') : 'Unassigned',
+          'Current Status': displayStatus,
+          'Submission Date': formatDate(proposal.submission_date),
+          'Last Updated': formatDate(proposal.last_updated),
+        };
+      });
+
+      // Create sheet and workbook
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Researcher History');
+
+      // Adjust column widths automatically
+      const maxColWidths = [
+        { wch: 12 }, // Proposal ID
+        { wch: 18 }, // Protocol Code
+        { wch: 40 }, // Proposal Title
+        { wch: 40 }, // Description
+        { wch: 25 }, // Researcher Name
+        { wch: 15 }, // Category
+        { wch: 30 }, // Assigned Reviewers
+        { wch: 25 }, // Current Status
+        { wch: 18 }, // Submission Date
+        { wch: 18 }, // Last Updated
+      ];
+      worksheet['!cols'] = maxColWidths;
+
+      // Write and download file
+      XLSX.writeFile(workbook, 'Researcher_History_Report.xlsx');
+    } catch (error) {
+      console.error('Error exporting researcher history to Excel:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -213,7 +265,7 @@ export default function ResearcherHistory() {
               </p>
             </div>
             <button
-              onClick={() => window.print()}
+              onClick={handleExportToExcel}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Download className="w-4 h-4" />
@@ -369,6 +421,9 @@ export default function ResearcherHistory() {
                         Researcher
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Reviewers
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Category
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -407,6 +462,18 @@ export default function ResearcherHistory() {
                           <div className="flex items-center gap-2">
                             <User className="w-4 h-4 text-gray-400" />
                             <span className="text-sm text-gray-900">{proposal.researcher_name}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="max-w-[150px] truncate" title={proposal.reviewer_names?.join(', ') || 'Unassigned'}>
+                            {proposal.reviewer_names && proposal.reviewer_names.length > 0 ? (
+                              <div className="flex items-center gap-1.5 text-sm text-gray-900">
+                                <Users className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                <span className="truncate">{proposal.reviewer_names.join(', ')}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">Unassigned</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

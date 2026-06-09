@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import SignatureCell from "./SignatureCell";
 
 type YesNo = "" | "yes" | "no";
@@ -112,8 +112,19 @@ export default function InformedConsentAssessmentForm({ savedData = {}, onSave }
     </tr>
   );
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const textareas = containerRef.current.querySelectorAll("textarea");
+    textareas.forEach((el) => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [fields, savedData]);
+
   return (
-    <div>
+    <div ref={containerRef}>
       <div style={pageContainer}>
         <table style={headerTable}>
           <tbody>

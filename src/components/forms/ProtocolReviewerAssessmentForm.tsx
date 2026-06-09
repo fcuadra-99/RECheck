@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import SignatureCell from "./SignatureCell";
 
 type Choice = "" | "ua" | "yes" | "no";
@@ -163,8 +163,19 @@ export default function ProtocolReviewerAssessmentForm({ savedData = {}, onSave 
     </tr>
   );
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const textareas = containerRef.current.querySelectorAll("textarea");
+    textareas.forEach((el) => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    });
+  }, [fields, comments, minorReason, majorReason, deferredReason, disapprovedReason, savedData]);
+
   return (
-    <div>
+    <div ref={containerRef}>
       <div style={pageContainer}>
         <table style={headerTable}>
           <tbody>
@@ -314,6 +325,12 @@ export default function ProtocolReviewerAssessmentForm({ savedData = {}, onSave 
                   rows={1}
                   style={finalLineTextarea}
                 />
+                <div style={recOptionRow}>
+                  <label style={finalChoiceLabel}>
+                    <input type="checkbox" style={checkStyle} checked={recommendation === "major"} onChange={() => setRecommendationChoice("major")} /> Major revision/s required
+                  </label>
+                </div>
+
                 <textarea
                   value={majorReason}
                   onChange={(e) => {
@@ -327,8 +344,9 @@ export default function ProtocolReviewerAssessmentForm({ savedData = {}, onSave 
 
                 <div style={recOptionRow}>
                   <label style={finalChoiceLabel}>
-                    <input type="checkbox" style={checkStyle} checked={recommendation === "major"} onChange={() => setRecommendationChoice("major")} /> Major revision/s required
+                    <input type="checkbox" style={checkStyle} checked={recommendation === "deferred"} onChange={() => setRecommendationChoice("deferred")} /> Deferred
                   </label>
+                  <span style={plainLabel}>Reasons:</span>
                 </div>
 
                 <textarea
@@ -344,7 +362,7 @@ export default function ProtocolReviewerAssessmentForm({ savedData = {}, onSave 
 
                 <div style={recOptionRow}>
                   <label style={finalChoiceLabel}>
-                    <input type="checkbox" style={checkStyle} checked={recommendation === "deferred"} onChange={() => setRecommendationChoice("deferred")} /> Deferred
+                    <input type="checkbox" style={checkStyle} checked={recommendation === "disapproved"} onChange={() => setRecommendationChoice("disapproved")} /> Disapproved
                   </label>
                   <span style={plainLabel}>Reasons:</span>
                 </div>
@@ -359,15 +377,6 @@ export default function ProtocolReviewerAssessmentForm({ savedData = {}, onSave 
                   rows={1}
                   style={finalLineTextarea}
                 />
-
-                <div style={recOptionRow}>
-                  <label style={finalChoiceLabel}>
-                    <input type="checkbox" style={checkStyle} checked={recommendation === "disapproved"} onChange={() => setRecommendationChoice("disapproved")} /> Disapproved
-                  </label>
-                  <span style={plainLabel}>Reasons:</span>
-                </div>
-
-                <textarea value="" readOnly style={finalLineTextarea} />
 
                 <div style={signatureGroup}>
                   <div style={signaturePadWrap}>

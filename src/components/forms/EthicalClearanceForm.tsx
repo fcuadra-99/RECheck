@@ -280,7 +280,7 @@ export default function EthicalClearanceForm({ savedData = {}, onSave, isReadOnl
                 </table>
 
                 <div style={{ marginBottom: '20px', textAlign: 'justify', lineHeight: '1.6' }}>
-                  This is to acknowledge receipt of your <b>protocol version</b>{' '}
+                  UIC-REC acknowledges the receipt of your <b>Manuscript Version</b>{' '}
                   <input 
                     type="text" 
                     name="protocolVersion"
