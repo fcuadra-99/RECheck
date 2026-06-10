@@ -291,7 +291,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                 setIsPhase3Approval(hasInitialApproval || false);
             }
 
-            if (["Resend Manuscript", "Resend Forms", "Send Revision", "Revise Proposal"].includes(activeSubmission.status)) {
+            if (["Resend Manuscript", "Resend Forms", "Send Revision", "Resend Revision", "Revise Proposal"].includes(activeSubmission.status)) {
                 const hist = await getLatestHistoryWithAffectedFiles(activeSubmission.proposal_id)
                     || await getLatestHistory(activeSubmission.proposal_id);
 
@@ -654,7 +654,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
 
 // Helper functions needed by both components
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
-    if (submission.status === "Send Revision") {
+    if (submission.status === "Send Revision" || submission.status === "Resend Revision") {
         const manuscriptDocs = [
             { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },
             // Removed documents from manuscript phase - moved to Forms Check
@@ -689,7 +689,7 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
         name,
         templateUrl: "",
         required: true,
-        needsSignature: true,
+        needsSignature: false,
         needsAnswer: true,
     });
 
@@ -730,10 +730,10 @@ const getFormsDocuments = (submission: Submission): DocumentItem[] => {
         return [
             makeDoc("REC_FO_0032_EthicsProtocolChecklist.pdf"),
             makeDoc("REC_FO_0027_EthicsApplicationProcedure.pdf"),
-            makeDoc("REC_FO_0028_EthicsStudy ProtocolInformation Form.pdf"),
-            makeDoc("REC_FO_0029_EthicsInformedConsent CHECKLIST.pdf"),
+            makeDoc("REC_FO_0028_EthicsStudyProtocolInformationForm.pdf"),
+            makeDoc("REC_FO_0029_EthicsInformedConsentCHECKLIST.pdf"),
             makeDoc("REC_FO_0030_EthicsInformedConsentFormwhenQuestionnaireareUsed.pdf"),
-            makeDoc("REC_FO_0031_Ethics Informed Consent Form (ICF)_Sample.pdf"),
+            makeDoc("REC_FO_0031_EthicsInformedConsentForm(ICF)_Sample.pdf"),
             makeDoc("REC_FO_0034_Ethics-Assent-Form-18-below-respondents_Sample.pdf"),
             makeDoc("REC_FO_0036_MOA for external.pdf"),
             ...commonFormsDocs,

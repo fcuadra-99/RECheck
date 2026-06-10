@@ -193,12 +193,16 @@ export default function AdvisorSubmissions() {
             setFormsLoading(true);
             const { data: formRows } = await supabase
                 .from("form_data")
-                .select("form_name, data")
+                .select("form_name, data, revision_number")
                 .eq("proposal_id", activeSubmission.proposal_id);
 
             const ADVISOR_SIGN_EXCLUDED = ["0034", "0035", "0028", "0031"];
             const docs = (formRows || [])
-                .map((r: any) => r.form_name)
+                .map((r: any) => {
+                    const name = r.form_name || "";
+                    const rev = r.revision_number || 1;
+                    return rev > 1 ? `v${rev}_${name}` : name;
+                })
                 .filter((name: string) => !ADVISOR_SIGN_EXCLUDED.some(code => name.includes(code)));
             setFormDataDocs(docs);
 
@@ -731,11 +735,20 @@ export default function AdvisorSubmissions() {
                                 onDone={async () => {
                                     setFormViewerOpen(false);
                                     // Re-check signature status for this form
+                                    let actualFormName = activeFormDoc;
+                                    let explicitRevision = 1;
+                                    const match = activeFormDoc.match(/^v(\d+)_(.+)$/);
+                                    if (match) {
+                                        explicitRevision = parseInt(match[1], 10);
+                                        actualFormName = match[2];
+                                    }
+
                                     const { data } = await supabase
                                         .from("form_data")
                                         .select("data")
                                         .eq("proposal_id", activeSubmission.proposal_id)
-                                        .eq("form_name", activeFormDoc)
+                                        .eq("form_name", actualFormName)
+                                        .eq("revision_number", explicitRevision)
                                         .single();
                                     if (data?.data) {
                                         const adviserSig = data.data.adviserSig;

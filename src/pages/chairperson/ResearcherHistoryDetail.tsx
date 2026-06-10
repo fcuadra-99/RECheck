@@ -195,11 +195,20 @@ export default function ResearcherHistoryDetail() {
         const encodedFormName = virtualPath.slice(slashIndex + 1);
         const formName = decodeURIComponent(encodedFormName);
 
+        let actualFormName = formName;
+        let explicitRevision = 1;
+        const match = formName.match(/^v(\d+)_(.+)$/);
+        if (match) {
+          explicitRevision = parseInt(match[1], 10);
+          actualFormName = match[2];
+        }
+
         const { data, error } = await supabase
           .from('form_data')
           .select('data, updated_at, form_name')
           .eq('proposal_id', proposalId)
-          .eq('form_name', formName)
+          .eq('form_name', actualFormName)
+          .eq('revision_number', explicitRevision)
           .single();
 
         if (error || !data) {

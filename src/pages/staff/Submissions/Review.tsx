@@ -463,9 +463,15 @@ export const SReview = () => {
         // Fetch interactive form_data records
         const { data: formDataRows } = await supabase
           .from("form_data")
-          .select("form_name")
+          .select("form_name, revision_number")
           .eq("proposal_id", parseInt(id));
-        setInteractiveForms((formDataRows || []).map((r: any) => r.form_name));
+        setInteractiveForms(
+          (formDataRows || []).map((r: any) => {
+            const name = r.form_name || "";
+            const rev = r.revision_number || 1;
+            return rev > 1 ? `v${rev}_${name}` : name;
+          })
+        );
 
         // For revision phase
         if (status === "Check Revision") {
@@ -798,7 +804,7 @@ export const SReview = () => {
     status === "Check Manuscript" ? manuscriptDocs :
       status === "Forms Check" ? [...formsDocs, ...interactiveFormDocs] :
         status === "Deploy Queue" ? [...manuscriptDocs, ...formsDocs, ...interactiveFormDocs] : // Show both manuscript and forms for Deploy Queue
-          status === "Check Revision" ? revisionDocs : [];
+          status === "Check Revision" ? [...manuscriptDocs, ...formsDocs, ...interactiveFormDocs] : [];
 
   // Get current documents based on active preview
   const getCurrentDocs = () => {

@@ -111,34 +111,90 @@ export default function FormViewer({
   readOnly = false,
   onDone,
 }: FormViewerProps) {
-  const FormComponent = DOC_COMPONENT_MAP[documentName];
-  const key = storageKey(proposalId, documentName);
+  let actualDocumentName = documentName;
+  let explicitRevision: number | null = null;
+  const match = documentName.match(/^v(\d+)_(.+)$/);
+  if (match) {
+    explicitRevision = parseInt(match[1], 10);
+    actualDocumentName = match[2];
+  }
+
+  const FormComponent = DOC_COMPONENT_MAP[actualDocumentName];
+  const key = storageKey(proposalId, actualDocumentName);
 
   const [advisorName, setAdvisorName] = useState<string>("");
   const [savedData, setSavedData] = useState<Record<string, any>>({});
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [loadedRevision, setLoadedRevision] = useState<number>(1);
 
   // Load saved data: prefer DB, fall back to localStorage
   useEffect(() => {
     const load = async () => {
+      let targetRev = 1;
+
+      if (explicitRevision !== null) {
+        targetRev = explicitRevision;
+      } else {
+        const { data: proposal } = await supabase
+          .from("proposals")
+          .select("status")
+          .eq("proposal_id", proposalId)
+          .single();
+        const status = proposal?.status || "";
+
+        const { data: historyData } = await supabase
+          .from("history")
+          .select("history_type, action, comment")
+          .eq("paper_id", proposalId)
+          .eq("history_type", "submission");
+
+        const revisionSubmissions = historyData?.filter((entry) => {
+          if (entry.action === 'Submit Revisions') return true;
+          const note = String(entry.comment || '').toLowerCase();
+          return note.includes('revision');
+        }) || [];
+
+        const revisionCount = revisionSubmissions.length;
+        const isRevisionStatus = status === "Revise Proposal" || status === "Revise Documents";
+        targetRev = isRevisionStatus ? revisionCount + 2 : revisionCount + 1;
+      }
+
+      setLoadedRevision(targetRev);
+
       const { data } = await supabase
         .from("form_data")
         .select("data")
         .eq("proposal_id", proposalId)
-        .eq("form_name", documentName)
-        .single();
+        .eq("form_name", actualDocumentName)
+        .eq("revision_number", targetRev)
+        .maybeSingle();
 
       if (data?.data) {
-        console.log(`[FormViewer] Loaded from DB for "${documentName}":`, JSON.stringify(data.data, null, 2));
+        console.log(`[FormViewer] Loaded from DB for "${actualDocumentName}" (v${targetRev}):`, JSON.stringify(data.data, null, 2));
         setSavedData(data.data);
       } else {
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            setSavedData(parsed);
-          }
-        } catch { /* ignore */ }
+        // If the target revision doesn't exist yet, load the latest submitted version to pre-fill
+        const { data: latestData } = await supabase
+          .from("form_data")
+          .select("data")
+          .eq("proposal_id", proposalId)
+          .eq("form_name", actualDocumentName)
+          .order("revision_number", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestData?.data) {
+          console.log(`[FormViewer] Pre-filling from latest version for "${actualDocumentName}":`, JSON.stringify(latestData.data, null, 2));
+          setSavedData(latestData.data);
+        } else {
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              setSavedData(parsed);
+            }
+          } catch { /* ignore */ }
+        }
       }
       setDataLoaded(true);
     };
@@ -218,12 +274,18 @@ export default function FormViewer({
 
     const data = { ...savedData, ...fromStorage };
 
-    console.log(`[FormViewer] Saving form_data for "${documentName}":`, JSON.stringify(data, null, 2));
+    console.log(`[FormViewer] Saving form_data for "${actualDocumentName}" (v${loadedRevision}):`, JSON.stringify(data, null, 2));
 
     // Upsert to form_data table
     await supabase.from("form_data").upsert(
-      { proposal_id: proposalId, form_name: documentName, data, updated_at: new Date().toISOString() },
-      { onConflict: "proposal_id,form_name" }
+      { 
+        proposal_id: proposalId, 
+        form_name: actualDocumentName, 
+        data, 
+        revision_number: loadedRevision,
+        updated_at: new Date().toISOString() 
+      },
+      { onConflict: "proposal_id,form_name,revision_number" }
     );
 
     onDone();
@@ -233,7 +295,7 @@ export default function FormViewer({
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-gray-500">
         <p className="text-sm">No form component found for:</p>
-        <p className="text-xs font-mono bg-gray-100 px-3 py-1 rounded">{documentName}</p>
+        <p className="text-xs font-mono bg-gray-100 px-3 py-1 rounded">{actualDocumentName}</p>
       </div>
     );
   }
@@ -252,13 +314,13 @@ export default function FormViewer({
       <div className="flex-1 overflow-auto bg-gray-100 p-6">
         <div className={`shadow-lg rounded-sm ${readOnly ? "pointer-events-none select-none" : ""}`}>
           <FormComponent
-            key={`${proposalId}-${documentName}`}
+            key={`${proposalId}-${actualDocumentName}`}
             proposalId={proposalId}
             protocolCode={protocolCode}
             researcherName={researcherName}
             advisorName={advisorName}
             proposalTitle={proposalTitle}
-            formName={documentName}
+            formName={actualDocumentName}
             savedData={savedData}
             onSave={readOnly ? undefined : handleSave}
             reviewType={reviewType}

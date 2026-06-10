@@ -215,7 +215,7 @@ export default function PhaseContent({
             }));
         }
 
-        if (submission.status === "Send Revision") {
+        if (submission.status === "Send Revision" || submission.status === "Resend Revision") {
             if (historyFiles && historyFiles.length > 0) {
                 return historyFiles;
             }
@@ -268,7 +268,7 @@ export default function PhaseContent({
                 if (!uploadedFiles[doc.name] && submission.status === "Revise Proposal") {
                     continue;
                 }
-                const isResend = ["Resend Manuscript", "Resend Forms", "Send Revision", "Revise Proposal"].includes(submission.status);
+                const isResend = ["Resend Manuscript", "Resend Forms", "Send Revision", "Resend Revision", "Revise Proposal"].includes(submission.status);
                 let newRevision = 1;
                 let originalRecord: any = null;
 
@@ -345,7 +345,7 @@ export default function PhaseContent({
                             aa = uploadStatus.replace("Resend ", "Send ");
                         }
 
-                        if (submission.status === "Revise Proposal" || submission.status === "Send Revision" || aa === "Assign Review") {
+                        if (submission.status === "Revise Proposal" || submission.status === "Send Revision" || submission.status === "Resend Revision" || aa === "Assign Review") {
                             if (doc.name.toLowerCase().includes("manuscript")) {
                                 aa = "Send Manuscript";
                             } else {
@@ -470,11 +470,20 @@ export default function PhaseContent({
 
     const handleFormDataDownload = async (proposalId: number, formName: string) => {
         try {
+            let actualFormName = formName;
+            let explicitRevision = 1;
+            const match = formName.match(/^v(\d+)_(.+)$/);
+            if (match) {
+                explicitRevision = parseInt(match[1], 10);
+                actualFormName = match[2];
+            }
+
             const { data, error } = await supabase
                 .from("form_data")
                 .select("data")
                 .eq("proposal_id", proposalId)
-                .eq("form_name", formName)
+                .eq("form_name", actualFormName)
+                .eq("revision_number", explicitRevision)
                 .single();
 
             if (error || !data) {
@@ -482,9 +491,9 @@ export default function PhaseContent({
                 return;
             }
 
-            const FormComponent = DOC_COMPONENT_MAP[formName];
+            const FormComponent = DOC_COMPONENT_MAP[actualFormName];
             if (!FormComponent) {
-                toast.error(`No form renderer found for ${formName}.`);
+                toast.error(`No form renderer found for ${actualFormName}.`);
                 return;
             }
 
@@ -579,7 +588,7 @@ export default function PhaseContent({
                     reviewType={proposalData?.review_type || ""}
                     researcherName={researcherName}
                     advisorName={advisorName}
-                    formName={formName}
+                    formName={actualFormName}
                     savedData={data.data || {}}
                     readOnlyAdvisor
                 />
@@ -603,7 +612,7 @@ export default function PhaseContent({
 
     const renderPhaseFilesForActive = (submission: Submission) => {
         const docs = getFilesNeedingRevision(submission);
-        const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision"].includes(submission.status);
+        const isResendStatus = ["Resend Manuscript", "Resend Forms", "Send Revision", "Resend Revision"].includes(submission.status);
         const revisionTargetNames = new Set((historyFiles || []).map((doc) => doc.name.toLowerCase()));
         const hasRevisionTargets = revisionTargetNames.size > 0;
         const hasRevisionComments = historyComments.length > 0 || Boolean(latestComment);
@@ -691,7 +700,7 @@ export default function PhaseContent({
                                 </div>
                             </div>
 
-                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms", "Send Revision", "Revise Proposal"].includes(submission.status) &&
+                            {(["Send Manuscript", "Resend Manuscript", "Send Forms", "Resend Forms", "Send Revision", "Resend Revision", "Revise Proposal"].includes(submission.status) &&
                                 !doc.needsSignature && !doc.needsAnswer) ? (
                                 <label
                                     htmlFor={`file-${doc.name}`}
@@ -1010,17 +1019,21 @@ export default function PhaseContent({
 
                 const { data: formRows } = await supabase
                     .from("form_data")
-                    .select("form_name")
+                    .select("form_name, revision_number")
                     .eq("proposal_id", submissionId);
 
                 const formFiles = (formRows || [])
-                    .map((row: any) => (row.form_name || "").trim())
-                    .filter((name: string) => name.length > 0)
-                    .map((name: string) => ({
-                        name,
-                        url: buildFormDataVirtualPath(submissionId, name),
-                        isFormData: true
-                    }));
+                    .filter((row: any) => row.form_name)
+                    .map((row: any) => {
+                        const name = row.form_name.trim();
+                        const rev = row.revision_number || 1;
+                        const displayName = rev > 1 ? `v${rev}_${name}` : name;
+                        return {
+                            name: displayName,
+                            url: buildFormDataVirtualPath(submissionId, displayName),
+                            isFormData: true
+                        };
+                    });
 
                 const merged: { name: string; url: string; isFormData?: boolean }[] = [];
                 const seen = new Set<string>();
@@ -1881,7 +1894,7 @@ export default function PhaseContent({
 
 // Helper functions needed by PhaseContent
 const getPhaseDocuments = (submission: Submission): DocumentItem[] => {
-    if (submission.status === "Revise Proposal" || submission.status === "Send Revision") {
+    if (submission.status === "Revise Proposal" || submission.status === "Send Revision" || submission.status === "Resend Revision") {
         const manuscriptDocs = [
             { name: "Revised Manuscript", templateUrl: "/templates/manuscript.pdf", required: true, needsSignature: false, needsAnswer: false },
         ].filter(Boolean) as DocumentItem[];

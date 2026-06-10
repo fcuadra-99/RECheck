@@ -321,19 +321,10 @@ export class ResearcherHistoryService {
 
       const { data: formDataRows } = await supabase
         .from('form_data')
-        .select('form_name')
+        .select('form_name, revision_number')
         .eq('proposal_id', proposalId);
 
       if (!documents) return [];
-
-      const formDataNameSet = new Set(
-        (formDataRows || [])
-          .map(row => (row.form_name || '').trim().toLowerCase())
-          .filter(Boolean)
-      );
-
-      console.log(`📂 Raw documents from database for proposal ${proposalId}:`, documents.length);
-      console.log('First 3 documents:', documents.slice(0, 3));
 
       const fileRecords = documents.map(doc => {
         const phaseFromType = this.getPhaseFromDocType(doc.doc_type);
@@ -342,9 +333,19 @@ export class ResearcherHistoryService {
           : phaseFromType;
 
         const normalizedDocType = (doc.doc_type || '').trim().toLowerCase();
-        const hasSavedFormData = formDataNameSet.has(normalizedDocType);
+        const docRev = doc.revision_number || 1;
+        const hasSavedFormData = (formDataRows || []).some(row =>
+          (row.form_name || '').trim().toLowerCase() === normalizedDocType &&
+          (row.revision_number || 1) === docRev
+        );
+
+        let resolvedFormName = doc.doc_type || this.extractFileName(doc.file_path || 'Form Data');
+        if (docRev > 1) {
+          resolvedFormName = `v${docRev}_${resolvedFormName}`;
+        }
+
         const resolvedFilePath = doc.file_path || (hasSavedFormData
-          ? this.buildFormDataVirtualPath(proposalId, doc.doc_type || this.extractFileName(doc.file_path || 'Form Data'))
+          ? this.buildFormDataVirtualPath(proposalId, resolvedFormName)
           : '');
 
         return {
