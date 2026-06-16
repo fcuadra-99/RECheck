@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import { useState, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import { DOC_COMPONENT_MAP } from "@/components/forms/FormViewer";
 import {
     Table,
     TableHeader,
@@ -66,6 +68,7 @@ export default function AdvisorSubmissions() {
     const [formDataDocs, setFormDataDocs] = useState<string[]>([]);
     const [formsLoading, setFormsLoading] = useState(false);
     const [signedForms, setSignedForms] = useState<{ [key: string]: boolean }>({});
+    const [formViewerReadOnly, setFormViewerReadOnly] = useState(false);
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -187,8 +190,6 @@ export default function AdvisorSubmissions() {
                 phase: 'phase3' as const
             })));
 
-            setSubmissionDocuments(documents);
-
             // Load interactive form_data records
             setFormsLoading(true);
             const { data: formRows } = await supabase
@@ -205,6 +206,20 @@ export default function AdvisorSubmissions() {
                 })
                 .filter((name: string) => !ADVISOR_SIGN_EXCLUDED.some(code => name.includes(code)));
             setFormDataDocs(docs);
+
+            const formFiles = (formRows || []).map((r: any) => {
+                const name = r.form_name || "";
+                const rev = r.revision_number || 1;
+                const displayName = rev > 1 ? `v${rev}_${name}` : name;
+                return {
+                    name: displayName,
+                    url: `form-data://${activeSubmission.proposal_id}/${encodeURIComponent(displayName)}`,
+                    phase: 'phase3' as const
+                };
+            });
+            documents.push(...formFiles);
+
+            setSubmissionDocuments(documents);
 
             // Check which forms already have an advisor signature
             const signed: { [key: string]: boolean } = {};
@@ -266,6 +281,182 @@ export default function AdvisorSubmissions() {
         } catch (err) {
             console.error(err);
             return [];
+        }
+    };
+
+    const waitForRender = async (ms = 180) => {
+        await new Promise(resolve => setTimeout(resolve, ms));
+    };
+
+    const waitForAssets = async (container: HTMLElement) => {
+        try {
+            if ('fonts' in document) {
+                await (document as Document & { fonts?: FontFaceSet }).fonts?.ready;
+            }
+        } catch {
+            // Ignore font readiness failures and continue rendering.
+        }
+
+        const images = Array.from(container.querySelectorAll('img'));
+        await Promise.all(
+            images.map((img) => {
+                if (img.complete) return Promise.resolve();
+                return new Promise<void>((resolve) => {
+                    img.onload = () => resolve();
+                    img.onerror = () => resolve();
+                });
+            })
+        );
+
+        await waitForRender(120);
+    };
+
+    const copyDocumentStyles = (targetDoc: Document) => {
+        const styleNodes = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'));
+        styleNodes.forEach((node) => {
+            targetDoc.head.appendChild(node.cloneNode(true));
+        });
+    };
+
+    const handleFormDataDownload = async (proposalId: number, formName: string) => {
+        try {
+            let actualFormName = formName;
+            let explicitRevision = 1;
+            const match = formName.match(/^v(\d+)_(.+)$/);
+            if (match) {
+                explicitRevision = parseInt(match[1], 10);
+                actualFormName = match[2];
+            }
+
+            const { data, error } = await supabase
+                .from("form_data")
+                .select("data")
+                .eq("proposal_id", proposalId)
+                .eq("form_name", actualFormName)
+                .eq("revision_number", explicitRevision)
+                .single();
+
+            if (error || !data) {
+                toast.error(`Could not fetch saved data for ${formName}.`);
+                return;
+            }
+
+            const FormComponent = DOC_COMPONENT_MAP[actualFormName];
+            if (!FormComponent) {
+                toast.error(`No form renderer found for ${actualFormName}.`);
+                return;
+            }
+
+            const { data: proposalData } = await supabase
+                .from("proposals")
+                .select("protocol_id, proposal_title, review_type, researcher, advisor")
+                .eq("proposal_id", proposalId)
+                .single();
+
+            let researcherName = "";
+            if (proposalData?.researcher) {
+                const { data: researcherProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.researcher)
+                    .single();
+
+                researcherName = researcherProfile
+                    ? `${researcherProfile.fname || ""} ${researcherProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            let advisorName = "";
+            if (proposalData?.advisor) {
+                const { data: advisorProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.advisor)
+                    .single();
+
+                advisorName = advisorProfile
+                    ? `${advisorProfile.fname || ""} ${advisorProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            const printWindow = window.open("", "_blank", "width=1200,height=900");
+            if (!printWindow) {
+                toast.error("Popup was blocked. Please allow popups and try again.");
+                return;
+            }
+
+            printWindow.document.open();
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>${formName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 0;
+                                background: white;
+                            }
+                            @page {
+                                size: A4;
+                                margin: 10mm;
+                            }
+                            @media print {
+                                html, body {
+                                    background: white;
+                                }
+                            }
+                            #print-root {
+                                width: 100%;
+                                display: block;
+                                box-sizing: border-box;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="print-root"></div>
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+
+            copyDocumentStyles(printWindow.document);
+
+            const printRootEl = printWindow.document.getElementById("print-root");
+            if (!printRootEl) {
+                toast.error("Failed to prepare print view.");
+                return;
+            }
+
+            const root = createRoot(printRootEl);
+            root.render(
+                <FormComponent
+                    proposalId={proposalId}
+                    protocolCode={proposalData?.protocol_id || ""}
+                    proposalTitle={proposalData?.proposal_title || ""}
+                    reviewType={proposalData?.review_type || ""}
+                    researcherName={researcherName}
+                    advisorName={advisorName}
+                    formName={actualFormName}
+                    savedData={data.data || {}}
+                    readOnlyAdvisor
+                />
+            );
+
+            await waitForRender(260);
+            await waitForAssets(printRootEl);
+
+            printWindow.focus();
+            printWindow.print();
+
+            setTimeout(() => {
+                root.unmount();
+                printWindow.close();
+            }, 800);
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to download form.");
         }
     };
 
@@ -590,17 +781,36 @@ export default function AdvisorSubmissions() {
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            onClick={() => openPreview(doc.url, doc.name)}
+                                                            onClick={() => {
+                                                                if (doc.url.startsWith("form-data://")) {
+                                                                    setFormViewerReadOnly(true);
+                                                                    setActiveFormDoc(doc.name);
+                                                                    setFormViewerOpen(true);
+                                                                } else {
+                                                                    openPreview(doc.url, doc.name);
+                                                                }
+                                                            }}
                                                         >
                                                             <Eye className="h-4 w-4 mr-2" />
                                                             View
                                                         </Button>
-                                                        <a href={doc.url} download target="_blank" rel="noopener noreferrer">
-                                                            <RippleButton variant="outline" size="sm">
+                                                        {doc.url.startsWith("form-data://") ? (
+                                                            <RippleButton
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleFormDataDownload(activeSubmission.proposal_id, doc.name)}
+                                                            >
                                                                 <Download className="h-4 w-4 mr-2" />
                                                                 Download
                                                             </RippleButton>
-                                                        </a>
+                                                        ) : (
+                                                            <a href={doc.url} download target="_blank" rel="noopener noreferrer">
+                                                                <RippleButton variant="outline" size="sm">
+                                                                    <Download className="h-4 w-4 mr-2" />
+                                                                    Download
+                                                                </RippleButton>
+                                                            </a>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -646,7 +856,11 @@ export default function AdvisorSubmissions() {
                                                     <Button
                                                         variant={signedForms[formName] ? "ghost" : "outline"}
                                                         size="sm"
-                                                        onClick={() => { setActiveFormDoc(formName); setFormViewerOpen(true); }}
+                                                        onClick={() => {
+                                                            setFormViewerReadOnly(!!signedForms[formName]);
+                                                            setActiveFormDoc(formName);
+                                                            setFormViewerOpen(true);
+                                                        }}
                                                     >
                                                         <PenLine className="h-4 w-4 mr-2" />
                                                         {signedForms[formName] ? "View" : "Sign"}
@@ -731,7 +945,8 @@ export default function AdvisorSubmissions() {
                                 proposalTitle={activeSubmission.proposal_title}
                                 reviewType={activeSubmission.review_type}
                                 advisorId={userId}
-                                readOnlyAdvisor={false}
+                                readOnly={formViewerReadOnly}
+                                readOnlyAdvisor={formViewerReadOnly}
                                 onDone={async () => {
                                     setFormViewerOpen(false);
                                     // Re-check signature status for this form

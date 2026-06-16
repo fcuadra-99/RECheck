@@ -521,12 +521,16 @@ export default function ReviewerPage() {
             const documents = await buildSubmissionDocuments(activeSubmission.proposal_id);
             const meta = await fetchAssignmentMeta(activeSubmission.proposal_id);
             const reviewerAllowedDocs = userId ? (meta?.reviewerDocs?.[userId] || []) : [];
-            const allowedDocSet = new Set(reviewerAllowedDocs.map((doc) => doc.trim().toLowerCase()));
+            const allowedDocSet = new Set(
+                reviewerAllowedDocs.map((doc) =>
+                    doc.trim().toLowerCase().replace(/\.pdf$/i, '').replace(/^v\d+_/, '')
+                )
+            );
             const filteredDocuments = allowedDocSet.size > 0
                 ? documents.filter((doc) => {
                     const docNameNoExt = doc.name.trim().toLowerCase().replace(/\.pdf$/i, '');
                     const normalizedName = docNameNoExt.replace(/^v\d+_/, '');
-                    return allowedDocSet.has(normalizedName) || allowedDocSet.has(docNameNoExt) || allowedDocSet.has(doc.name.trim().toLowerCase());
+                    return allowedDocSet.has(normalizedName);
                 })
                 : documents;
 
