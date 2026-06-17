@@ -2473,14 +2473,15 @@ export default function ReviewerPage() {
             </div>
 
             {/* review panel */}
-            <div className="bg-white border rounded-lg p-4 sm:p-6 shadow-sm">
+            <div className={cn("bg-white border rounded-lg p-4 sm:p-6 shadow-sm", isSplitScreen && "min-w-0 h-[80vh] overflow-hidden")}>
                 {!activeSubmission ? (
                     <div className="text-center py-8 text-gray-500">
                         No submission selected for review
                     </div>
                 ) : (
-                    <>
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-6 gap-4">
+                    <div className="flex flex-row flex-1 min-w-0 h-full overflow-hidden w-full">
+                        <div className={cn(isSplitScreen ? "w-1/2 pr-6 border-r overflow-y-auto h-full" : "w-full")}>
+                            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between mb-6 gap-4">
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-lg font-semibold break-words pr-2">{activeSubmission.proposal_title}</h2>
                                 <div className="text-sm text-gray-600 mt-1 mb-3">
@@ -2778,17 +2779,33 @@ export default function ReviewerPage() {
 
                         {/* review recommendation */}
                         <div className="space-y-4 border-t pt-6">
-                            <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span className="uppercase tracking-wide">
-                                    {isChairperson ? 'Final Decision' : hasUserSubmittedRecommendation ? 'Your Recommendation' : 'Submit Your Recommendation'}
-                                </span>
-                                {isChairperson && (
-                                    <Badge variant="secondary" className="ml-2">
-                                        <Crown className="w-3 h-3 mr-1" />
-                                        Chairperson
-                                    </Badge>
-                                )}
+                            <div className="flex items-center justify-between w-full">
+                                <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    <span className="uppercase tracking-wide">
+                                        {isChairperson ? 'Final Decision' : hasUserSubmittedRecommendation ? 'Your Recommendation' : 'Submit Your Recommendation'}
+                                    </span>
+                                    {isChairperson && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            <Crown className="w-3 h-3 mr-1" />
+                                            Chairperson
+                                        </Badge>
+                                    )}
+                                </div>
+                                <Button
+                                    variant={isSplitScreen ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => {
+                                        setIsSplitScreen(!isSplitScreen);
+                                        if (!isSplitScreen) {
+                                            setSplitSelectedDoc(null);
+                                        }
+                                    }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <Columns2 className="h-4 w-4" />
+                                    {isSplitScreen ? "Hide Documents" : "View Documents Side-by-Side"}
+                                </Button>
                             </div>
 
                             <div className="grid gap-4">
@@ -3174,7 +3191,9 @@ export default function ReviewerPage() {
                                 )}
                             </div>
                         </div>
-                    </>
+                        </div>
+                        {isSplitScreen && renderSplitScreenDocumentViewer()}
+                    </div>
                 )}
             </div>
 

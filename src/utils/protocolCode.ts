@@ -94,15 +94,24 @@ export async function updateProtocolCode(
   _unused: string,
   reviewType: string
 ): Promise<string> {
-  // Fetch the proposal's category since it's not passed in
+  // Fetch the proposal's category and existing protocol_id since they're not passed in
   const { data: proposal, error: fetchError } = await supabase
     .from("proposals")
-    .select("category")
+    .select("category, protocol_id")
     .eq("proposal_id", proposalId)
     .single();
 
   if (fetchError || !proposal) {
-    throw new Error("Could not fetch proposal category: " + fetchError?.message);
+    throw new Error("Could not fetch proposal: " + fetchError?.message);
+  }
+
+  // If a protocol code already exists and matches the category/review type, uphold it
+  if (proposal.protocol_id) {
+    const categoryCode = getCategoryCode(proposal.category);
+    const reviewCode = getReviewTypeCode(reviewType);
+    if (proposal.protocol_id.startsWith(`${categoryCode}-${reviewCode}-`)) {
+      return proposal.protocol_id;
+    }
   }
 
   const protocolCode = await generateProtocolCode(proposal.category, reviewType);
