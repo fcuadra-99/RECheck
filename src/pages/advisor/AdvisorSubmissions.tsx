@@ -199,10 +199,11 @@ export default function AdvisorSubmissions() {
 
             const ADVISOR_SIGN_EXCLUDED = ["0034", "0035", "0028", "0031"];
             const docs = (formRows || [])
+                .filter((r: any) => (r.revision_number || 1) === 1) // Only show version 1 forms to be signed by the advisor
                 .map((r: any) => {
                     const name = r.form_name || "";
                     const rev = r.revision_number || 1;
-                    return rev > 1 ? `v${rev}_${name}` : name;
+                    return `v${rev}_${name}`;
                 })
                 .filter((name: string) => !ADVISOR_SIGN_EXCLUDED.some(code => name.includes(code)));
             setFormDataDocs(docs);
@@ -210,7 +211,7 @@ export default function AdvisorSubmissions() {
             const formFiles = (formRows || []).map((r: any) => {
                 const name = r.form_name || "";
                 const rev = r.revision_number || 1;
-                const displayName = rev > 1 ? `v${rev}_${name}` : name;
+                const displayName = `v${rev}_${name}`;
                 return {
                     name: displayName,
                     url: `form-data://${activeSubmission.proposal_id}/${encodeURIComponent(displayName)}`,
@@ -227,11 +228,15 @@ export default function AdvisorSubmissions() {
                 // Endorsement form uses adviserSig (string), others use endorsedMembers (array)
                 const adviserSig = row.data?.adviserSig;
                 const endorsed = row.data?.endorsedMembers;
+                let isSigned = false;
                 if (adviserSig && typeof adviserSig === "string" && adviserSig.trim() !== "") {
-                    signed[row.form_name] = true;
+                    isSigned = true;
                 } else if (Array.isArray(endorsed)) {
-                    signed[row.form_name] = endorsed.some((m: any) => m.signature && m.signature.trim() !== "");
+                    isSigned = endorsed.some((m: any) => m.signature && m.signature.trim() !== "");
                 }
+                const rev = row.revision_number || 1;
+                signed[`v${rev}_${row.form_name}`] = isSigned;
+                signed[row.form_name] = isSigned;
             }
             setSignedForms(signed);
             setFormsLoading(false);

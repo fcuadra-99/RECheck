@@ -340,9 +340,7 @@ export class ResearcherHistoryService {
         );
 
         let resolvedFormName = doc.doc_type || this.extractFileName(doc.file_path || 'Form Data');
-        if (docRev > 1) {
-          resolvedFormName = `v${docRev}_${resolvedFormName}`;
-        }
+        resolvedFormName = `v${docRev}_${resolvedFormName}`;
 
         const resolvedFilePath = doc.file_path || (hasSavedFormData
           ? this.buildFormDataVirtualPath(proposalId, resolvedFormName)

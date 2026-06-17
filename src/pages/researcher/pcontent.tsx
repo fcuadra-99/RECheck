@@ -1027,7 +1027,7 @@ export default function PhaseContent({
                     .map((row: any) => {
                         const name = row.form_name.trim();
                         const rev = row.revision_number || 1;
-                        const displayName = rev > 1 ? `v${rev}_${name}` : name;
+                        const displayName = `v${rev}_${name}`;
                         return {
                             name: displayName,
                             url: buildFormDataVirtualPath(submissionId, displayName),

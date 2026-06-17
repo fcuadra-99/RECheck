@@ -142,21 +142,51 @@ export default function FormViewer({
           .single();
         const status = proposal?.status || "";
 
-        const { data: historyData } = await supabase
-          .from("history")
-          .select("history_type, action, comment")
-          .eq("paper_id", proposalId)
-          .eq("history_type", "submission");
+        // Check the highest existing revision for this specific form in the DB
+        const { data: existingForms } = await supabase
+          .from("form_data")
+          .select("revision_number, updated_at")
+          .eq("proposal_id", proposalId)
+          .eq("form_name", actualDocumentName)
+          .order("revision_number", { ascending: false });
 
-        const revisionSubmissions = historyData?.filter((entry) => {
-          if (entry.action === 'Submit Revisions') return true;
-          const note = String(entry.comment || '').toLowerCase();
-          return note.includes('revision');
-        }) || [];
+        const highestRecord = existingForms?.[0];
+        const highestRev = highestRecord?.revision_number || 0;
 
-        const revisionCount = revisionSubmissions.length;
-        const isRevisionStatus = status === "Revise Proposal" || status === "Revise Documents";
-        targetRev = isRevisionStatus ? revisionCount + 2 : revisionCount + 1;
+        const isRevisionStatus = ["Resend Forms", "Revise Proposal", "Revise Documents", "Send Revision", "Resend Revision"].includes(status);
+
+        if (highestRev === 0) {
+          // No previous submission of this form exists
+          targetRev = 1;
+        } else if (!isRevisionStatus) {
+          // Not in a revision phase, edit/view the highest existing version
+          targetRev = highestRev;
+        } else {
+          // We are in a revision phase, check if the highest version has already been submitted.
+          // Fetch history entries of type 'submission' after the last updated time of the highest version
+          const lastUpdatedAt = highestRecord?.updated_at;
+          if (lastUpdatedAt) {
+            const { data: submissionHistory } = await supabase
+              .from("history")
+              .select("history_date")
+              .eq("paper_id", proposalId)
+              .eq("history_type", "submission")
+              .gt("history_date", lastUpdatedAt)
+              .limit(1);
+
+            if (submissionHistory && submissionHistory.length > 0) {
+              // The highest version has already been submitted in a prior phase/round.
+              // So we increment the version for the new round.
+              targetRev = highestRev + 1;
+            } else {
+              // No submission has happened since this version was updated,
+              // so the user is editing the current draft revision in this phase.
+              targetRev = highestRev;
+            }
+          } else {
+            targetRev = highestRev + 1;
+          }
+        }
       }
 
       setLoadedRevision(targetRev);

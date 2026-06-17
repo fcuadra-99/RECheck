@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive, Columns2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -215,8 +215,12 @@ export default function ReviewerPage() {
         setHasPassedToAdmin(false);
     }, [activeSubmission?.proposal_id]);
 
-    const [showFormPreview, setShowFormPreview] = useState(false);
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
+
+    // Split Screen States
+    const [isSplitScreen, setIsSplitScreen] = useState(false);
+    const [splitSelectedDoc, setSplitSelectedDoc] = useState<DocumentItem | null>(null);
+    const [previewActiveTab, setPreviewActiveTab] = useState<'manuscript' | 'forms'>('manuscript');
 
     // user
     const [userId, setUserId] = useState<string | null>(null);
@@ -927,7 +931,7 @@ export default function ReviewerPage() {
             const raw = (row.form_name || '').trim();
             if (!raw) continue;
             const rev = row.revision_number || 1;
-            const displayName = rev > 1 ? `v${rev}_${raw}` : raw;
+            const displayName = `v${rev}_${raw}`;
             formDataNameMap.set(displayName.toLowerCase(), displayName);
         }
 
@@ -1010,16 +1014,152 @@ export default function ReviewerPage() {
         setPreviewUrl(url);
         setPreviewTitle(filename);
         setPreviewOpen(true);
+        setIsSplitScreen(false);
+        setSplitSelectedDoc(null);
     };
 
     const openDocument = async (doc: DocumentItem) => {
-        if (isFormDataUrl(doc.url)) {
-            setActiveFormName(doc.name);
-            setShowFormPreview(true);
-            return;
-        }
+        setPreviewUrl(doc.url);
+        setPreviewTitle(doc.name);
+        setActiveFormName(isFormDataUrl(doc.url) ? doc.name : null);
+        setPreviewActiveTab(doc.phase === 'phase1' ? 'manuscript' : 'forms');
+        setIsSplitScreen(false);
+        setSplitSelectedDoc(null);
+        setPreviewOpen(true);
+    };
 
-        openPreview(doc.url, doc.name);
+    const renderSplitScreenDocumentViewer = () => {
+        const manuscriptDocs = submissionDocuments.filter(doc => doc.phase === 'phase1');
+        const formsDocs = submissionDocuments.filter(doc => doc.phase === 'phase3');
+
+         return (
+            <div 
+                className="w-1/2 flex border-l bg-white min-h-0 h-full overflow-hidden flex-shrink-0"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Sidebar - File List */}
+                <div className="w-64 bg-gray-50 border-r flex flex-col flex-shrink-0 min-h-0 h-full overflow-hidden">
+                    <div className="p-4 border-b bg-white">
+                        <h2 className="text-sm font-semibold">Documents</h2>
+                        <p className="text-xs text-gray-500 mt-1">Select to view</p>
+                    </div>
+
+                    {/* Document Type Tabs */}
+                    <div className="p-2 border-b bg-white">
+                        <div className="flex gap-1">
+                            <Button
+                                variant={previewActiveTab === "manuscript" ? "default" : "ghost"}
+                                size="sm"
+                                onClick={() => {
+                                    setPreviewActiveTab("manuscript");
+                                    setSplitSelectedDoc(null);
+                                }}
+                                className="flex-1 text-xs"
+                            >
+                                Manuscript
+                            </Button>
+                            <Button
+                                variant={previewActiveTab === "forms" ? "default" : "ghost"}
+                                size="sm"
+                                onClick={() => {
+                                    setPreviewActiveTab("forms");
+                                    setSplitSelectedDoc(null);
+                                }}
+                                className="flex-1 text-xs"
+                            >
+                                Forms
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* File List */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                        {previewActiveTab === "manuscript" && manuscriptDocs.map((doc) => (
+                            <Button
+                                key={doc.name}
+                                variant={splitSelectedDoc?.name === doc.name ? "default" : "outline"}
+                                onClick={() => {
+                                    setSplitSelectedDoc(doc);
+                                }}
+                                className="w-full justify-start text-left h-auto py-2 px-3 whitespace-normal break-words"
+                            >
+                                <div className="flex items-start gap-2">
+                                    <FileText className="h-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                    <span className="text-xs truncate flex-1">{doc.name}</span>
+                                </div>
+                            </Button>
+                        ))}
+                        {previewActiveTab === "forms" && formsDocs.map((doc) => (
+                            <Button
+                                key={doc.name}
+                                variant={splitSelectedDoc?.name === doc.name ? "default" : "outline"}
+                                onClick={() => {
+                                    setSplitSelectedDoc(doc);
+                                }}
+                                className="w-full justify-start text-left h-auto py-2 px-3 whitespace-normal break-words"
+                            >
+                                <div className="flex items-start gap-2">
+                                    <FileText className="h-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                                    <span className="text-xs truncate flex-1">{doc.name}</span>
+                                </div>
+                            </Button>
+                        ))}
+                        {((previewActiveTab === "manuscript" && manuscriptDocs.length === 0) ||
+                            (previewActiveTab === "forms" && formsDocs.length === 0)) && (
+                            <div className="text-center text-gray-500 py-8">
+                                <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                                <p className="text-xs">No documents</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Document Preview */}
+                <div className="flex-1 flex flex-col min-w-0 bg-gray-100 min-h-0 h-full overflow-hidden">
+                    <div className="p-2 border-b bg-white">
+                        <h3 className="text-xs font-semibold truncate">
+                            {splitSelectedDoc ? splitSelectedDoc.name.replace('.pdf', '') : 'Select a document'}
+                        </h3>
+                    </div>
+                    <div className="flex-1 overflow-auto bg-white min-h-0 relative">
+                        {splitSelectedDoc ? (
+                            isFormDataUrl(splitSelectedDoc.url) ? (
+                                <div className="h-full">
+                                    <FormViewer
+                                        key={`split-${activeSubmission?.proposal_id}-${splitSelectedDoc.name}`}
+                                        documentName={splitSelectedDoc.name}
+                                        proposalId={activeSubmission!.proposal_id}
+                                        protocolCode={activeSubmission?.protocol_id}
+                                        proposalTitle={activeSubmission?.proposal_title}
+                                        reviewType={activeSubmission?.review_type}
+                                        researcherName={(() => {
+                                            const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                            return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                        })()}
+                                        advisorId={activeSubmission?.advisor_id}
+                                        readOnly={true}
+                                        onDone={() => setSplitSelectedDoc(null)}
+                                    />
+                                </div>
+                            ) : (
+                                <iframe
+                                    src={splitSelectedDoc.url}
+                                    className="w-full h-full border-0 absolute inset-0"
+                                    title={splitSelectedDoc.name.replace('.pdf', '') || "Document Viewer"}
+                                />
+                            )
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-gray-400">
+                                <div className="text-center">
+                                    <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                                    <p className="text-xs">Select a document</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const handleFormDataDownload = async (proposalId: number, formName: string) => {
@@ -3042,38 +3182,282 @@ export default function ReviewerPage() {
             {previewOpen && (
                 <div className="fixed inset-0 bg-background z-50 flex flex-col">
                     {/* Header */}
-                    <div className="flex items-center justify-between p-4 border-b">
-                        <div className="font-semibold text-lg truncate pr-4">{previewTitle}</div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                setPreviewOpen(false);
-                                setPreviewUrl(null);
-                            }}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
+                    <div className="flex items-center justify-between p-4 border-b bg-white">
+                        <div className="font-semibold text-lg truncate pr-4">{previewTitle || 'Document Preview'}</div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant={isSplitScreen ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                    setIsSplitScreen(!isSplitScreen);
+                                    if (!isSplitScreen) {
+                                        setSplitSelectedDoc(null);
+                                    }
+                                }}
+                                className="flex items-center gap-2"
+                            >
+                                <Columns2 className="h-4 w-4" />
+                                {isSplitScreen ? "Hide Split Screen" : "Split Screen"}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    setPreviewOpen(false);
+                                    setPreviewUrl(null);
+                                    setActiveFormName(null);
+                                    setIsSplitScreen(false);
+                                    setSplitSelectedDoc(null);
+                                }}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
 
-                    {/* Main content */}
-                    <div className="flex-1 relative">
-                        {previewUrl ? (
-                            <iframe
-                                src={previewUrl}
-                                className="absolute inset-0 w-full h-full border-0"
-                                title={previewTitle}
-                            />
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="text-gray-500">Loading preview...</div>
+                    {/* Main content - Flex Row */}
+                    <div className="flex-1 flex overflow-hidden min-h-0">
+                        {/* Sidebar - File List */}
+                        <div className="w-72 bg-gray-50 border-r flex flex-col flex-shrink-0 min-h-0 h-full overflow-hidden">
+                            <div className="p-4 border-b bg-white">
+                                <h2 className="text-sm font-semibold">Documents</h2>
+                                <p className="text-xs text-gray-500 mt-1">Select to view</p>
                             </div>
-                        )}
+
+                            {/* Document Type Tabs */}
+                            <div className="p-2 border-b bg-white">
+                                <div className="flex gap-1">
+                                    <Button
+                                        variant={previewActiveTab === "manuscript" ? "default" : "ghost"}
+                                        size="sm"
+                                        onClick={() => {
+                                            setPreviewActiveTab("manuscript");
+                                        }}
+                                        className="flex-1 text-xs"
+                                    >
+                                        Manuscript
+                                    </Button>
+                                    <Button
+                                        variant={previewActiveTab === "forms" ? "default" : "ghost"}
+                                        size="sm"
+                                        onClick={() => {
+                                            setPreviewActiveTab("forms");
+                                        }}
+                                        className="flex-1 text-xs"
+                                    >
+                                        Forms
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* File List */}
+                            <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                                {previewActiveTab === "manuscript" &&
+                                    submissionDocuments
+                                        .filter((doc) => doc.phase === "phase1")
+                                        .map((doc) => (
+                                            <div key={doc.name} className="group relative rounded-lg border transition-all flex items-center bg-white pr-8">
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setPreviewUrl(doc.url);
+                                                        setPreviewTitle(doc.name);
+                                                        setActiveFormName(isFormDataUrl(doc.url) ? doc.name : null);
+                                                    }}
+                                                    className={cn(
+                                                        "w-full justify-start text-left h-auto py-2 px-3 hover:bg-transparent text-xs truncate",
+                                                        previewTitle === doc.name && "font-semibold text-primary"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        <FileText className="h-3.5 h-3.5 flex-shrink-0" />
+                                                        <span className="truncate">{doc.name}</span>
+                                                    </div>
+                                                </Button>
+                                                {isSplitScreen && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            if (splitSelectedDoc?.name === doc.name) {
+                                                                setSplitSelectedDoc(null);
+                                                            } else {
+                                                                setSplitSelectedDoc(doc);
+                                                            }
+                                                        }}
+                                                        className={cn(
+                                                            "absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6",
+                                                            splitSelectedDoc?.name === doc.name
+                                                                ? "bg-blue-100 hover:bg-blue-200 text-blue-700"
+                                                                : "hover:bg-gray-100"
+                                                        )}
+                                                    >
+                                                        {splitSelectedDoc?.name === doc.name ? (
+                                                            <X className="h-3 w-3" />
+                                                        ) : (
+                                                            <Columns2 className="h-3 w-3" />
+                                                        )}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                {previewActiveTab === "forms" &&
+                                    submissionDocuments
+                                        .filter((doc) => doc.phase === "phase3")
+                                        .map((doc) => (
+                                            <div key={doc.name} className="group relative rounded-lg border transition-all flex items-center bg-white pr-8">
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={() => {
+                                                        setPreviewUrl(doc.url);
+                                                        setPreviewTitle(doc.name);
+                                                        setActiveFormName(isFormDataUrl(doc.url) ? doc.name : null);
+                                                    }}
+                                                    className={cn(
+                                                        "w-full justify-start text-left h-auto py-2 px-3 hover:bg-transparent text-xs truncate",
+                                                        previewTitle === doc.name && "font-semibold text-primary"
+                                                    )}
+                                                >
+                                                    <div className="flex items-center gap-2 truncate">
+                                                        <FileText className="h-3.5 h-3.5 flex-shrink-0" />
+                                                        <span className="truncate">{doc.name}</span>
+                                                    </div>
+                                                </Button>
+                                                {isSplitScreen && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => {
+                                                            if (splitSelectedDoc?.name === doc.name) {
+                                                                setSplitSelectedDoc(null);
+                                                            } else {
+                                                                setSplitSelectedDoc(doc);
+                                                            }
+                                                        }}
+                                                        className={cn(
+                                                            "absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6",
+                                                            splitSelectedDoc?.name === doc.name
+                                                                ? "bg-blue-100 hover:bg-blue-200 text-blue-700"
+                                                                : "hover:bg-gray-100"
+                                                        )}
+                                                    >
+                                                        {splitSelectedDoc?.name === doc.name ? (
+                                                            <X className="h-3 w-3" />
+                                                        ) : (
+                                                            <Columns2 className="h-3 w-3" />
+                                                        )}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+
+                                {((previewActiveTab === "manuscript" && submissionDocuments.filter((doc) => doc.phase === "phase1").length === 0) ||
+                                    (previewActiveTab === "forms" && submissionDocuments.filter((doc) => doc.phase === "phase3").length === 0)) && (
+                                    <div className="text-center text-gray-500 py-8">
+                                        <FileText className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                                        <p className="text-xs">No documents</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Document Preview Area */}
+                        <div className="flex-1 flex overflow-hidden min-h-0 bg-gray-100">
+                            {/* Left Panel */}
+                            <div className={cn("flex flex-col h-full min-h-0 overflow-hidden bg-white", isSplitScreen ? "w-1/2 border-r" : "w-full")}>
+                                <div className="p-2 border-b bg-white flex items-center justify-between">
+                                    <span className="text-xs font-semibold truncate">{previewTitle?.replace('.pdf', '') || 'Selected Document'}</span>
+                                </div>
+                                <div className="flex-1 overflow-auto bg-gray-100 relative min-h-0">
+                                    {activeFormName ? (
+                                        <div className="h-full bg-white p-4">
+                                            <FormViewer
+                                                key={`main-${activeSubmission?.proposal_id}-${activeFormName}`}
+                                                documentName={activeFormName}
+                                                proposalId={activeSubmission!.proposal_id}
+                                                protocolCode={activeSubmission?.protocol_id}
+                                                proposalTitle={activeSubmission?.proposal_title}
+                                                reviewType={activeSubmission?.review_type}
+                                                researcherName={(() => {
+                                                    const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                                    return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                                })()}
+                                                advisorId={activeSubmission?.advisor_id}
+                                                readOnly={true}
+                                                onDone={() => {
+                                                    setPreviewOpen(false);
+                                                    setPreviewUrl(null);
+                                                    setActiveFormName(null);
+                                                }}
+                                            />
+                                        </div>
+                                    ) : previewUrl ? (
+                                        <iframe
+                                            src={previewUrl}
+                                            className="w-full h-full border-0 absolute inset-0 bg-white"
+                                            title={previewTitle || "Main Document Preview"}
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="text-gray-500 text-sm">Select a document to preview</div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Right Panel - Split View */}
+                            {isSplitScreen && (
+                                <div className="w-1/2 flex flex-col h-full min-h-0 overflow-hidden bg-white">
+                                    <div className="p-2 border-b bg-white flex items-center justify-between">
+                                        <span className="text-xs font-semibold truncate">
+                                            {splitSelectedDoc ? splitSelectedDoc.name.replace('.pdf', '') : 'Select split view document'}
+                                        </span>
+                                    </div>
+                                    <div className="flex-1 overflow-auto bg-gray-50 relative min-h-0">
+                                        {splitSelectedDoc ? (
+                                            isFormDataUrl(splitSelectedDoc.url) ? (
+                                                <div className="h-full bg-white p-4">
+                                                    <FormViewer
+                                                        key={`split-preview-${activeSubmission?.proposal_id}-${splitSelectedDoc.name}`}
+                                                        documentName={splitSelectedDoc.name}
+                                                        proposalId={activeSubmission!.proposal_id}
+                                                        protocolCode={activeSubmission?.protocol_id}
+                                                        proposalTitle={activeSubmission?.proposal_title}
+                                                        reviewType={activeSubmission?.review_type}
+                                                        researcherName={(() => {
+                                                            const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                                            return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                                        })()}
+                                                        advisorId={activeSubmission?.advisor_id}
+                                                        readOnly={true}
+                                                        onDone={() => setSplitSelectedDoc(null)}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <iframe
+                                                    src={splitSelectedDoc.url}
+                                                    className="w-full h-full border-0 absolute inset-0 bg-white"
+                                                    title={splitSelectedDoc.name || "Split Document Preview"}
+                                                />
+                                            )
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                                <div className="text-center p-4">
+                                                    <Columns2 className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                                                    <p className="text-xs">Click the split screen icon next to any document in the sidebar to display it here</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Footer with Download button */}
-                    <div className="flex items-center justify-end p-4 border-t">
-                        {previewUrl && (
+                    {/* Footer */}
+                    <div className="flex items-center justify-end p-4 border-t bg-white">
+                        {previewUrl && !activeFormName && (
                             <a href={previewUrl} download target="_blank" rel="noopener noreferrer">
                                 <Button>
                                     <Download className="h-4 w-4 mr-2" />
@@ -3085,55 +3469,28 @@ export default function ReviewerPage() {
                 </div>
             )}
 
-            {showFormPreview && activeSubmission && activeFormName && (
-                <div className="fixed inset-0 bg-background z-50 flex flex-col">
-                    <div className="flex items-center justify-between p-4 border-b">
-                        <div className="font-semibold text-lg truncate pr-4">{activeFormName}</div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                                setShowFormPreview(false);
-                                setActiveFormName(null);
-                            }}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-
-                    <div className="flex-1 overflow-auto bg-gray-100 p-4">
-                        <div className="max-w-[1000px] mx-auto bg-white rounded-md shadow-sm p-4">
-                            <FormViewer
-                                documentName={activeFormName}
-                                proposalId={activeSubmission.proposal_id}
-                                protocolCode={activeSubmission.protocol_id}
-                                proposalTitle={activeSubmission.proposal_title}
-                                reviewType={activeSubmission.review_type}
-                                researcherName={(() => {
-                                    const p = profiles.find((x) => x.id === activeSubmission.researcher);
-                                    return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
-                                })()}
-                                advisorId={activeSubmission.advisor_id}
-                                readOnly
-                                onDone={() => {
-                                    setShowFormPreview(false);
-                                    setActiveFormName(null);
-                                }}
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* PDF Template Modal - Full Screen */}
             {showPDFTemplate && templateUrl && (
-                <div className="fixed inset-0 z-50 bg-white">
-                    {templateType === 'ethical_clearance' ? (
-                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                <div className="fixed inset-0 z-50 bg-white flex flex-row min-w-0 min-h-0 overflow-hidden">
+                    <div className={cn("h-full overflow-y-auto bg-gray-100 p-4 min-w-0 flex-1", isSplitScreen ? "w-1/2 border-r" : "w-full")}>
+                        {templateType === 'ethical_clearance' ? (
                             <div className="max-w-[1000px] mx-auto">
-                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
                                     <div className="text-sm font-medium text-gray-700">Ethical Clearance</div>
                                     <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -3155,13 +3512,24 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setEthicalClearanceData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
-                        </div>
-                    ) : templateType === 'decision_letter' ? (
-                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                        ) : templateType === 'decision_letter' ? (
                             <div className="max-w-[1000px] mx-auto">
-                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
                                     <div className="text-sm font-medium text-gray-700">Decision Letter</div>
                                     <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -3257,13 +3625,24 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setDecisionLetterData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
-                        </div>
-                    ) : templateType === 'reviewer_assessment' ? (
-                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                        ) : templateType === 'reviewer_assessment' ? (
                             <div className="max-w-[1000px] mx-auto">
-                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
                                     <div className="text-sm font-medium text-gray-700">Protocol Reviewer Assessment Form</div>
                                     <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -3288,13 +3667,24 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setReviewerAssessmentData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
-                        </div>
-                    ) : templateType === 'informed_consent' ? (
-                        <div className="h-full overflow-auto bg-gray-100 p-4">
+                        ) : templateType === 'informed_consent' ? (
                             <div className="max-w-[1000px] mx-auto">
-                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
                                     <div className="text-sm font-medium text-gray-700">Informed Consent Assessment Form</div>
                                     <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -3319,24 +3709,25 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setInformedConsentData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
-                        </div>
-                    ) : (
-                        <PDFFormFiller
-                            templateUrl={templateUrl}
-                            templateName={
-                                templateType === 'decision_letter'
-                                        ? 'Decision_Letter'
-                                        : 'Informed Consent Assessment'
-                            }
-                            onSave={handleSavePDFTemplate}
-                            onCancel={() => {
-                                setShowPDFTemplate(false);
-                                setTemplateType(null);
-                                setTemplateUrl('');
-                            }}
-                            predefinedFields={predefinedFields}
-                        />
-                    )}
+                        ) : (
+                            <PDFFormFiller
+                                templateUrl={templateUrl}
+                                templateName={
+                                    templateType === 'decision_letter'
+                                            ? 'Decision_Letter'
+                                            : 'Informed Consent Assessment'
+                                }
+                                onSave={handleSavePDFTemplate}
+                                onCancel={() => {
+                                    setShowPDFTemplate(false);
+                                    setTemplateType(null);
+                                    setTemplateUrl('');
+                                }}
+                                predefinedFields={predefinedFields}
+                            />
+                        )}
+                    </div>
+                    {isSplitScreen && renderSplitScreenDocumentViewer()}
                 </div>
             )}
 
@@ -3446,7 +3837,11 @@ export default function ReviewerPage() {
 
             {chairpersonPreviewOpen && chairpersonPreviewType && (
                 <div
-                    className="fixed inset-0 z-50 bg-gray-100 overflow-auto p-4 form-print-root"
+                    className={cn(
+                        isSplitScreen 
+                            ? "fixed inset-0 z-50 bg-white flex flex-row min-w-0 min-h-0 overflow-hidden"
+                            : "fixed inset-0 z-50 bg-gray-100 overflow-auto p-4 form-print-root"
+                    )}
                     onClick={() => {
                         setChairpersonPreviewOpen(false);
                         setChairpersonPreviewType(null);
@@ -3454,12 +3849,34 @@ export default function ReviewerPage() {
                         setChairpersonPreviewData({});
                         setChairpersonPreviewUrl(null);
                         setChairpersonPreviewTitle('');
+                        setIsSplitScreen(false);
+                        setSplitSelectedDoc(null);
                     }}
                 >
-                    <div className="max-w-[1000px] mx-auto form-print-shell" onClick={(event) => event.stopPropagation()}>
+                    <div 
+                        className={cn(
+                            isSplitScreen 
+                                ? "w-1/2 h-full overflow-y-auto bg-gray-100 p-4 border-r flex flex-col min-w-0" 
+                                : "max-w-[1000px] mx-auto form-print-shell"
+                        )} 
+                        onClick={(event) => event.stopPropagation()}
+                    >
                         <div className="flex items-center justify-between p-4 border-b bg-white rounded-t-md print:hidden">
                             <div className="font-semibold text-lg truncate pr-4">{chairpersonPreviewTitle}</div>
                             <div className="flex items-center gap-2">
+                                <Button
+                                    variant={isSplitScreen ? "default" : "outline"}
+                                    onClick={() => {
+                                        setIsSplitScreen(!isSplitScreen);
+                                        if (!isSplitScreen) {
+                                            setSplitSelectedDoc(null);
+                                        }
+                                    }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                    {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                </Button>
                                 {chairpersonPreviewFormat === 'json' && (
                                     <Button variant="outline" onClick={() => window.print()}>
                                         Print
@@ -3475,6 +3892,8 @@ export default function ReviewerPage() {
                                         setChairpersonPreviewData({});
                                         setChairpersonPreviewUrl(null);
                                         setChairpersonPreviewTitle('');
+                                        setIsSplitScreen(false);
+                                        setSplitSelectedDoc(null);
                                     }}
                                 >
                                     <X className="h-4 w-4" />
@@ -3501,6 +3920,7 @@ export default function ReviewerPage() {
                             )}
                         </div>
                     </div>
+                    {isSplitScreen && renderSplitScreenDocumentViewer()}
                 </div>
             )}
         </>

@@ -477,7 +477,7 @@ export const SReview = () => {
           (formDataRows || []).map((r: any) => {
             const name = r.form_name || "";
             const rev = r.revision_number || 1;
-            return rev > 1 ? `v${rev}_${name}` : name;
+            return `v${rev}_${name}`;
           })
         );
 
