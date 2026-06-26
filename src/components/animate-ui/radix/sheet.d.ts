@@ -17,7 +17,7 @@ declare function SheetPortal(props: SheetPortalProps): import("react/jsx-runtime
 type SheetOverlayProps = React.ComponentProps<typeof SheetPrimitive.Overlay>;
 declare function SheetOverlay({ className, ...props }: SheetOverlayProps): import("react/jsx-runtime").JSX.Element;
 declare const sheetVariants: (props?: ({
-    side?: "top" | "bottom" | "left" | "right" | null | undefined;
+    side?: "bottom" | "left" | "right" | "top" | null | undefined;
 } & import("class-variance-authority/types").ClassProp) | undefined) => string;
 type SheetContentProps = React.ComponentProps<typeof SheetPrimitive.Content> & VariantProps<typeof sheetVariants> & HTMLMotionProps<'div'> & {
     transition?: Transition;

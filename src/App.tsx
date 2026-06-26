@@ -248,6 +248,10 @@ export default function App() {
           path="/confirm-email"
           element={<ConfirmEmailPage />}
         />
+        <Route
+          path="/reset"
+          element={user ? <ResetPasswordPage /> : <Navigate to="/login" replace />}
+        />
 
         {/* If not logged in → always redirect to /login */}
         {!user && (
@@ -272,11 +276,6 @@ export default function App() {
             {profile && (
               <Route path="/" element={<DefaultRedirect profile={profile} />} />
             )}
-
-            <Route
-              path="/reset"
-              element={<ResetPasswordPage />}
-            />
 
             {/* Dashboard */}
             <Route path="/sdash" element={<SDashboard user={user} profile={profile} />} />
