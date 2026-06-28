@@ -309,10 +309,11 @@ export default function ReviewerPage() {
 
         if (error || !data) {
             setDecisionLetterSentCount(0);
-            return;
+            return 0;
         }
 
         setDecisionLetterSentCount(data.length);
+        return data.length;
     };
 
     const loadEthicalClearanceInfo = async (proposalId: number) => {
@@ -559,7 +560,7 @@ export default function ReviewerPage() {
             setRevisionTargets([]);
             setDecisionLetterData({});
             await loadRevisionCycleInfo(activeSubmission.proposal_id);
-            await loadDecisionLetterInfo(activeSubmission.proposal_id);
+            const decisionLetterCount = await loadDecisionLetterInfo(activeSubmission.proposal_id);
             await loadEthicalClearanceInfo(activeSubmission.proposal_id);
             setChairpersonDocuments(isChairperson ? await loadChairpersonDecisionDocuments(activeSubmission.proposal_id) : []);
 
@@ -690,8 +691,10 @@ export default function ReviewerPage() {
                         submitted_at: userRecommendation.history_date
                     });
                 } else {
+                    const currentIsChairperson = userProfile ? (userProfile.role === 'Chairperson' || userProfile.role === 'Admin') : false;
+                    const shouldDefaultToRevisions = currentIsChairperson && decisionLetterCount === 0;
                     setRecommendation({
-                        recommendation: 'approve',
+                        recommendation: shouldDefaultToRevisions ? 'revisions' : 'approve',
                         comments: '',
                         reviewer_id: userId,
                         reviewer_name: currentUserName,
@@ -2810,56 +2813,61 @@ export default function ReviewerPage() {
 
                             <div className="grid gap-4">
                                 {/* Recommendation Cards */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className={cn(
+                                    "grid grid-cols-1 gap-4",
+                                    (!isChairperson || hasDecisionLetterSent) ? "md:grid-cols-2" : "md:grid-cols-1"
+                                )}>
                                     {/* Approve Card */}
-                                    <div
-                                        className={cn(
-                                            "border-2 rounded-lg p-4 transition-all duration-200",
-                                            isDecisionLocked ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:border-green-300 hover:bg-green-50",
-                                            recommendation.recommendation === 'approve'
-                                                ? isChairperson
-                                                    ? "border-green-600 bg-green-50"
-                                                    : "border-green-500 bg-green-50"
-                                                : "border-gray-200 bg-white"
-                                        )}
-                                        onClick={() => {
-                                            if (isDecisionLocked) return;
-                                            setRecommendation(prev => ({
-                                                ...prev,
-                                                recommendation: 'approve',
-                                                comments: prev.recommendation === 'approve' ? prev.comments : ''
-                                            }));
-                                        }}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className={cn(
-                                                "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                                    {(!isChairperson || hasDecisionLetterSent) && (
+                                        <div
+                                            className={cn(
+                                                "border-2 rounded-lg p-4 transition-all duration-200",
+                                                isDecisionLocked ? "opacity-75 cursor-not-allowed" : "cursor-pointer hover:border-green-300 hover:bg-green-50",
                                                 recommendation.recommendation === 'approve'
                                                     ? isChairperson
-                                                        ? "border-green-600 bg-green-600"
-                                                        : "border-green-500 bg-green-500"
-                                                    : "border-gray-300"
-                                            )}>
-                                                {recommendation.recommendation === 'approve' && (
-                                                    <Check className="w-4 h-4 text-white" />
-                                                )}
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <Badge variant="default" className={isChairperson ? "bg-green-600 text-white" : "bg-green-100 text-green-800"}>
-                                                        <Check className="w-3 h-3 mr-1" />
-                                                        {isChairperson ? 'Approve & Move Forward' : 'Approve'}
-                                                    </Badge>
+                                                        ? "border-green-600 bg-green-50"
+                                                        : "border-green-500 bg-green-50"
+                                                    : "border-gray-200 bg-white"
+                                            )}
+                                            onClick={() => {
+                                                if (isDecisionLocked) return;
+                                                setRecommendation(prev => ({
+                                                    ...prev,
+                                                    recommendation: 'approve',
+                                                    comments: prev.recommendation === 'approve' ? prev.comments : ''
+                                                }));
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={cn(
+                                                    "w-6 h-6 rounded-full border-2 flex items-center justify-center",
+                                                    recommendation.recommendation === 'approve'
+                                                        ? isChairperson
+                                                            ? "border-green-600 bg-green-600"
+                                                            : "border-green-500 bg-green-500"
+                                                        : "border-gray-300"
+                                                )}>
+                                                    {recommendation.recommendation === 'approve' && (
+                                                        <Check className="w-4 h-4 text-white" />
+                                                    )}
                                                 </div>
-                                                <p className="text-sm text-gray-600 mt-2">
-                                                    {isChairperson
-                                                        ? 'Approve this proposal and move it to Data Collection phase.'
-                                                        : 'Recommend this proposal for approval without changes.'
-                                                    }
-                                                </p>
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="default" className={isChairperson ? "bg-green-600 text-white" : "bg-green-100 text-green-800"}>
+                                                            <Check className="w-3 h-3 mr-1" />
+                                                            {isChairperson ? 'Approve & Move Forward' : 'Approve'}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-sm text-gray-600 mt-2">
+                                                        {isChairperson
+                                                            ? 'Approve this proposal and move it to Data Collection phase.'
+                                                            : 'Recommend this proposal for approval without changes.'
+                                                        }
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Revisions Card */}
                                     <div
