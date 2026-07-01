@@ -760,7 +760,6 @@ const FinalReportDetail: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{report.title}</h1>
-              <p className="mt-2 text-sm text-gray-500">Report ID: {report.id}</p>
             </div>
             <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border ${statusBadge[report.status]}`}>
               {statusIcon[report.status]}
@@ -816,10 +815,6 @@ const FinalReportDetail: React.FC = () => {
                 <div>
                   <label className="text-sm font-medium text-gray-700">Email</label>
                   <p className="text-gray-900">{proposalDetails?.researcher_email || 'N/A'}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700">Researcher ID</label>
-                  <p className="text-gray-600 text-sm font-mono">{report.researcher_id}</p>
                 </div>
               </div>
             </div>

@@ -761,7 +761,6 @@ const FinalReportSubmission: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">{selectedReport.title}</h1>
-                <p className="mt-2 text-sm text-gray-500">Report ID: {selectedReport.id}</p>
               </div>
               <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border ${statusBadge[selectedReport.status]}`}>
                 {statusIcon[selectedReport.status]}
@@ -1064,7 +1063,6 @@ const FinalReportSubmission: React.FC = () => {
                             <div className="text-sm font-medium text-gray-900">
                               {report.title}
                             </div>
-                            <div className="text-xs text-gray-500">ID: {report.id.slice(0, 8)}</div>
                           </div>
                         </div>
                       </td>

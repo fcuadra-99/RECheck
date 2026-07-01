@@ -46,8 +46,8 @@ const ManageFinalReports: React.FC = () => {
             return {
               ...report,
               researcher_name: profile 
-                ? `${profile.fname || ''} ${profile.lname || ''}`.trim() || report.researcher_id
-                : report.researcher_id
+                ? `${profile.fname || ''} ${profile.lname || ''}`.trim() || 'N/A'
+                : 'N/A'
             };
           });
           setItems(enrichedReports);
@@ -248,15 +248,12 @@ const ManageFinalReports: React.FC = () => {
                           <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
                             {fr.title}
                           </div>
-                          <div className="text-sm text-gray-500 mt-0.5">
-                            Report #{fr.id}
-                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">
-                        {fr.researcher_name || fr.researcher_id}
+                        {fr.researcher_name || 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
