@@ -2,10 +2,119 @@ import { motion } from "framer-motion"
 import { Mail, CheckCircle } from "lucide-react"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { supabase } from "@/DB"
 
 export default function ConfirmEmailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [status, setStatus] = useState<'checking' | 'valid' | 'invalid'>('checking')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const processCallback = async () => {
+      const hash = location.hash || window.location.hash || ""
+      const search = location.search || window.location.search || ""
+      const raw = hash.startsWith("#") ? hash.slice(1) : search.startsWith("?") ? search.slice(1) : search
+      const params = new URLSearchParams(raw)
+      const accessToken = params.get("access_token")
+      const refreshToken = params.get("refresh_token")
+      const type = params.get("type")
+
+      if (type === "recovery" && accessToken && refreshToken) {
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            throw error
+          }
+
+          if (data.session) {
+            toast.success("Reset link validated. Redirecting to password reset.")
+            navigate("/reset")
+            return
+          }
+
+          throw new Error("Unable to restore session from reset link.")
+        } catch (err: any) {
+          const message = err?.message ?? "Invalid or expired reset link."
+          setErrorMessage(message)
+          toast.error(message)
+          setStatus("invalid")
+          return
+        }
+      }
+
+      if (accessToken && refreshToken) {
+        try {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (error) {
+            throw error
+          }
+
+          toast.success("Email confirmed. You can now access your account.")
+          setStatus("valid")
+          return
+        } catch (err: any) {
+          const message = err?.message ?? "Invalid or expired confirmation link."
+          setErrorMessage(message)
+          toast.error(message)
+          setStatus("invalid")
+          return
+        }
+      }
+
+      setErrorMessage("This page can only be reached from a valid email link.")
+      setStatus("invalid")
+    }
+
+    processCallback()
+  }, [location.hash, location.search, navigate])
+
+  if (status === "checking") {
+    return (
+      <div className="flex flex-col gap-6 items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-md bg-primary/10 p-6">
+            <Mail className="size-6 text-primary" />
+          </div>
+          <h1 className="text-xl font-bold">Processing link...</h1>
+          <p className="text-sm text-muted-foreground text-center">
+            Please wait while we validate your email confirmation link.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === "invalid") {
+    return (
+      <div className="flex flex-col gap-6 items-center justify-center h-screen p-6 text-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-md bg-destructive/10 p-6">
+            <Mail className="size-6 text-destructive" />
+          </div>
+          <h1 className="text-xl font-bold">Invalid Link</h1>
+          <p className="text-sm text-muted-foreground">
+            {errorMessage ?? "This page can only be reached by following the email confirmation link."}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <Button className="w-full" onClick={() => navigate("/login")}>Go to Login</Button>
+          <Button variant="outline" className="w-full" onClick={() => navigate("/")}>Back to Home</Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -88,6 +197,11 @@ export default function ConfirmEmailPage() {
             <p className="text-xs text-muted-foreground">
               Need help? <a href="#" className="text-primary hover:underline">Contact support</a>
             </p>
+            {errorMessage && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+                {errorMessage}
+              </div>
+            )}
           </div>
         </div>
       </div>

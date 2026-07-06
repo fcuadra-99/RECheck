@@ -80,7 +80,7 @@ export function SignupForm({
                 email: formData.email,
                 password: formData.password,
                 options: {
-                    emailRedirectTo: undefined,
+                    emailRedirectTo: `${window.location.origin}/confirm-email`,
                     data: {
                         fname: formData.fname,
                         lname: formData.lname,
