@@ -2,14 +2,13 @@ import { motion } from "framer-motion"
 import { Mail, CheckCircle } from "lucide-react"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { supabase } from "@/DB"
 
 export default function ConfirmEmailPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const [status, setStatus] = useState<'checking' | 'valid' | 'invalid'>('checking')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
