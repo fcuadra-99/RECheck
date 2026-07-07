@@ -3,16 +3,23 @@ import { Mail, CheckCircle } from "lucide-react"
 import { Avatar, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { supabase } from "@/DB"
 
 export default function ConfirmEmailPage() {
   const navigate = useNavigate()
+  const hasProcessedRef = useRef(false)
   const [status, setStatus] = useState<'checking' | 'valid' | 'invalid'>('checking')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    if (hasProcessedRef.current) {
+      return
+    }
+
+    hasProcessedRef.current = true
+
     const processCallback = async () => {
       const hash = window.location.hash || ""
       const search = window.location.search || ""
@@ -23,6 +30,13 @@ export default function ConfirmEmailPage() {
       const accessToken = hashParams.get("access_token") || searchParams.get("access_token")
       const refreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token")
       const type = hashParams.get("type") || searchParams.get("type")
+
+      if (!accessToken || !refreshToken) {
+        toast.error("This link is invalid. Redirecting to login.")
+        navigate("/login", { replace: true })
+        setStatus("invalid")
+        return
+      }
 
       if (type === "recovery" && accessToken && refreshToken) {
         try {

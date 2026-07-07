@@ -6,7 +6,7 @@ import { Link, useNavigate, useSearchParams } from "react-router"
 import { RippleButton } from "@/components/animate-ui/buttons/ripple"
 import { Dialogue } from "../dialogs/dialogue"
 import { toast } from "sonner"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { supabase } from "@/DB"
 
 export interface ResetFormProps extends React.ComponentProps<"div"> {}
@@ -16,6 +16,7 @@ export function ResetForm({
     ...props
 }: ResetFormProps) {
     const navigate = useNavigate();
+    const hasProcessedRef = useRef(false);
     const [searchParams] = useSearchParams();
     const [formData, setFormData] = useState({
         password: '',
@@ -27,14 +28,27 @@ export function ResetForm({
     const [isValidSession, setIsValidSession] = useState(false);
     const [checkingSession, setCheckingSession] = useState(true);
 
+    const accessToken = searchParams.get('access_token');
+    const refreshToken = searchParams.get('refresh_token');
+    const type = searchParams.get('type');
+    const hasValidRecoveryLink = Boolean(accessToken && refreshToken && type === 'recovery');
+
     // Check if we have a valid reset token from URL
     useEffect(() => {
+        if (hasProcessedRef.current) {
+            return;
+        }
+
+        hasProcessedRef.current = true;
+
         const checkResetSession = async () => {
             try {
-                // Get the access token from URL if present
-                const accessToken = searchParams.get('access_token');
-                const refreshToken = searchParams.get('refresh_token');
-                const type = searchParams.get('type');
+                if (!hasValidRecoveryLink) {
+                    toast.error("Invalid or expired reset link. Redirecting to login.");
+                    navigate('/login', { replace: true });
+                    setCheckingSession(false);
+                    return;
+                }
 
                 // If we have tokens in URL, set the session
                 if (accessToken && refreshToken && type === 'recovery') {
@@ -73,7 +87,11 @@ export function ResetForm({
         };
         
         checkResetSession();
-    }, [navigate, searchParams]);
+    }, [accessToken, hasValidRecoveryLink, navigate, refreshToken, searchParams, type]);
+
+    if (!hasValidRecoveryLink && !checkingSession) {
+        return null;
+    }
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
