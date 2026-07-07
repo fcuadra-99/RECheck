@@ -15,13 +15,15 @@ export default function ConfirmEmailPage() {
 
   useEffect(() => {
     const processCallback = async () => {
-      const hash = location.hash || window.location.hash || ""
-      const search = location.search || window.location.search || ""
-      const raw = hash.startsWith("#") ? hash.slice(1) : search.startsWith("?") ? search.slice(1) : search
-      const params = new URLSearchParams(raw)
-      const accessToken = params.get("access_token")
-      const refreshToken = params.get("refresh_token")
-      const type = params.get("type")
+      const hash = window.location.hash || ""
+      const search = window.location.search || ""
+      
+      const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : "")
+      const searchParams = new URLSearchParams(search.startsWith("?") ? search.slice(1) : "")
+      
+      const accessToken = hashParams.get("access_token") || searchParams.get("access_token")
+      const refreshToken = hashParams.get("refresh_token") || searchParams.get("refresh_token")
+      const type = hashParams.get("type") || searchParams.get("type")
 
       if (type === "recovery" && accessToken && refreshToken) {
         try {
@@ -52,7 +54,7 @@ export default function ConfirmEmailPage() {
 
       if (accessToken && refreshToken) {
         try {
-          const { error } = await supabase.auth.setSession({
+          const { data, error } = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           })
@@ -61,9 +63,13 @@ export default function ConfirmEmailPage() {
             throw error
           }
 
-          toast.success("Email confirmed. You can now access your account.")
-          setStatus("valid")
-          return
+          if (data.session) {
+            toast.success("Email confirmed. You can now access your account.")
+            setStatus("valid")
+            return
+          }
+
+          throw new Error("Session could not be established.")
         } catch (err: any) {
           const message = err?.message ?? "Invalid or expired confirmation link."
           setErrorMessage(message)
@@ -73,12 +79,19 @@ export default function ConfirmEmailPage() {
         }
       }
 
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        toast.success("Email confirmed. You can now access your account.")
+        setStatus("valid")
+        return
+      }
+
       setErrorMessage("This page can only be reached from a valid email link.")
       setStatus("invalid")
     }
 
     processCallback()
-  }, [location.hash, location.search, navigate])
+  }, [navigate])
 
   if (status === "checking") {
     return (
