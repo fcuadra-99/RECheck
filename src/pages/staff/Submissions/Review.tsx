@@ -30,8 +30,8 @@ import {
   Columns2,
   RefreshCw,
 } from "lucide-react";
-import { PdfFormViewer } from "@/components/ui/pdf-form-viewer";
 import FormViewer from "@/components/forms/FormViewer";
+import RiskAssessmentForm from "@/components/forms/RiskAssessmentForm";
 
 type Status =
   | "Check Manuscript"
@@ -153,6 +153,7 @@ export const SReview = () => {
 
   const [selectedReviewers, setSelectedReviewers] = React.useState<string[]>([]);
   const [reviewerRoles, setReviewerRoles] = React.useState<Record<string, 'primary' | 'secondary' | 'member'>>({});
+  const [proposalAdvisorName, setProposalAdvisorName] = React.useState("");
   const [reviewerDocs, setReviewerDocs] = React.useState<Record<string, string[]>>({});
   const [currentUserId, setCurrentUserId] = React.useState<string>("");
   const [reviewType, setReviewType] = React.useState<"Full Board" | "Expedited" | "Exempt" | null>(null);
@@ -180,12 +181,38 @@ export const SReview = () => {
   const [riskAssessmentCompleted, setRiskAssessmentCompleted] = React.useState(false);
   const [riskAssessmentAnswers, setRiskAssessmentAnswers] = React.useState<Record<string, string>>({});
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const riskAssessmentFormRef = React.useRef<{ submit: () => void } | null>(null);
 
   riskAssessmentAnswers;
 
   React.useEffect(() => {
     if (!title) navigate("/ssubm/sub1");
   }, [navigate, title]);
+
+  React.useEffect(() => {
+    const loadProposalContext = async () => {
+      if (!id) return;
+
+      const { data: proposalData } = await supabase
+        .from("proposals")
+        .select("advisor")
+        .eq("proposal_id", id)
+        .single();
+
+      if (proposalData?.advisor) {
+        const { data: advisorProfile } = await supabase
+          .from("profiles")
+          .select("fname,lname")
+          .eq("id", proposalData.advisor)
+          .single();
+
+        const advisorName = `${advisorProfile?.fname ?? ""} ${advisorProfile?.lname ?? ""}`.trim();
+        setProposalAdvisorName(advisorName);
+      }
+    };
+
+    loadProposalContext();
+  }, [id]);
 
   // Fetch current user role
   React.useEffect(() => {
@@ -644,6 +671,15 @@ export const SReview = () => {
     setRiskAssessmentCompleted(true);
     setShowRiskAssessmentForm(false);
     toast.success("Risk assessment form completed successfully");
+  };
+
+  const handleRiskAssessmentReviewTypeChange = (reviewType: "" | "Full Board" | "Expedited" | "Exempt") => {
+    if (!reviewType) {
+      setTog((prev) => (prev === "deny" ? prev : ""));
+      return;
+    }
+
+    setTog(reviewType);
   };
 
   // Start risk assessment process
@@ -1276,6 +1312,7 @@ export const SReview = () => {
             )}
           </div>
         </div>
+
       </div>
     );
   };
@@ -1302,6 +1339,14 @@ export const SReview = () => {
         <div className="flex items-center justify-between p-4 border-b bg-white flex-shrink-0">
           <div className="font-semibold text-lg">Risk Assessment Form</div>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => riskAssessmentFormRef.current?.submit()}
+              className="font-semibold"
+            >
+              Confirm
+            </Button>
+            <span className="text-gray-300">|</span>
             <Button
               variant={isSplitScreen ? "default" : "outline"}
               size="sm"
@@ -1337,12 +1382,15 @@ export const SReview = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* Risk Assessment Form */}
           <div className={`${isSplitScreen ? 'w-1/2' : 'w-full'} flex flex-col border-r`}>
-            <div className="flex-1 relative overflow-auto">
-              <PdfFormViewer
-                document="risk_assessment_form.pdf"
-                onAnswersSubmit={handleRiskAssessmentComplete}
-                proposalId={parseInt(id)}
-                status="Risk Assessment"
+            <div className="flex-1 relative overflow-auto p-4 bg-gray-50">
+              <RiskAssessmentForm
+                ref={riskAssessmentFormRef}
+                onSubmit={handleRiskAssessmentComplete}
+                onReviewTypeChange={handleRiskAssessmentReviewTypeChange}
+                initialStudyTitle={title}
+                initialResearcherName={researcher}
+                initialCoResearcher={proposalAdvisorName}
+                initialTypeOfReview={reviewType ?? ""}
               />
             </div>
           </div>
