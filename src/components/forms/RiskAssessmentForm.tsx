@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { supabase } from "@/DB";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type CSSProperties, type FormEvent, type ForwardedRef } from "react";
 import SignatureCell from "./SignatureCell";
