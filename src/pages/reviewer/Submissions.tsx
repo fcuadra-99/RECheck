@@ -369,6 +369,7 @@ export default function ReviewerPage() {
                 await loadReviewerArchives(uid);
 
                 // Get user profile to check if chairperson
+                let isChair = false;
                 const { data: userProfileData, error: profileError } = await supabase
                     .from("profiles")
                     .select("id, fname, lname, category, role")
@@ -379,7 +380,8 @@ export default function ReviewerPage() {
                     console.error("Error fetching user profile:", profileError);
                 } else if (userProfileData && mounted) {
                     setUserProfile(userProfileData);
-                    setIsChairperson(userProfileData.role === 'Chairperson' || userProfileData.role === 'Admin' );
+                    isChair = userProfileData.role === 'Chairperson' || userProfileData.role === 'Admin';
+                    setIsChairperson(isChair);
                 }
 
                 const { data: proposals, error } = await supabase
@@ -461,11 +463,14 @@ export default function ReviewerPage() {
                         (userRecommendations || [])
                             .filter((rec: { paper_id?: number | null; history_date?: string | null }) => {
                                 if (typeof rec.paper_id !== 'number') return false;
-                                const windowStart = reviewWindowSnapshot[rec.paper_id] || assignmentDatesByProposal[rec.paper_id];
-                                if (!windowStart) return true;
-                                const recTime = rec.history_date ? new Date(rec.history_date).getTime() : 0;
-                                const windowTime = new Date(windowStart).getTime();
-                                return recTime >= windowTime;
+                                if (isChair) {
+                                    const windowStart = reviewWindowSnapshot[rec.paper_id] || assignmentDatesByProposal[rec.paper_id];
+                                    if (!windowStart) return true;
+                                    const recTime = rec.history_date ? new Date(rec.history_date).getTime() : 0;
+                                    const windowTime = new Date(windowStart).getTime();
+                                    return recTime >= windowTime;
+                                }
+                                return true;
                             })
                             .map((rec: { paper_id?: number | null }) => rec.paper_id as number)
                     );
@@ -603,6 +608,8 @@ export default function ReviewerPage() {
                 setHasSubmittedChairpersonRevisionNote(false);
             }
 
+            const isChair = isChairperson || (userProfile?.role === 'Chairperson' || userProfile?.role === 'Admin');
+
             // Load recommendations from history table - EXCLUDE current user's recommendations
             let recommendationsQuery = supabase
                 .from("history")
@@ -610,7 +617,7 @@ export default function ReviewerPage() {
                 .eq("paper_id", activeSubmission.proposal_id)
                 .eq("history_type", "review_recommendation")
                 .order("history_date", { ascending: false });
-            if (reviewWindowStart) {
+            if (reviewWindowStart && !isChair) {
                 recommendationsQuery = recommendationsQuery.gte("history_date", reviewWindowStart);
             }
             const { data: recommendations, error } = await recommendationsQuery;
@@ -720,7 +727,7 @@ export default function ReviewerPage() {
             return;
         }
 
-        const shouldApplyWindow = !isChairperson;
+        const shouldApplyWindow = !(isChairperson || userProfile?.role === 'Chairperson' || userProfile?.role === 'Admin');
         const windowTime = shouldApplyWindow && reviewWindowStart ? new Date(reviewWindowStart).getTime() : null;
         const extractTimestamp = (name: string) => {
             const match = name.match(/_(\d{10,13})(?:\.[a-z0-9]+)?$/i);
@@ -1846,7 +1853,7 @@ export default function ReviewerPage() {
     );
 
     const isDecisionLocked =
-        (!isChairperson && hasUserSubmittedRecommendation) ||
+        (!isChairperson && (hasUserSubmittedRecommendation || hasRevisionResubmission)) ||
         activeSubmission?.status === 'Reviewed' ||
         activeSubmission?.status === 'Revise Proposal' ||
         activeSubmission?.status === 'Approved' ||
