@@ -418,9 +418,9 @@ export default function PhaseContent({
             // Update the next status - Revise Proposal goes to Assign Review
             let nextStatus = getNextStatus(submission.status);
 
-            // Override for Revise Proposal to go directly to Assign Review
+            // Override for Revise Proposal to go directly to Proposal Review (second review cycle goes straight to chairperson)
             if (submission.status === "Revise Proposal") {
-                nextStatus = "Assign Review";
+                nextStatus = "Proposal Review";
             }
 
             const { error: statusError } = await supabase.from("proposals")
