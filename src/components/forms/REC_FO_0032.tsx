@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 import type { FormProps } from "./FormViewer";
 
-function EthicsChecklistForm({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+function EthicsChecklistForm({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor, advisorMode }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
@@ -60,6 +60,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
   }, [advisorName]);
 
   const handleAnswer = (index: number, value: string) => {
+    if (advisorMode) return;
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
@@ -122,9 +123,10 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
             <td style={tdLabel}>Control No. / Protocol Code</td>
             <td colSpan={3} style={tdInput}>
               <input
-                style={inputStyle}
+                style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={controlNo}
-                onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setControlNo(e.target.value); save({ controlNo: e.target.value }); } }}
               />
             </td>
           </tr>
@@ -136,9 +138,10 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
             </td>
             <td colSpan={3} style={tdInput}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={title}
-                onChange={(e) => { setTitle(e.target.value); save({ title: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setTitle(e.target.value); save({ title: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -151,9 +154,10 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
             </td>
             <td colSpan={3} style={tdInput}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={investigator}
-                onChange={(e) => { setInvestigator(e.target.value); save({ investigator: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setInvestigator(e.target.value); save({ investigator: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -164,13 +168,13 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
             <td style={tdLabel}>Study Protocol Submission Date</td>
 
             <td style={tdInput}>
-              <input type="date" style={dateInputStyle} value={submissionDate} onChange={(e) => { setSubmissionDate(e.target.value); save({ submissionDate: e.target.value }); }} />
+              <input type="date" style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={submissionDate} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setSubmissionDate(e.target.value); save({ submissionDate: e.target.value }); } }} />
             </td>
 
             <td style={tdLabel}>Verified Complete By</td>
 
             <td style={tdInput}>
-              <input type="date" style={dateInputStyle} value={verifiedBy} onChange={(e) => { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); }} />
+              <input type="date" style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={verifiedBy} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); } }} />
             </td>
           </tr>
         </tbody>
@@ -248,6 +252,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
               <td style={td}>
                 <input
                   type="radio"
+                  disabled={advisorMode}
                   checked={answers[i] === "yes"}
                   onChange={() => handleAnswer(i, "yes")}
                 />
@@ -256,6 +261,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
               <td style={td}>
                 <input
                   type="radio"
+                  disabled={advisorMode}
                   checked={answers[i] === "no"}
                   onChange={() => handleAnswer(i, "no")}
                 />
@@ -264,6 +270,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
               <td style={td}>
                 <input
                   type="radio"
+                  disabled={advisorMode}
                   checked={answers[i] === "na"}
                   onChange={() => handleAnswer(i, "na")}
                 />
@@ -285,6 +292,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
         onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }}
         proposalId={proposalId}
         formName={formName}
+        readOnly={advisorMode}
       />
 
       <SubmittedByTable
@@ -298,7 +306,7 @@ function EthicsChecklistForm({ protocolCode, researcherName, advisorName, propos
 
       <p>
         Date Filed:
-        <input type="date" style={inputStyle} value={dateFiled} onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }} />
+        <input type="date" style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={dateFiled} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); } }} />
       </p>
 
       <div style={footerWrap}>
@@ -481,6 +489,12 @@ const footerDot: React.CSSProperties = {
   color: "#e05b94",
   fontSize: "18px",
   lineHeight: 1,
+};
+
+const lockedFieldStyle: React.CSSProperties = {
+  background: "#f5f5f5",
+  color: "#555",
+  cursor: "not-allowed",
 };
 
 export default EthicsChecklistForm;

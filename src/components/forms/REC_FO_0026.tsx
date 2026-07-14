@@ -45,7 +45,7 @@ const checklist = [
 ];
 
 export default function EthicsProtocolChecklist({
-  protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor,
+  protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor, advisorMode,
 }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
@@ -125,21 +125,21 @@ export default function EthicsProtocolChecklist({
         <tbody>
           <tr>
             <td style={tdLabel}>Control No. / Protocol Code</td>
-            <td colSpan={3} style={tdInput}><input style={inputStyle} value={controlNo} onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }} /></td>
+            <td colSpan={3} style={tdInput}><input style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={controlNo} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setControlNo(e.target.value); save({ controlNo: e.target.value }); } }} /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Study Protocol Title<br /><span style={subText}>(Title of Study)</span></td>
-            <td colSpan={3} style={tdInput}><textarea style={textareaStyle} value={protocolTitle} onChange={(e) => { setProtocolTitle(e.target.value); save({ protocolTitle: e.target.value }); }} onInput={autoExpand} /></td>
+            <td colSpan={3} style={tdInput}><textarea style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={protocolTitle} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setProtocolTitle(e.target.value); save({ protocolTitle: e.target.value }); } }} onInput={autoExpand} /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Principal Investigator<br /><span style={subText}>(Researcher/s)</span></td>
-            <td colSpan={3} style={tdInput}><MemberListInput values={principalInvestigator} onChange={(v) => { setPrincipalInvestigator(v); save({ principalInvestigator: v }); }} placeholder="Enter investigator name" /></td>
+            <td colSpan={3} style={tdInput}><MemberListInput values={principalInvestigator} onChange={(v) => { if (!advisorMode) { setPrincipalInvestigator(v); save({ principalInvestigator: v }); } }} placeholder="Enter investigator name" readOnly={advisorMode} /></td>
           </tr>
           <tr>
             <td style={tdLabel}>Study Protocol Submission Date</td>
-            <td style={tdInput}><input type="date" style={dateInputStyle} value={protocolSubmissionDate} onChange={(e) => { setProtocolSubmissionDate(e.target.value); save({ protocolSubmissionDate: e.target.value }); }} /></td>
+            <td style={tdInput}><input type="date" style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={protocolSubmissionDate} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setProtocolSubmissionDate(e.target.value); save({ protocolSubmissionDate: e.target.value }); } }} /></td>
             <td style={tdLabel}>Verified Complete By</td>
-            <td style={tdInput}><input type="date" style={inputStyle} value={verifiedBy} onChange={(e) => { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); }} /></td>
+            <td style={tdInput}><input type="date" style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={verifiedBy} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setVerifiedBy(e.target.value); save({ verifiedBy: e.target.value }); } }} /></td>
           </tr>
         </tbody>
       </table>
@@ -155,17 +155,17 @@ export default function EthicsProtocolChecklist({
         <div style={importantNote}><strong>IMPORTANT:</strong> All fields <u>must be completed.</u></div>
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <tbody>
-            <tr><td style={tdInput}><span style={label}>Research Title:</span><textarea style={textareaStyle} value={researchTitle} onChange={(e) => { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); }} onInput={autoExpand} /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Faculty Researchers:</span><MemberListInput values={facultyResearchers} onChange={(v) => { setFacultyResearchers(v); save({ facultyResearchers: v }); }} placeholder="Enter faculty researcher name" /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Student Researchers:</span><MemberListInput values={studentResearchers} onChange={(v) => { setStudentResearchers(v); save({ studentResearchers: v }); }} placeholder="Enter student researcher name" /></td></tr>
-            <tr><td style={tdInput}><span style={label}>Name of Sponsor (if applicable):</span><input style={inputStyle} value={sponsor} onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Research Title:</span><textarea style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={researchTitle} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); } }} onInput={autoExpand} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Faculty Researchers:</span><MemberListInput values={facultyResearchers} onChange={(v) => { if (!advisorMode) { setFacultyResearchers(v); save({ facultyResearchers: v }); } }} placeholder="Enter faculty researcher name" readOnly={advisorMode} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Student Researchers:</span><MemberListInput values={studentResearchers} onChange={(v) => { if (!advisorMode) { setStudentResearchers(v); save({ studentResearchers: v }); } }} placeholder="Enter student researcher name" readOnly={advisorMode} /></td></tr>
+            <tr><td style={tdInput}><span style={label}>Name of Sponsor (if applicable):</span><input style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={sponsor} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setSponsor(e.target.value); save({ sponsor: e.target.value }); } }} /></td></tr>
             <tr>
               <td style={tdInput}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <tbody>
                     <tr>
-                      <td style={{ border: "none", width: "50%", padding: "0 10px 0 0" }}><span style={label}>Date Submitted:</span><input type="date" style={inputStyle} value={dateSubmitted} onChange={(e) => { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); }} /></td>
-                      <td style={{ border: "none", width: "50%", padding: "0 0 0 10px" }}><span style={label}>Date Received:</span><input style={inputStyle} value={dateReceived} onChange={(e) => { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); }} /></td>
+                      <td style={{ border: "none", width: "50%", padding: "0 10px 0 0" }}><span style={label}>Date Submitted:</span><input type="date" style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={dateSubmitted} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); } }} /></td>
+                      <td style={{ border: "none", width: "50%", padding: "0 0 0 10px" }}><span style={label}>Date Received:</span><input style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }} value={dateReceived} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); } }} /></td>
                     </tr>
                   </tbody>
                 </table>
@@ -190,9 +190,9 @@ export default function EthicsProtocolChecklist({
             <tr key={i}>
               <td style={td}>{i + 1}</td>
               <td style={{ ...td, textAlign: "left" }}>{item}</td>
-              <td style={td}><input type="radio" checked={answers[i] === "yes"} onChange={() => handleAnswer(i, "yes")} /></td>
-              <td style={td}><input type="radio" checked={answers[i] === "no"} onChange={() => handleAnswer(i, "no")} /></td>
-              <td style={td}><input type="radio" checked={answers[i] === "na"} onChange={() => handleAnswer(i, "na")} /></td>
+              <td style={td}><input type="radio" disabled={advisorMode} checked={answers[i] === "yes"} onChange={() => handleAnswer(i, "yes")} /></td>
+              <td style={td}><input type="radio" disabled={advisorMode} checked={answers[i] === "no"} onChange={() => handleAnswer(i, "no")} /></td>
+              <td style={td}><input type="radio" disabled={advisorMode} checked={answers[i] === "na"} onChange={() => handleAnswer(i, "na")} /></td>
             </tr>
           ))}
         </tbody>
@@ -200,7 +200,7 @@ export default function EthicsProtocolChecklist({
 
       <p style={legendText}><strong>Legend:</strong> <span style={legendComplied}>C</span> - Complied, <span style={legendNotComplied}> NC</span> - Not Complied, <span style={legendNA}> N/A</span> - Not Applicable</p>
 
-      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} readOnly={advisorMode} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
@@ -213,7 +213,7 @@ export default function EthicsProtocolChecklist({
 
       <div style={dateFiledSectionWrap}>
         <strong>Date Filed:</strong>
-        <input type="date" style={{ ...inputStyle, marginTop: "6px" }} value={dateFiled} onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }} />
+        <input type="date" style={{ ...inputStyle, marginTop: "6px", ...(advisorMode ? lockedFieldStyle : {}) }} value={dateFiled} readOnly={advisorMode} onChange={(e) => { if (!advisorMode) { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); } }} />
       </div>
 
       <div style={footerWrap}>
@@ -254,3 +254,4 @@ const headerAddress: React.CSSProperties = { fontSize: "13px", lineHeight: 1.25 
 const headerCodeBox: React.CSSProperties = { border: "1px solid #4d6895", padding: "10px 14px", minWidth: "170px", fontSize: "15px", lineHeight: 1.45, background: "#fff" };
 const footerWrap: React.CSSProperties = { marginTop: "16px", background: "#f1f1f1", border: "1px solid #d7d7d7", padding: "9px 14px", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" };
 const footerDot: React.CSSProperties = { color: "#e05b94", fontSize: "18px", lineHeight: 1 };
+const lockedFieldStyle: React.CSSProperties = { background: "#f5f5f5", color: "#555", cursor: "not-allowed" };

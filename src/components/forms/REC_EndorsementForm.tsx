@@ -3,7 +3,7 @@ import SignatureCell from "./SignatureCell";
 import type { FormProps } from "./FormViewer";
 
 export default function RECEndorsementForm({
-  protocolCode, researcherName, advisorName, proposalTitle, savedData = {}, onSave, readOnlyAdvisor,
+  protocolCode, researcherName, advisorName, proposalTitle, savedData = {}, onSave, readOnlyAdvisor, advisorMode,
 }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
@@ -55,7 +55,12 @@ export default function RECEndorsementForm({
           </div>
           <div style={controlWrap}>
             <span>Control No.:</span>
-            <textarea rows={1} style={controlLine} value={controlNo} onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }} onInput={autoExpand} />
+            <textarea rows={1}
+            style={{ ...controlLine, ...(advisorMode ? lockedFieldStyle : {}) }}
+            value={controlNo}
+            readOnly={advisorMode}
+            onChange={(e) => { if (!advisorMode) { setControlNo(e.target.value); save({ controlNo: e.target.value }); } }}
+            onInput={autoExpand} />
           </div>
         </div>
       </div>
@@ -77,7 +82,12 @@ export default function RECEndorsementForm({
         <div style={studentNameSentence}>
           <span>Endorsing to your good office, Mr./Ms.</span>
           <div style={studentNameFieldGroup}>
-            <textarea rows={1} style={studentNameLine} value={studentName} onChange={(e) => { setStudentName(e.target.value); save({ studentName: e.target.value }); }} onInput={autoExpand} />
+            <textarea rows={1}
+              style={{ ...studentNameLine, ...(advisorMode ? lockedFieldStyle : {}) }}
+              value={studentName}
+              readOnly={advisorMode}
+              onChange={(e) => { if (!advisorMode) { setStudentName(e.target.value); save({ studentName: e.target.value }); } }}
+              onInput={autoExpand} />
             <div style={studentNameCaptionWrap}><div style={caption}>(Name of Student)</div></div>
           </div>
           <span>, of</span>
@@ -86,24 +96,42 @@ export default function RECEndorsementForm({
 
       <div style={degreeAndCaptionWrapper}>
         <div style={degreeSection}>
-          <textarea rows={1} style={degreeLine} value={degreeProgram} onChange={(e) => { setDegreeProgram(e.target.value); save({ degreeProgram: e.target.value }); }} onInput={autoExpand} />
+          <textarea rows={1}
+            style={{ ...degreeLine, ...(advisorMode ? lockedFieldStyle : {}) }}
+            value={degreeProgram}
+            readOnly={advisorMode}
+            onChange={(e) => { if (!advisorMode) { setDegreeProgram(e.target.value); save({ degreeProgram: e.target.value }); } }}
+            onInput={autoExpand} />
           <span style={degreeText}>for the ethical consideration concerns.</span>
         </div>
         <div style={degreeNameCaptionWrap}><div style={caption}>(Name of Degree/Program)</div></div>
       </div>
 
       <div style={{ ...signSection, fontWeight: 700 }}>Endorsed by:</div>
-      <div style={signLineWrap}>
-        <SignatureCell value={adviserSig} onChange={(v) => { setAdviserSig(v); save({ adviserSig: v }); }} readOnly={readOnlyAdvisor} />
-        {readOnlyAdvisor ? (
-          <div style={{ ...signatureLine, borderBottom: "1px solid #ccc", color: advisorName ? "#000" : "#aaa", fontSize: "11px", minHeight: "16px", display: "flex", alignItems: "center" }}>
-            {advisorName || "To be signed by adviser"}
-          </div>
-        ) : (
-          <textarea rows={1} style={signatureLine} value={adviserName} onChange={(e) => { setAdviserName(e.target.value); save({ adviserName: e.target.value }); }} onInput={autoExpand} />
-        )}
-        <div style={caption}>Adviser</div>
-      </div>
+      <table style={endorsedTable}>
+        <thead>
+          <tr>
+            <th style={endorsedTh}>Name</th>
+            <th style={endorsedTh}>Signature</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={endorsedTd}>
+              {readOnlyAdvisor ? (
+                <div style={endorsedNameDisplay}>
+                  {advisorName || "To be signed by adviser"}
+                </div>
+              ) : (
+                <input style={endorsedNameInput} value={adviserName} placeholder="Enter name" onChange={(e) => { setAdviserName(e.target.value); save({ adviserName: e.target.value }); }} />
+              )}
+            </td>
+            <td style={endorsedTd}>
+              <SignatureCell value={adviserSig} onChange={(v) => { setAdviserSig(v); save({ adviserSig: v }); }} readOnly={readOnlyAdvisor} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       <div style={{ ...notedWrap, fontWeight: 700 }}>Noted by:</div>
       <div style={{ ...notedWrap, fontWeight: "normal" }}>
@@ -146,3 +174,9 @@ const signLineWrap: React.CSSProperties = { width: "250px", marginBottom: "22px"
 const signatureLine: React.CSSProperties = { width: "100%", border: "none", borderBottom: "1px solid black", outline: "none", resize: "none", overflow: "hidden", minHeight: "16px", lineHeight: 1.2, padding: 0 };
 const notedWrap: React.CSSProperties = { marginTop: "14px", lineHeight: 1.5 };
 const notedName: React.CSSProperties = { fontWeight: 700 };
+const lockedFieldStyle: React.CSSProperties = { background: "#f5f5f5", color: "#555", cursor: "not-allowed" };
+const endorsedTable: React.CSSProperties = { width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: "6px" };
+const endorsedTh: React.CSSProperties = { border: "1px solid black", padding: "6px", background: "#f0f0f0", fontWeight: 700, fontSize: "12px", textAlign: "left" };
+const endorsedTd: React.CSSProperties = { border: "1px solid black", padding: "6px", verticalAlign: "middle" };
+const endorsedNameInput: React.CSSProperties = { width: "100%", border: "none", borderBottom: "1px solid black", outline: "none", fontFamily: "inherit", fontSize: "12px", background: "transparent" };
+const endorsedNameDisplay: React.CSSProperties = { fontSize: "12px", minHeight: "16px", display: "flex", alignItems: "center", color: "#555" };

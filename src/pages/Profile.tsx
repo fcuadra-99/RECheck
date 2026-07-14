@@ -47,7 +47,23 @@ export default function ProfilePage() {
       setFname(meta.fname || "")
       setLname(meta.lname || "")
       setOrg(meta.org || "")
-      setRole(meta.role || "")
+
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", u.id)
+          .maybeSingle()
+
+        if (!profileError && profileData?.role) {
+          setRole(profileData.role)
+        } else {
+          setRole(meta.role || "")
+        }
+      } catch (profileFetchError) {
+        console.error("Failed to fetch profile role:", profileFetchError)
+        setRole(meta.role || "")
+      }
 
       const { data: avatarData } = supabase.storage
         .from("profiles")

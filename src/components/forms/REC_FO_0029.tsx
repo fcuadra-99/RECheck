@@ -3,7 +3,7 @@ import MemberListInput from "./MemberListInput";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 import type { FormProps } from "./FormViewer";
 
-function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor, advisorMode }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
@@ -62,6 +62,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
   }, []);
 
   const handleAnswer = (index: number, value: string) => {
+    if (advisorMode) return;
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
@@ -112,9 +113,10 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
             <td style={labelCell}>Control No.</td>
             <td style={inputCell}>
               <input
-                style={inputStyle}
+                style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={controlNo}
-                onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setControlNo(e.target.value); save({ controlNo: e.target.value }); } }}
               />
             </td>
           </tr>
@@ -122,9 +124,10 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
             <td style={labelCell}>Research Title</td>
             <td style={inputCell}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={researchTitle}
-                onChange={(e) => { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -132,22 +135,23 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
           <tr>
             <td style={labelCell}>Faculty Researchers</td>
             <td style={inputCell}>
-              <MemberListInput values={facultyResearchers} onChange={(v) => { setFacultyResearchers(v); save({ facultyResearchers: v }); }} placeholder="Enter faculty researcher name" />
+              <MemberListInput values={facultyResearchers} onChange={(v) => { if (!advisorMode) { setFacultyResearchers(v); save({ facultyResearchers: v }); } }} placeholder="Enter faculty researcher name" readOnly={advisorMode} />
             </td>
           </tr>
           <tr>
             <td style={labelCell}>Student Researchers</td>
             <td style={inputCell}>
-              <MemberListInput values={studentResearchers} onChange={(v) => { setStudentResearchers(v); save({ studentResearchers: v }); }} placeholder="Enter student researcher name" />
+              <MemberListInput values={studentResearchers} onChange={(v) => { if (!advisorMode) { setStudentResearchers(v); save({ studentResearchers: v }); } }} placeholder="Enter student researcher name" readOnly={advisorMode} />
             </td>
           </tr>
           <tr>
             <td style={labelCell}>Name of Sponsor (if applicable)</td>
             <td style={inputCell}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={sponsor}
-                onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setSponsor(e.target.value); save({ sponsor: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -157,9 +161,10 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
             <td style={inputCell}>
               <input
                 type="date"
-                style={dateInputStyle}
+                style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={dateSubmitted}
-                onChange={(e) => { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); } }}
               />
             </td>
           </tr>
@@ -168,9 +173,10 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
             <td style={inputCell}>
               <input
                 type="date"
-                style={dateInputStyle}
+                style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={dateReceived}
-                onChange={(e) => { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); } }}
               />
             </td>
           </tr>
@@ -196,6 +202,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                 <input
                   type="radio"
                   value="yes"
+                  disabled={advisorMode}
                   checked={answers[idx] === "yes"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
                 />
@@ -204,6 +211,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                 <input
                   type="radio"
                   value="no"
+                  disabled={advisorMode}
                   checked={answers[idx] === "no"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
                 />
@@ -212,6 +220,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                 <input
                   type="radio"
                   value="na"
+                  disabled={advisorMode}
                   checked={answers[idx] === "na"}
                   onChange={(e) => handleAnswer(idx, e.target.value)}
                 />
@@ -235,6 +244,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                   <input
                     type="radio"
                     value="yes"
+                    disabled={advisorMode}
                     checked={answers[actualIndex] === "yes"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
                   />
@@ -243,6 +253,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                   <input
                     type="radio"
                     value="no"
+                    disabled={advisorMode}
                     checked={answers[actualIndex] === "no"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
                   />
@@ -251,6 +262,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
                   <input
                     type="radio"
                     value="na"
+                    disabled={advisorMode}
                     checked={answers[actualIndex] === "na"}
                     onChange={(e) => handleAnswer(actualIndex, e.target.value)}
                   />
@@ -268,7 +280,7 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
         <span style={legendNA}>N/A - Not Applicable</span>
       </div>
 
-      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} readOnly={advisorMode} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
@@ -283,9 +295,10 @@ function EthicsInformedConsentChecklist({ protocolCode, researcherName, advisorN
         <strong>Date Filed:</strong>
         <input
           type="date"
-          style={{ ...dateInputStyle, marginTop: "6px" }}
+          style={{ ...dateInputStyle, marginTop: "6px", ...(advisorMode ? lockedFieldStyle : {}) }}
           value={dateFiled}
-          onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }}
+          readOnly={advisorMode}
+          onChange={(e) => { if (!advisorMode) { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); } }}
         />
       </div>
 
@@ -507,6 +520,12 @@ const footerDot: React.CSSProperties = {
   color: "#e05b94",
   fontSize: "18px",
   lineHeight: 1,
+};
+
+const lockedFieldStyle: React.CSSProperties = {
+  background: "#f5f5f5",
+  color: "#555",
+  cursor: "not-allowed",
 };
 
 export default EthicsInformedConsentChecklist;

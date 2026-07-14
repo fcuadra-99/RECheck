@@ -1,8 +1,10 @@
 import React, { useState } from "react";
+import SignatureCell from "./SignatureCell";
 import type { FormProps } from "./FormViewer";
 
-const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, savedData = {} }) => {
+const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, proposalId, formName, advisorName, advisorMode, readOnlyAdvisor, savedData = {}, onSave }) => {
   const s = savedData;
+  const save = (patch: Record<string, any>) => onSave?.(patch);
 
   const today = new Date().toISOString().split("T")[0];
   const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");
@@ -155,20 +157,6 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
     fontSize: "12px",
   };
 
-  const inlineTextareaStyle: React.CSSProperties = {
-    ...textareaStyle,
-    display: "inline-block",
-    width: `${Math.max(researchConductedBy.length + 1, 24)}ch`,
-    maxWidth: "calc(100% - 8px)",
-    minHeight: "22px",
-    boxSizing: "border-box",
-    verticalAlign: "bottom",
-    margin: "0 4px",
-    lineHeight: 1.4,
-    overflowWrap: "anywhere",
-    wordBreak: "break-word",
-  };
-
   const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const target = e.currentTarget;
     target.style.height = "auto";
@@ -188,40 +176,12 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
     marginBottom: "4px",
   };
 
-  const signatureRow: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: "40px",
-    marginTop: "80px",
-  };
 
-  const signatureBlock: React.CSSProperties = {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "flex-end",
-  };
 
-  const signatureLine: React.CSSProperties = {
-    width: "100%",
-    border: "none",
-    borderBottom: "1px solid black",
-    outline: "none",
-    fontFamily: "inherit",
-    fontSize: "12px",
-  };
-
-  const signatureTextareaStyle: React.CSSProperties = {
-    ...signatureLine,
-    resize: "none",
-    overflow: "hidden",
-    minHeight: "22px",
-    boxSizing: "border-box",
-  };
-
-  const signatureLabel: React.CSSProperties = {
-    marginTop: "4px",
+  const lockedFieldStyle: React.CSSProperties = {
+    background: "#f5f5f5",
+    color: "#555",
+    cursor: "not-allowed",
   };
 
   return (
@@ -262,9 +222,10 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                   Protocol Title (indicate the title of the study)
                 </span>
                 <textarea
-                  style={textareaStyle}
+                  style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  readOnly={advisorMode}
+                  onChange={(e) => { if (!advisorMode) { setTitle(e.target.value); save({ title: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -273,9 +234,10 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
               <td style={td}>
                 <span style={label}>Name of the Researcher(s)</span>
                 <textarea
-                  style={textareaStyle}
+                  style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                   value={researchers}
-                  onChange={(e) => setResearchers(e.target.value)}
+                  readOnly={advisorMode}
+                  onChange={(e) => { if (!advisorMode) { setResearchers(e.target.value); save({ researchers: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -284,9 +246,10 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
               <td style={td}>
                 <span style={label}>Institution:</span>
                 <input
-                  style={inputStyle}
+                  style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                   value={institution}
-                  onChange={(e) => setInstitution(e.target.value)}
+                  readOnly={advisorMode}
+                  onChange={(e) => { if (!advisorMode) { setInstitution(e.target.value); save({ institution: e.target.value }); } }}
                 />
               </td>
             </tr>
@@ -294,9 +257,10 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
               <td style={td}>
                 <span style={label}>Control No.:</span>
                 <input
-                  style={inputStyle}
+                  style={{ ...inputStyle, ...lockedFieldStyle }}
                   value={controlNo}
-                  onChange={(e) => setControlNo(e.target.value)}
+                  readOnly={true}
+                  placeholder="Auto-filled by system"
                 />
               </td>
             </tr>
@@ -312,13 +276,9 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                 <b>INTRODUCTION</b>
                 <br />
                 This research study conducted by{" "}
-                <textarea
-                  rows={1}
-                  style={inlineTextareaStyle}
-                  value={researchConductedBy}
-                  onChange={(e) => setResearchConductedBy(e.target.value)}
-                  onInput={autoResize}
-                />
+                <span style={{ fontStyle: "italic", color: "#666" }}>
+                  {researchConductedBy || "[Researcher Name]"}
+                </span>
                 , at the University of the Immaculate Conception, does not
                 involve human participants nor identifiable human tissue,
                 biological samples and data. Thus, he/she is applying for the
@@ -340,15 +300,17 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                   style={{
                     ...textareaStyle,
                     color: isPurposeEdited ? "black" : "red",
+                    ...(advisorMode ? lockedFieldStyle : {}),
                   }}
                   value={purpose}
+                  readOnly={advisorMode}
                   onFocus={() => {
-                    if (!isPurposeEdited) {
+                    if (!isPurposeEdited && !advisorMode) {
                       setPurpose("");
                       setIsPurposeEdited(true);
                     }
                   }}
-                  onChange={(e) => setPurpose(e.target.value)}
+                  onChange={(e) => { if (!advisorMode) { setPurpose(e.target.value); save({ purpose: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -363,15 +325,17 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                   style={{
                     ...textareaStyle,
                     color: isBenefitsEdited ? "black" : "red",
+                    ...(advisorMode ? lockedFieldStyle : {}),
                   }}
                   value={benefits}
+                  readOnly={advisorMode}
                   onFocus={() => {
-                    if (!isBenefitsEdited) {
+                    if (!isBenefitsEdited && !advisorMode) {
                       setBenefits("");
                       setIsBenefitsEdited(true);
                     }
                   }}
-                  onChange={(e) => setBenefits(e.target.value)}
+                  onChange={(e) => { if (!advisorMode) { setBenefits(e.target.value); save({ benefits: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -387,15 +351,17 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                       ? textareaStyle
                       : sampleTextStyle),
                     minHeight: "110px",
+                    ...(advisorMode ? lockedFieldStyle : {}),
                   }}
                   value={publicDataStatement}
+                  readOnly={advisorMode}
                   onFocus={() => {
-                    if (!isPublicDataStatementEdited) {
+                    if (!isPublicDataStatementEdited && !advisorMode) {
                       setPublicDataStatement("");
                       setIsPublicDataStatementEdited(true);
                     }
                   }}
-                  onChange={(e) => setPublicDataStatement(e.target.value)}
+                  onChange={(e) => { if (!advisorMode) { setPublicDataStatement(e.target.value); save({ publicDataStatement: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -411,15 +377,17 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
                       ? textareaStyle
                       : sampleTextStyle),
                     minHeight: "110px",
+                    ...(advisorMode ? lockedFieldStyle : {}),
                   }}
                   value={contactStatement}
+                  readOnly={advisorMode}
                   onFocus={() => {
-                    if (!isContactStatementEdited) {
+                    if (!isContactStatementEdited && !advisorMode) {
                       setContactStatement("");
                       setIsContactStatementEdited(true);
                     }
                   }}
-                  onChange={(e) => setContactStatement(e.target.value)}
+                  onChange={(e) => { if (!advisorMode) { setContactStatement(e.target.value); save({ contactStatement: e.target.value }); } }}
                   onInput={autoResize}
                 />
               </td>
@@ -427,29 +395,49 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
           </tbody>
         </table>
 
-        <div style={signatureRow}>
-          <div style={signatureBlock}>
-            <textarea
-              rows={1}
-              style={signatureTextareaStyle}
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              onInput={autoResize}
-            />
-            <div style={signatureLabel}>
-              Name and Signature of the Investigator/Researcher.
-            </div>
-          </div>
+        <div style={{ marginTop: "40px" }}>
+          <div style={sectionHeading}>Name and Signature of the Investigator/Researcher</div>
+          <table style={table}>
+            <thead>
+              <tr>
+                <th style={td}>Name</th>
+                <th style={td}>Signature</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={td}>
+                  <input
+                    style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
+                    value={researchConductedBy}
+                    readOnly={advisorMode}
+                    onChange={(e) => { if (!advisorMode) { setResearchConductedBy(e.target.value); save({ researchConductedBy: e.target.value }); } }}
+                    placeholder="Researcher Name"
+                  />
+                </td>
+                <td style={td}>
+                  <SignatureCell
+                    value={signature}
+                    onChange={(v) => { setSignature(v); save({ signature: v }); }}
+                    readOnly={readOnlyAdvisor}
+                    proposalId={proposalId}
+                    formName={formName}
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-          <div style={{ ...signatureBlock, maxWidth: "190px" }}>
-            <input
-              type="date"
-              style={signatureLine}
-              value={dateSigned}
-              onChange={(e) => setDateSigned(e.target.value)}
-            />
-            <div style={signatureLabel}>Date Signed</div>
-          </div>
+        <div style={{ marginTop: "16px" }}>
+          <div style={sectionHeading}>Date Signed</div>
+          <input
+            type="date"
+            style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}), width: "200px" }}
+            value={dateSigned}
+            readOnly={advisorMode}
+            onChange={(e) => { if (!advisorMode) { setDateSigned(e.target.value); save({ dateSigned: e.target.value }); } }}
+          />
         </div>
 
         <div style={footerWrap}>

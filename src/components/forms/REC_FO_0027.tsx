@@ -3,7 +3,7 @@ import MemberListInput from "./MemberListInput";
 import SubmittedByTable, { useSubmittedByMembers } from "./SubmittedByTable";
 import type { FormProps } from "./FormViewer";
 
-function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor }: FormProps) {
+function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName, proposalTitle, proposalId, formName, savedData = {}, onSave, readOnlyAdvisor, advisorMode }: FormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
@@ -78,6 +78,7 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
   }, []);
 
   const handleAnswer = (index: number, value: string) => {
+    if (advisorMode) return;
     const updated = [...answers];
     updated[index] = value;
     setAnswers(updated);
@@ -129,21 +130,16 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
         <strong>IMPORTANT:</strong> All fields <u>must be completed.</u>
       </div>
 
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          tableLayout: "fixed",
-        }}
-      >
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <tbody>
           <tr>
             <td style={labelCell}>Control No.:</td>
             <td style={inputCell}>
               <input
-                style={inputStyle}
+                style={{ ...inputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={controlNo}
-                onChange={(e) => { setControlNo(e.target.value); save({ controlNo: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setControlNo(e.target.value); save({ controlNo: e.target.value }); } }}
               />
             </td>
           </tr>
@@ -152,9 +148,10 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
             <td style={labelCell}>Research Title:</td>
             <td style={inputCell}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={researchTitle}
-                onChange={(e) => { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setResearchTitle(e.target.value); save({ researchTitle: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -163,14 +160,14 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
           <tr>
             <td style={labelCell}>Faculty Researchers:</td>
             <td style={inputCell}>
-              <MemberListInput values={facultyResearchers} onChange={(v) => { setFacultyResearchers(v); save({ facultyResearchers: v }); }} placeholder="Enter faculty researcher name" />
+              <MemberListInput values={facultyResearchers} onChange={(v) => { if (!advisorMode) { setFacultyResearchers(v); save({ facultyResearchers: v }); } }} placeholder="Enter faculty researcher name" readOnly={advisorMode} />
             </td>
           </tr>
 
           <tr>
             <td style={labelCell}>Student Researchers:</td>
             <td style={inputCell}>
-              <MemberListInput values={studentResearchers} onChange={(v) => { setStudentResearchers(v); save({ studentResearchers: v }); }} placeholder="Enter student researcher name" />
+              <MemberListInput values={studentResearchers} onChange={(v) => { if (!advisorMode) { setStudentResearchers(v); save({ studentResearchers: v }); } }} placeholder="Enter student researcher name" readOnly={advisorMode} />
             </td>
           </tr>
 
@@ -178,9 +175,10 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
             <td style={labelCell}>Name of Sponsor (if applicable):</td>
             <td style={inputCell}>
               <textarea
-                style={textareaStyle}
+                style={{ ...textareaStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={sponsor}
-                onChange={(e) => { setSponsor(e.target.value); save({ sponsor: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setSponsor(e.target.value); save({ sponsor: e.target.value }); } }}
                 onInput={autoExpand}
               />
             </td>
@@ -191,34 +189,24 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <tbody>
                   <tr>
-                    <td
-                      style={{
-                        border: "none",
-                        width: "50%",
-                        padding: "0 10px 0 0",
-                      }}
-                    >
+                    <td style={{ border: "none", width: "50%", padding: "0 10px 0 0" }}>
                       <span style={label}>Date Submitted:</span>
                       <input
                         type="date"
-                        style={dateInputStyle}
+                        style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                         value={dateSubmitted}
-                        onChange={(e) => { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); }}
+                        readOnly={advisorMode}
+                        onChange={(e) => { if (!advisorMode) { setDateSubmitted(e.target.value); save({ dateSubmitted: e.target.value }); } }}
                       />
                     </td>
-                    <td
-                      style={{
-                        border: "none",
-                        width: "50%",
-                        padding: "0 0 0 10px",
-                      }}
-                    >
+                    <td style={{ border: "none", width: "50%", padding: "0 0 0 10px" }}>
                       <span style={label}>Date Received:</span>
                       <input
                         type="date"
-                        style={dateInputStyle}
+                        style={{ ...dateInputStyle, ...(advisorMode ? lockedFieldStyle : {}) }}
                         value={dateReceived}
-                        onChange={(e) => { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); }}
+                        readOnly={advisorMode}
+                        onChange={(e) => { if (!advisorMode) { setDateReceived(e.target.value); save({ dateReceived: e.target.value }); } }}
                       />
                     </td>
                   </tr>
@@ -230,23 +218,17 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
       </table>
 
       <div style={{ marginTop: "16px" }}>
-        <strong>Item 1:</strong> UNDERLINE the vulnerable population being
-        studied:
+        <strong>Item 1:</strong> UNDERLINE the vulnerable population being studied:
         <div style={{ marginTop: "6px", marginLeft: "16px" }}>
           <div style={{ marginBottom: "6px" }}>
             {vulnerableOptions.map((option) => (
-              <label
-                key={option}
-                style={{
-                  display: "block",
-                  marginBottom: "4px",
-                  cursor: "pointer",
-                }}
-              >
+              <label key={option} style={{ display: "block", marginBottom: "4px", cursor: advisorMode ? "not-allowed" : "pointer" }}>
                 <input
                   type="checkbox"
+                  disabled={advisorMode}
                   checked={vulnerablePopulation.includes(option)}
                   onChange={(e) => {
+                    if (advisorMode) return;
                     let updated: string;
                     if (e.target.checked) {
                       updated = vulnerablePopulation ? vulnerablePopulation + ", " + option : option;
@@ -260,19 +242,14 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
                 {option}
               </label>
             ))}
-            <label
-              style={{
-                display: "block",
-                marginTop: "6px",
-                cursor: "pointer",
-              }}
-            >
+            <label style={{ display: "block", marginTop: "6px", cursor: advisorMode ? "not-allowed" : "pointer" }}>
               <strong>Other; Please specify:</strong>
               <input
                 type="text"
-                style={{ ...inputStyle, marginLeft: "8px", minWidth: "200px" }}
+                style={{ ...inputStyle, marginLeft: "8px", minWidth: "200px", ...(advisorMode ? lockedFieldStyle : {}) }}
                 value={otherVulnerable}
-                onChange={(e) => { setOtherVulnerable(e.target.value); save({ otherVulnerable: e.target.value }); }}
+                readOnly={advisorMode}
+                onChange={(e) => { if (!advisorMode) { setOtherVulnerable(e.target.value); save({ otherVulnerable: e.target.value }); } }}
               />
             </label>
           </div>
@@ -298,41 +275,21 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
                 </td>
                 <td style={{ ...checklistItemCell, width: "75%" }}>{item}</td>
                 <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="C"
-                    checked={answers[index] === "C"}
-                    onChange={(e) => handleAnswer(index, e.target.value)}
-                  />
+                  <input type="radio" value="C" disabled={advisorMode} checked={answers[index] === "C"} onChange={(e) => handleAnswer(index, e.target.value)} />
                 </td>
                 <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="NC"
-                    checked={answers[index] === "NC"}
-                    onChange={(e) => handleAnswer(index, e.target.value)}
-                  />
+                  <input type="radio" value="NC" disabled={advisorMode} checked={answers[index] === "NC"} onChange={(e) => handleAnswer(index, e.target.value)} />
                 </td>
                 <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="N/A"
-                    checked={answers[index] === "N/A"}
-                    onChange={(e) => handleAnswer(index, e.target.value)}
-                  />
+                  <input type="radio" value="N/A" disabled={advisorMode} checked={answers[index] === "N/A"} onChange={(e) => handleAnswer(index, e.target.value)} />
                 </td>
               </tr>
             ))}
 
             <tr>
-              <td style={{ ...checklistItemCell, width: "5%" }}>
-                <strong>13</strong>
-              </td>
+              <td style={{ ...checklistItemCell, width: "5%" }}><strong>13</strong></td>
               <td colSpan={4} style={{ ...checklistItemCell, width: "95%" }}>
-                <strong>
-                  Questionnaires, diary cards, etc. are being used in the
-                  research
-                </strong>
+                <strong>Questionnaires, diary cards, etc. are being used in the research</strong>
               </td>
             </tr>
 
@@ -341,38 +298,15 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
                 <td style={{ ...checklistItemCell, width: "5%" }}>
                   <strong>a.{String.fromCharCode(97 + subIndex)}</strong>
                 </td>
-                <td style={{ ...checklistItemCell, width: "75%" }}>
-                  {subItem}
+                <td style={{ ...checklistItemCell, width: "75%" }}>{subItem}</td>
+                <td style={responseCell}>
+                  <input type="radio" value="C" disabled={advisorMode} checked={answers[checklist.length + subIndex] === "C"} onChange={(e) => handleAnswer(checklist.length + subIndex, e.target.value)} />
                 </td>
                 <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="C"
-                    checked={answers[checklist.length + subIndex] === "C"}
-                    onChange={(e) =>
-                      handleAnswer(checklist.length + subIndex, e.target.value)
-                    }
-                  />
+                  <input type="radio" value="NC" disabled={advisorMode} checked={answers[checklist.length + subIndex] === "NC"} onChange={(e) => handleAnswer(checklist.length + subIndex, e.target.value)} />
                 </td>
                 <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="NC"
-                    checked={answers[checklist.length + subIndex] === "NC"}
-                    onChange={(e) =>
-                      handleAnswer(checklist.length + subIndex, e.target.value)
-                    }
-                  />
-                </td>
-                <td style={responseCell}>
-                  <input
-                    type="radio"
-                    value="N/A"
-                    checked={answers[checklist.length + subIndex] === "N/A"}
-                    onChange={(e) =>
-                      handleAnswer(checklist.length + subIndex, e.target.value)
-                    }
-                  />
+                  <input type="radio" value="N/A" disabled={advisorMode} checked={answers[checklist.length + subIndex] === "N/A"} onChange={(e) => handleAnswer(checklist.length + subIndex, e.target.value)} />
                 </td>
               </tr>
             ))}
@@ -387,7 +321,7 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
         </div>
       </div>
 
-      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} />
+      <SubmittedByTable members={submittedMembers} onChange={(v) => { setSubmittedMembers(v); save({ submittedMembers: v }); }} proposalId={proposalId} formName={formName} readOnly={advisorMode} />
 
       <SubmittedByTable
         title="Endorsed by / Recommended by (Research Adviser / Mentor):"
@@ -402,9 +336,10 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
         <strong>Date Filed:</strong>
         <input
           type="date"
-          style={{ ...inputStyle, marginTop: "6px" }}
+          style={{ ...inputStyle, marginTop: "6px", ...(advisorMode ? lockedFieldStyle : {}) }}
           value={dateFiled}
-          onChange={(e) => { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); }}
+          readOnly={advisorMode}
+          onChange={(e) => { if (!advisorMode) { setDateFiled(e.target.value); save({ dateFiled: e.target.value }); } }}
         />
       </div>
 
@@ -418,199 +353,32 @@ function EthicsApplicationProcedure({ protocolCode, researcherName, advisorName,
   );
 }
 
-const container: React.CSSProperties = {
-  width: "210mm",
-  minHeight: "297mm",
-  padding: "20mm",
-  margin: "0 auto",
-  background: "white",
-  boxSizing: "border-box",
-  fontSize: "12px",
-  fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
-};
-
-const labelCell: React.CSSProperties = {
-  padding: "8px",
-  fontWeight: "bold",
-  width: "25%",
-  verticalAlign: "top",
-  background: "#f5f5f5",
-};
-
-const inputCell: React.CSSProperties = {
-  padding: "8px",
-  verticalAlign: "top",
-};
-
-const label: React.CSSProperties = {
-  fontWeight: "bold",
-  display: "block",
-  marginBottom: "4px",
-  fontSize: "12px",
-};
-
-const inputStyle: React.CSSProperties = {
-  border: "none",
-  borderBottom: "1px solid black",
-  width: "100%",
-  outline: "none",
-  fontFamily: "inherit",
-};
-
-const textareaStyle: React.CSSProperties = {
-  width: "100%",
-  border: "none",
-  borderBottom: "1px solid black",
-  resize: "none",
-  overflow: "hidden",
-  fontFamily: "inherit",
-  minHeight: "40px",
-};
-
-const dateInputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  border: "none",
-  borderBottom: "1px solid black",
-  fontFamily: "inherit",
-};
-
-const importantNote: React.CSSProperties = {
-  marginBottom: "12px",
-  fontSize: "12px",
-  padding: "8px",
-  background: "#fff3cd",
-  border: "1px solid #ffc107",
-};
-
-const checklistTable: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  border: "1px solid black",
-  marginTop: "8px",
-};
-
-const checklistItemCell: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "6px",
-  verticalAlign: "top",
-  fontSize: "12px",
-  lineHeight: 1.4,
-};
-
-const checklistHeadCell: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "6px",
-  textAlign: "center",
-  background: "#f0f0f0",
-  fontWeight: 700,
-};
-
-const responseCell: React.CSSProperties = {
-  border: "1px solid black",
-  padding: "6px",
-  textAlign: "center",
-  width: "6%",
-};
-
-const legendText: React.CSSProperties = {
-  marginTop: "8px",
-  fontSize: "11px",
-};
-
-const legendComplied: React.CSSProperties = {
-  color: "#c50000",
-  fontWeight: 700,
-};
-
-const legendNotComplied: React.CSSProperties = {
-  color: "#b56a00",
-  fontWeight: 700,
-};
-
-const legendNA: React.CSSProperties = {
-  fontWeight: 700,
-};
-
-const dateFiledSectionWrap: React.CSSProperties = {
-  marginTop: "10px",
-  border: "1px solid black",
-  padding: "8px",
-};
-
-const headerWrap: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  background: "#f1f1f1",
-  border: "1px solid #d7d7d7",
-  padding: "12px 16px",
-  marginBottom: "14px",
-};
-
-const headerLeft: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-};
-
-const logoBadge: React.CSSProperties = {
-  width: "56px",
-  height: "56px",
-  borderRadius: "50%",
-  border: "2px solid #e05b94",
-  color: "#e05b94",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontWeight: 700,
-  fontSize: "14px",
-  background: "#fff",
-};
-
-const headerUniversityName: React.CSSProperties = {
-  fontSize: "14px",
-  fontWeight: 600,
-  lineHeight: 1.25,
-};
-
-const headerCommitteeName: React.CSSProperties = {
-  fontSize: "14px",
-  fontStyle: "italic",
-  fontWeight: 700,
-  lineHeight: 1.25,
-};
-
-const headerAddress: React.CSSProperties = {
-  fontSize: "13px",
-  lineHeight: 1.25,
-};
-
-const headerCodeBox: React.CSSProperties = {
-  border: "1px solid #4d6895",
-  padding: "10px 14px",
-  minWidth: "170px",
-  fontSize: "15px",
-  lineHeight: 1.45,
-  background: "#fff",
-};
-
-const footerWrap: React.CSSProperties = {
-  marginTop: "16px",
-  background: "#f1f1f1",
-  border: "1px solid #d7d7d7",
-  padding: "9px 14px",
-  fontSize: "13px",
-  display: "flex",
-  alignItems: "center",
-  gap: "8px",
-};
-
-const footerDot: React.CSSProperties = {
-  color: "#e05b94",
-  fontSize: "18px",
-  lineHeight: 1,
-};
+const container: React.CSSProperties = { width: "210mm", minHeight: "297mm", padding: "20mm", margin: "0 auto", background: "white", boxSizing: "border-box", fontSize: "12px", fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif" };
+const labelCell: React.CSSProperties = { padding: "8px", fontWeight: "bold", width: "25%", verticalAlign: "top", background: "#f5f5f5" };
+const inputCell: React.CSSProperties = { padding: "8px", verticalAlign: "top" };
+const label: React.CSSProperties = { fontWeight: "bold", display: "block", marginBottom: "4px", fontSize: "12px" };
+const inputStyle: React.CSSProperties = { border: "none", borderBottom: "1px solid black", width: "100%", outline: "none", fontFamily: "inherit" };
+const textareaStyle: React.CSSProperties = { width: "100%", border: "none", borderBottom: "1px solid black", resize: "none", overflow: "hidden", fontFamily: "inherit", minHeight: "40px" };
+const dateInputStyle: React.CSSProperties = { width: "100%", boxSizing: "border-box", border: "none", borderBottom: "1px solid black", fontFamily: "inherit" };
+const importantNote: React.CSSProperties = { marginBottom: "12px", fontSize: "12px", padding: "8px", background: "#fff3cd", border: "1px solid #ffc107" };
+const checklistTable: React.CSSProperties = { width: "100%", borderCollapse: "collapse", border: "1px solid black", marginTop: "8px" };
+const checklistItemCell: React.CSSProperties = { border: "1px solid black", padding: "6px", verticalAlign: "top", fontSize: "12px", lineHeight: 1.4 };
+const checklistHeadCell: React.CSSProperties = { border: "1px solid black", padding: "6px", textAlign: "center", background: "#f0f0f0", fontWeight: 700 };
+const responseCell: React.CSSProperties = { border: "1px solid black", padding: "6px", textAlign: "center", width: "6%" };
+const legendText: React.CSSProperties = { marginTop: "8px", fontSize: "11px" };
+const legendComplied: React.CSSProperties = { color: "#c50000", fontWeight: 700 };
+const legendNotComplied: React.CSSProperties = { color: "#b56a00", fontWeight: 700 };
+const legendNA: React.CSSProperties = { fontWeight: 700 };
+const dateFiledSectionWrap: React.CSSProperties = { marginTop: "10px", border: "1px solid black", padding: "8px" };
+const headerWrap: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", background: "#f1f1f1", border: "1px solid #d7d7d7", padding: "12px 16px", marginBottom: "14px" };
+const headerLeft: React.CSSProperties = { display: "flex", alignItems: "center", gap: "12px" };
+const logoBadge: React.CSSProperties = { width: "56px", height: "56px", borderRadius: "50%", border: "2px solid #e05b94", color: "#e05b94", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "14px", background: "#fff" };
+const headerUniversityName: React.CSSProperties = { fontSize: "14px", fontWeight: 600, lineHeight: 1.25 };
+const headerCommitteeName: React.CSSProperties = { fontSize: "14px", fontStyle: "italic", fontWeight: 700, lineHeight: 1.25 };
+const headerAddress: React.CSSProperties = { fontSize: "13px", lineHeight: 1.25 };
+const headerCodeBox: React.CSSProperties = { border: "1px solid #4d6895", padding: "10px 14px", minWidth: "170px", fontSize: "15px", lineHeight: 1.45, background: "#fff" };
+const footerWrap: React.CSSProperties = { marginTop: "16px", background: "#f1f1f1", border: "1px solid #d7d7d7", padding: "9px 14px", fontSize: "13px", display: "flex", alignItems: "center", gap: "8px" };
+const footerDot: React.CSSProperties = { color: "#e05b94", fontSize: "18px", lineHeight: 1 };
+const lockedFieldStyle: React.CSSProperties = { background: "#f5f5f5", color: "#555", cursor: "not-allowed" };
 
 export default EthicsApplicationProcedure;

@@ -215,7 +215,6 @@ export default function ResearcherHistory() {
           'Proposal ID': `#${proposal.proposal_id}`,
           'Protocol Code': proposal.protocol_code || 'N/A',
           'Proposal Title': proposal.proposal_title,
-          'Description': proposal.description || '',
           'Researcher Name': proposal.researcher_name,
           'Category': proposal.category, // External, Graduate, Undergraduate
           'Assigned Reviewers': proposal.reviewer_names && proposal.reviewer_names.length > 0 ? proposal.reviewer_names.join(', ') : 'Unassigned',
@@ -235,7 +234,6 @@ export default function ResearcherHistory() {
         { wch: 12 }, // Proposal ID
         { wch: 18 }, // Protocol Code
         { wch: 40 }, // Proposal Title
-        { wch: 40 }, // Description
         { wch: 25 }, // Researcher Name
         { wch: 15 }, // Category
         { wch: 30 }, // Assigned Reviewers
@@ -342,7 +340,7 @@ export default function ResearcherHistory() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search researcher, title, or description..."
+                placeholder="Search researcher or title..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -453,9 +451,6 @@ export default function ResearcherHistory() {
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-gray-900 max-w-xs truncate">
                             {proposal.proposal_title}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1 max-w-xs truncate">
-                            {proposal.description}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

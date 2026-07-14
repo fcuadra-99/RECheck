@@ -2,7 +2,6 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,7 +33,6 @@ export default function NewProposalDialog({
     onProposalCreated 
 }: NewProposalDialogProps) {
     const [newProposalTitle, setNewProposalTitle] = useState("");
-    const [newProposalDescription, setNewProposalDescription] = useState("");
     const [selectedAdvisorId, setSelectedAdvisorId] = useState<string>("");
     const [advisors, setAdvisors] = useState<Profile[]>([]);
 
@@ -78,7 +76,6 @@ export default function NewProposalDialog({
                 .insert([
                     {
                         proposal_title: newProposalTitle,
-                        description: newProposalDescription,
                         category,
                         status: "Pending Advisor Approval",
                         researcher: uid,
@@ -94,7 +91,6 @@ export default function NewProposalDialog({
             onProposalCreated(proposal);
             onOpenChange(false);
             setNewProposalTitle("");
-            setNewProposalDescription("");
             setSelectedAdvisorId("");
             toast.success("Proposal created and sent to advisor for approval!", { id: loading });
         } catch (err: any) {
@@ -120,19 +116,6 @@ export default function NewProposalDialog({
                             value={newProposalTitle}
                             onChange={(e) => setNewProposalTitle(e.target.value)}
                             className="col-span-4"
-                        />
-                    </div>
-                    <div className="grid grid-cols-4 items-start gap-4">
-                        <Label htmlFor="description" className="text-right col-span-4">
-                            Description
-                        </Label>
-                        <Textarea
-                            id="description"
-                            placeholder="Enter proposal description"
-                            value={newProposalDescription}
-                            onChange={(e) => setNewProposalDescription(e.target.value)}
-                            className="col-span-4 resize-none"
-                            rows={4}
                         />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">

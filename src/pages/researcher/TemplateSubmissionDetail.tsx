@@ -43,7 +43,10 @@ export default function TemplateSubmissionDetail() {
   const [customFormLoading, setCustomFormLoading] = useState(false);
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const isResearcherLocked = submission && submission.status !== 'needs_revision' && submission.status !== 'revision_requested';
+  const isCurrentUserResearcher = currentUserRole.trim().toLowerCase() === 'researcher';
+  const canEditSubmission = isCurrentUserResearcher && !isResearcherLocked;
 
   const template = submission ? TemplateDownloadService.getTemplateByName(submission.template_type) : null;
   const { fields: predefinedFields } = useTemplateFields(template?.id || null);
@@ -62,12 +65,27 @@ export default function TemplateSubmissionDetail() {
     try {
       setLoading(true);
       
+      const { data: authUserData } = await supabase.auth.getUser();
+      const currentUserId = authUserData.user?.id;
+
+      if (currentUserId) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+        setCurrentUserRole(profileData?.role || authUserData.user?.user_metadata?.role || '');
+      } else {
+        setCurrentUserRole('');
+      }
+
       // Fetch submission data - only if it belongs to current user
       const { data, error } = await supabase
         .from('template_submissions')
         .select('*')
         .eq('id', id)
-        .eq('researcher_id', (await supabase.auth.getUser()).data.user?.id)
+        .eq('researcher_id', currentUserId)
         .single();
 
       if (error) {
@@ -223,6 +241,16 @@ export default function TemplateSubmissionDetail() {
   const handleEditSubmission = async () => {
     if (!submission) return;
 
+    if (!isCurrentUserResearcher) {
+      toast.error('Only researchers can edit submissions');
+      return;
+    }
+
+    if (!canEditSubmission) {
+      toast.error('This submission is no longer editable');
+      return;
+    }
+
     if (!isCustomJsonTemplate) {
       setShowPdfFiller(true);
       return;
@@ -249,6 +277,11 @@ export default function TemplateSubmissionDetail() {
 
   const handleSaveCustomForm = async () => {
     if (!submission) return;
+
+    if (!isCurrentUserResearcher) {
+      toast.error('Only researchers can submit revisions');
+      return;
+    }
 
     const loadingId = toast.loading('Submitting revision...');
     try {
@@ -280,6 +313,11 @@ export default function TemplateSubmissionDetail() {
 
   const handleSavePdf = async (pdfBytes: Uint8Array, _formData: Record<string, string | boolean>) => {
     if (!submission) return;
+
+    if (!isCurrentUserResearcher) {
+      toast.error('Only researchers can submit revisions');
+      return;
+    }
 
     const loadingId = toast.loading('Submitting PDF revision...');
     try {
@@ -543,7 +581,7 @@ export default function TemplateSubmissionDetail() {
                   <Download className="w-4 h-4 mr-2" />
                   Download
                 </button>
-                {!isResearcherLocked && (
+                {canEditSubmission && (
                   <button
                     onClick={handleEditSubmission}
                     disabled={customFormLoading}

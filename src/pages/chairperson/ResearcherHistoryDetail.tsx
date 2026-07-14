@@ -642,7 +642,6 @@ export default function ResearcherHistoryDetail() {
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">
                   {history.proposal.proposal_title}
                 </h1>
-                <p className="text-gray-600 mb-4">{history.proposal.description}</p>
                 
                 <div className="flex flex-wrap gap-x-6 gap-y-4">
                   <div className="flex items-center gap-2">

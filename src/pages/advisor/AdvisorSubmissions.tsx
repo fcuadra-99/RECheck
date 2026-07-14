@@ -69,6 +69,7 @@ export default function AdvisorSubmissions() {
     const [formsLoading, setFormsLoading] = useState(false);
     const [signedForms, setSignedForms] = useState<{ [key: string]: boolean }>({});
     const [formViewerReadOnly, setFormViewerReadOnly] = useState(false);
+    const [formViewerAdvisorMode, setFormViewerAdvisorMode] = useState(false);
 
     // dialogs
     const [previewOpen, setPreviewOpen] = useState(false);
@@ -789,6 +790,7 @@ export default function AdvisorSubmissions() {
                                                             onClick={() => {
                                                                 if (doc.url.startsWith("form-data://")) {
                                                                     setFormViewerReadOnly(true);
+                                                                    setFormViewerAdvisorMode(false);
                                                                     setActiveFormDoc(doc.name);
                                                                     setFormViewerOpen(true);
                                                                 } else {
@@ -862,7 +864,9 @@ export default function AdvisorSubmissions() {
                                                         variant={signedForms[formName] ? "ghost" : "outline"}
                                                         size="sm"
                                                         onClick={() => {
-                                                            setFormViewerReadOnly(!!signedForms[formName]);
+                                                            const alreadySigned = !!signedForms[formName];
+                                                            setFormViewerReadOnly(alreadySigned);
+                                                            setFormViewerAdvisorMode(!alreadySigned);
                                                             setActiveFormDoc(formName);
                                                             setFormViewerOpen(true);
                                                         }}
@@ -952,6 +956,7 @@ export default function AdvisorSubmissions() {
                                 advisorId={userId}
                                 readOnly={formViewerReadOnly}
                                 readOnlyAdvisor={formViewerReadOnly}
+                                advisorMode={formViewerAdvisorMode}
                                 onDone={async () => {
                                     setFormViewerOpen(false);
                                     // Re-check signature status for this form

@@ -210,6 +210,17 @@ export class TemplateSubmissionService {
         return { success: false, error: 'User not authenticated' };
       }
 
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.user.id)
+        .maybeSingle();
+
+      const userRole = (profileData?.role || user.user.user_metadata?.role || '').toString().trim().toLowerCase();
+      if (userRole !== 'researcher') {
+        return { success: false, error: 'Only researchers can edit submissions' };
+      }
+
       // Upload file to storage
       const fileUploadResult = await this.uploadFile(file, user.user.id);
       if (!fileUploadResult.success) {

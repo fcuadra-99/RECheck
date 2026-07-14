@@ -5,18 +5,21 @@ interface MemberListInputProps {
   onChange: (values: string[]) => void;
   placeholder?: string;
   style?: React.CSSProperties;
+  readOnly?: boolean;
 }
 
-export default function MemberListInput({ values, onChange, placeholder = "Enter name", style }: MemberListInputProps) {
+export default function MemberListInput({ values, onChange, placeholder = "Enter name", style, readOnly }: MemberListInputProps) {
   const update = (i: number, val: string) => {
+    if (readOnly) return;
     const next = [...values];
     next[i] = val;
     onChange(next);
   };
 
-  const add = () => onChange([...values, ""]);
+  const add = () => { if (!readOnly) onChange([...values, ""]); };
 
   const remove = (i: number) => {
+    if (readOnly) return;
     if (values.length === 1) { onChange([""]); return; }
     onChange(values.filter((_, idx) => idx !== i));
   };
@@ -26,25 +29,30 @@ export default function MemberListInput({ values, onChange, placeholder = "Enter
       {values.map((val, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <input
-            style={inputStyle}
+            style={{ ...inputStyle, ...(readOnly ? lockedInputStyle : {}) }}
             value={val}
             placeholder={placeholder}
+            readOnly={readOnly}
             onChange={(e) => update(i, e.target.value)}
           />
-          <button
-            type="button"
-            onClick={() => remove(i)}
-            style={iconBtn}
-            title="Remove"
-          >
-            <X size={12} />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              style={iconBtn}
+              title="Remove"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
       ))}
-      <button type="button" onClick={add} style={addBtn}>
-        <Plus size={12} />
-        Add member
-      </button>
+      {!readOnly && (
+        <button type="button" onClick={add} style={addBtn}>
+          <Plus size={12} />
+          Add member
+        </button>
+      )}
     </div>
   );
 }
@@ -58,6 +66,12 @@ const inputStyle: React.CSSProperties = {
   fontSize: "12px",
   padding: "1px 0",
   background: "transparent",
+};
+
+const lockedInputStyle: React.CSSProperties = {
+  background: "#f5f5f5",
+  color: "#555",
+  cursor: "not-allowed",
 };
 
 const iconBtn: React.CSSProperties = {

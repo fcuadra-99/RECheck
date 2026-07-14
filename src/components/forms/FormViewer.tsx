@@ -53,6 +53,8 @@ export interface FormProps {
   onSave?: (data: Record<string, any>) => void;
   /** Whether advisor-only fields should be locked */
   readOnlyAdvisor?: boolean;
+  /** Advisor signing mode — all non-advisor fields are locked, only signature/name are editable */
+  advisorMode?: boolean;
 }
 
 export type FormComponent = React.ComponentType<FormProps>;
@@ -94,6 +96,8 @@ interface FormViewerProps {
   proposalTitle?: string;
   reviewType?: string | null;
   readOnlyAdvisor?: boolean;
+  /** Advisor signing mode — all non-advisor fields are locked, only signature/name are editable */
+  advisorMode?: boolean;
   /** Fully read-only mode — no editing, no Done button */
   readOnly?: boolean;
   onDone: () => void;
@@ -108,6 +112,7 @@ export default function FormViewer({
   proposalTitle,
   reviewType,
   readOnlyAdvisor = true,
+  advisorMode = false,
   readOnly = false,
   onDone,
 }: FormViewerProps) {
@@ -355,6 +360,7 @@ export default function FormViewer({
             onSave={readOnly ? undefined : handleSave}
             reviewType={reviewType}
             readOnlyAdvisor={readOnlyAdvisor}
+            advisorMode={advisorMode}
           />
         </div>
       </div>
