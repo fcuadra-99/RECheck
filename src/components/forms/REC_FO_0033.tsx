@@ -2,14 +2,14 @@ import React, { useState } from "react";
 import SignatureCell from "./SignatureCell";
 import type { FormProps } from "./FormViewer";
 
-const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, proposalId, formName, advisorName, advisorMode, readOnlyAdvisor, savedData = {}, onSave }) => {
+const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcherName, proposalTitle, proposalId, formName, advisorMode, readOnlyAdvisor, savedData = {}, onSave }) => {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
   const today = new Date().toISOString().split("T")[0];
   const [title, setTitle] = useState<string>(s.title ?? proposalTitle ?? "");
   const [researchers, setResearchers] = useState<string>(s.researchers ?? researcherName ?? "");
-  const [controlNo, setControlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
+  const [controlNo] = useState<string>(s.controlNo ?? protocolCode ?? "");
   const [institution, setInstitution] = useState<string>(s.institution ?? "");
   const [researchConductedBy, setResearchConductedBy] = useState<string>(s.researchConductedBy ?? researcherName ?? "");
   const [signature, setSignature] = useState<string>(s.signature ?? "");
@@ -175,7 +175,6 @@ const ProtocolInformationForm: React.FC<FormProps> = ({ protocolCode, researcher
     fontSize: "12px",
     marginBottom: "4px",
   };
-
 
 
   const lockedFieldStyle: React.CSSProperties = {
