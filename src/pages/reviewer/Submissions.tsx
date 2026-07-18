@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive, Columns2 } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive, Columns2, Clock, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -1818,6 +1818,22 @@ export default function ReviewerPage() {
         return new Date(first).getTime() >= new Date(second).getTime() ? first : second;
     };
 
+    /** Returns due date (assignmentDate + 5 days) and urgency status */
+    const getDueDateInfo = (assignmentDateStr?: string | null) => {
+        if (!assignmentDateStr) return null;
+        const assigned = new Date(assignmentDateStr);
+        if (isNaN(assigned.getTime())) return null;
+        const due = new Date(assigned.getTime() + 5 * 24 * 60 * 60 * 1000);
+        const now = new Date();
+        const msLeft = due.getTime() - now.getTime();
+        const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+        let status: 'overdue' | 'due-soon' | 'ok';
+        if (daysLeft < 0) status = 'overdue';
+        else if (daysLeft <= 1) status = 'due-soon';
+        else status = 'ok';
+        return { due, daysLeft, status };
+    };
+
     const getActiveReviewWindowStart = () => {
         if (!activeSubmission) return null;
         return reviewWindowStartByProposal[activeSubmission.proposal_id]
@@ -2348,6 +2364,7 @@ export default function ReviewerPage() {
                             <TableHead className="border min-w-[120px]">Researcher</TableHead>
                             <TableHead className="border min-w-[100px]">Category</TableHead>
                             <TableHead className="border min-w-[100px]">Date</TableHead>
+                            <TableHead className="border min-w-[130px]">Due Date</TableHead>
                             <TableHead className="border min-w-[110px] text-center">Status</TableHead>
                             <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
                                 Action
@@ -2424,6 +2441,28 @@ export default function ReviewerPage() {
                                                 {new Date(submission.date).toLocaleDateString()}
                                             </div>
                                         </TableCell>
+                                        <TableCell className="border">
+                                            {(() => {
+                                                const info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                if (!info) return <span className="text-xs text-gray-400">—</span>;
+                                                const colorMap = {
+                                                    'overdue': 'bg-red-100 text-red-700 border-red-200',
+                                                    'due-soon': 'bg-amber-100 text-amber-700 border-amber-200',
+                                                    'ok': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                                                };
+                                                const iconMap = {
+                                                    'overdue': <AlertTriangle className="w-3 h-3" />,
+                                                    'due-soon': <Clock className="w-3 h-3" />,
+                                                    'ok': <Calendar className="w-3 h-3" />,
+                                                };
+                                                return (
+                                                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${colorMap[info.status]}`}>
+                                                        {iconMap[info.status]}
+                                                        <span>{info.due.toLocaleDateString()}</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </TableCell>
                                         <TableCell className="border text-center">
                                             {isReviewed ? (
                                                 <Badge variant="default" className="bg-green-100 text-green-800">
@@ -2472,6 +2511,7 @@ export default function ReviewerPage() {
                                                 <span>Available Slot</span>
                                             </div>
                                         </TableCell>
+                                        <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
@@ -2546,6 +2586,52 @@ export default function ReviewerPage() {
                                     </div>
                                 )}
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
+                                {/* Due Date Banner */}
+                                {(() => {
+                                    const info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                    if (!info) return null;
+                                    const styles = {
+                                        'overdue': {
+                                            wrap: 'bg-red-50 border border-red-200 rounded-lg p-3 mt-3',
+                                            label: 'text-red-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-red-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-red-500 text-xs mt-0.5',
+                                            icon: <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />,
+                                            msg: `Overdue by ${Math.abs(Math.floor(info.daysLeft))} day${Math.abs(Math.floor(info.daysLeft)) !== 1 ? 's' : ''}`,
+                                        },
+                                        'due-soon': {
+                                            wrap: 'bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3',
+                                            label: 'text-amber-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-amber-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-amber-500 text-xs mt-0.5',
+                                            icon: <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />,
+                                            msg: info.daysLeft < 1 ? 'Due today!' : 'Due tomorrow!',
+                                        },
+                                        'ok': {
+                                            wrap: 'bg-emerald-50 border border-emerald-200 rounded-lg p-3 mt-3',
+                                            label: 'text-emerald-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-emerald-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-emerald-500 text-xs mt-0.5',
+                                            icon: <Clock className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />,
+                                            msg: `${Math.ceil(info.daysLeft)} day${Math.ceil(info.daysLeft) !== 1 ? 's' : ''} remaining`,
+                                        },
+                                    };
+                                    const s = styles[info.status];
+                                    return (
+                                        <div className={s.wrap}>
+                                            <div className="flex items-start gap-2">
+                                                {s.icon}
+                                                <div>
+                                                    <div className={s.label}>Review Due Date</div>
+                                                    <div className={s.date}>
+                                                        {info.due.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                                                    </div>
+                                                    <div className={s.sub}>{s.msg}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
 
