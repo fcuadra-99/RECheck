@@ -2442,7 +2442,12 @@ export default function ReviewerPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="border">
-                                            {(() => {
+                                            {isReviewed ? (
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium bg-gray-100 text-gray-500 border-gray-200">
+                                                    <Check className="w-3 h-3" />
+                                                    <span>Reviewed</span>
+                                                </div>
+                                            ) : (() => {
                                                 const info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
                                                 if (!info) return <span className="text-xs text-gray-400">—</span>;
                                                 const colorMap = {
@@ -2586,8 +2591,8 @@ export default function ReviewerPage() {
                                     </div>
                                 )}
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
-                                {/* Due Date Banner */}
-                                {(() => {
+                                {/* Due Date Banner – hidden once the reviewer has submitted */}
+                                {!hasUserSubmittedRecommendation && (() => {
                                     const info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
                                     if (!info) return null;
                                     const styles = {
