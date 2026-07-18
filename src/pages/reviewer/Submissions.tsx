@@ -35,6 +35,7 @@ import ProtocolReviewerAssessmentForm from "@/components/forms/ProtocolReviewerA
 import InformedConsentAssessmentForm from "@/components/forms/InformedConsentAssessmentForm";
 import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
 import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
+import Comment from "@/components/forms/Comment";
 import { createRoot } from "react-dom/client";
 
 /* ----------------- types ----------------- */
@@ -160,7 +161,7 @@ export default function ReviewerPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
     const [showAssessmentPreview, setShowAssessmentPreview] = useState(false);
-    const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
+    const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | 'comment' | null>(null);
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
     const [printAssessmentOnOpen, setPrintAssessmentOnOpen] = useState(false);
     const [archivedOpen, setArchivedOpen] = useState(false);
@@ -173,12 +174,13 @@ export default function ReviewerPage() {
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
-    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | null>(null);
+    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | 'comment' | null>(null);
     const [templateUrl, setTemplateUrl] = useState<string>('');
     const [ethicalClearanceData, setEthicalClearanceData] = useState<Record<string, any>>({});
     const [decisionLetterData, setDecisionLetterData] = useState<Record<string, any>>({});
     const [reviewerAssessmentData, setReviewerAssessmentData] = useState<Record<string, any>>({});
     const [informedConsentData, setInformedConsentData] = useState<Record<string, any>>({});
+    const [commentData, setCommentData] = useState<Record<string, any>>({});
     const [revisionTargets, setRevisionTargets] = useState<string[]>([]);
     
     // Preload template fields based on current template type
@@ -193,6 +195,7 @@ export default function ReviewerPage() {
     // Assessment form tracking
     const [hasSubmittedProtocolAssessment, setHasSubmittedProtocolAssessment] = useState(false);
     const [hasSubmittedInformedConsent, setHasSubmittedInformedConsent] = useState(false);
+    const [hasSubmittedComment, setHasSubmittedComment] = useState(false);
     const [submittedAssessmentForms, setSubmittedAssessmentForms] = useState<DocumentItem[]>([]);
     const [revisionSubmissionsCount, setRevisionSubmissionsCount] = useState(0);
     const [decisionLetterSentCount, setDecisionLetterSentCount] = useState(0);
@@ -202,6 +205,7 @@ export default function ReviewerPage() {
     // Local form completion tracking (before final submission)
     const [hasCompletedProtocolAssessment, setHasCompletedProtocolAssessment] = useState(false);
     const [hasCompletedInformedConsent, setHasCompletedInformedConsent] = useState(false);
+    const [hasCompletedComment, setHasCompletedComment] = useState(false);
     const [hasCompletedEthicalClearance, setHasCompletedEthicalClearance] = useState(false);
     const [hasCompletedDecisionLetter, setHasCompletedDecisionLetter] = useState(false);
     const [isPassingToAdmin, setIsPassingToAdmin] = useState(false);
@@ -211,10 +215,12 @@ export default function ReviewerPage() {
     useEffect(() => {
         setHasCompletedProtocolAssessment(false);
         setHasCompletedInformedConsent(false);
+        setHasCompletedComment(false);
         setHasCompletedEthicalClearance(false);
         setHasCompletedDecisionLetter(false);
         setHasPassedToAdmin(false);
         setIsEditingRecommendation(false);
+        setCommentData({});
     }, [activeSubmission?.proposal_id]);
 
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
@@ -755,6 +761,7 @@ export default function ReviewerPage() {
                 }
                 setHasSubmittedProtocolAssessment(false);
                 setHasSubmittedInformedConsent(false);
+                setHasSubmittedComment(false);
                 setSubmittedAssessmentForms([]);
                 return;
             }
@@ -763,6 +770,7 @@ export default function ReviewerPage() {
                 console.log("No assessment forms found in storage");
                 setHasSubmittedProtocolAssessment(false);
                 setHasSubmittedInformedConsent(false);
+                setHasSubmittedComment(false);
                 setSubmittedAssessmentForms([]);
                 return;
             }
@@ -778,9 +786,14 @@ export default function ReviewerPage() {
                 f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
                 isWithinWindow(f.name, (f as any).created_at)
             );
+            const userComment = data.find(f =>
+                f.name.includes(`Secondary_Reviewer_Comment_${activeSubmission.proposal_id}_${userId}`) &&
+                isWithinWindow(f.name, (f as any).created_at)
+            );
 
             setHasSubmittedProtocolAssessment(!!userProtocolAssessment);
             setHasSubmittedInformedConsent(!!userInformedConsent);
+            setHasSubmittedComment(!!userComment);
 
             // Load all assessment forms with signed URLs (for chairperson and reviewer view)
             const assessmentForms = await Promise.all(
@@ -809,6 +822,7 @@ export default function ReviewerPage() {
             console.error("Error loading assessment forms:", err);
             setHasSubmittedProtocolAssessment(false);
             setHasSubmittedInformedConsent(false);
+            setHasSubmittedComment(false);
             setSubmittedAssessmentForms([]);
         }
     };
@@ -1320,8 +1334,9 @@ export default function ReviewerPage() {
         const lowerName = filename.toLowerCase();
         const isReviewerAssessment = lowerName.includes('reviewer_assessment');
         const isInformedConsent = lowerName.includes('informed_consent_assessment');
+        const isComment = lowerName.includes('secondary_reviewer_comment');
 
-        if (!isReviewerAssessment && !isInformedConsent) {
+        if (!isReviewerAssessment && !isInformedConsent && !isComment) {
             openPreview(url, filename);
             return;
         }
@@ -1335,7 +1350,13 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setAssessmentPreviewType(
+                isReviewerAssessment
+                    ? 'reviewer_assessment'
+                    : isComment
+                        ? 'comment'
+                        : 'informed_consent'
+            );
             setShowAssessmentPreview(true);
         } catch {
             // Legacy submissions are PDFs; keep existing preview behavior.
@@ -1347,7 +1368,8 @@ export default function ReviewerPage() {
         const lowerName = filename.toLowerCase();
         const isReviewerAssessment = lowerName.includes('reviewer_assessment');
         const isInformedConsent = lowerName.includes('informed_consent_assessment');
-        const isAssessmentJson = lowerName.endsWith('.json') && (isReviewerAssessment || isInformedConsent);
+        const isComment = lowerName.includes('secondary_reviewer_comment');
+        const isAssessmentJson = lowerName.endsWith('.json') && (isReviewerAssessment || isInformedConsent || isComment);
 
         if (!isAssessmentJson) {
             try {
@@ -1380,7 +1402,13 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setAssessmentPreviewType(
+                isReviewerAssessment
+                    ? 'reviewer_assessment'
+                    : isComment
+                        ? 'comment'
+                        : 'informed_consent'
+            );
             setPrintAssessmentOnOpen(true);
             setShowAssessmentPreview(true);
         } catch (error) {
@@ -1459,7 +1487,7 @@ export default function ReviewerPage() {
 
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
-        if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
+        if (!activeSubmission || !userId || (!isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
             toast.error("Please provide review comments for revisions");
             return;
         }
@@ -1486,9 +1514,15 @@ export default function ReviewerPage() {
                 return;
             }
 
-            if (isSecondaryReviewer && !hasSubmittedInformedConsent && !hasCompletedInformedConsent) {
-                toast.error("Please fill and complete the Informed Consent Assessment before submitting");
-                return;
+            if (isSecondaryReviewer) {
+                if (!hasSubmittedInformedConsent && !hasCompletedInformedConsent) {
+                    toast.error("Please fill and complete the Informed Consent Assessment before submitting");
+                    return;
+                }
+                if (!hasSubmittedComment && !hasCompletedComment) {
+                    toast.error("Please fill and complete the Secondary Reviewer Comments before submitting");
+                    return;
+                }
             }
         }
 
@@ -1540,7 +1574,38 @@ export default function ReviewerPage() {
                 setHasSubmittedProtocolAssessment(true);
             }
 
-            // 2. Upload Informed Consent Assessment if completed locally
+            // 2. Upload Secondary Reviewer Comment if completed locally
+            if (hasCompletedComment) {
+                const filename = `Secondary_Reviewer_Comment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+                const json = JSON.stringify(commentData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const commHistoryData = {
+                    history_type: 'secondary_reviewer_comment_submitted',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Secondary reviewer comments submitted',
+                    actor: userId,
+                    action: 'SECONDARY_REVIEWER_COMMENT_SUBMITTED',
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: commHistoryError } = await supabase.from("history").insert(commHistoryData);
+                if (commHistoryError) throw commHistoryError;
+
+                setHasCompletedComment(false);
+                setHasSubmittedComment(true);
+            }
+
+            // 3. Upload Informed Consent Assessment if completed locally
             if (hasCompletedInformedConsent) {
                 const filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
                 const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
@@ -1855,14 +1920,17 @@ export default function ReviewerPage() {
     const isPrimaryReviewer = reviewerRoleKey === 'primary';
     const isSecondaryReviewer = reviewerRoleKey === 'secondary';
     const needsProtocolAssessment = !isChairperson && isPrimaryReviewer;
-    const needsInformedConsent = !isChairperson && isSecondaryReviewer;
-    const needsAnyAssessment = needsProtocolAssessment || needsInformedConsent;
+    const needsComment = !isChairperson && isSecondaryReviewer;
+    const needsAnyAssessment = needsProtocolAssessment || needsComment;
     const isRoleAssigned = isChairperson || reviewerRoleKey !== null;
 
     const hasCompletedRequiredReviewerForms = hasRevisionResubmission
         ? true
         : (isPrimaryReviewer ? (hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment) : true) &&
-          (isSecondaryReviewer ? (hasSubmittedInformedConsent || hasCompletedInformedConsent) : true);
+          (isSecondaryReviewer
+              ? (hasSubmittedInformedConsent || hasCompletedInformedConsent) &&
+                (hasSubmittedComment || hasCompletedComment)
+              : true);
 
     const canSubmitRecommendation = isRoleAssigned && (
         isChairperson
@@ -1910,6 +1978,14 @@ export default function ReviewerPage() {
         setTemplateType(null);
         setTemplateUrl('');
         toast.success("Informed consent assessment marked as done. Remember to submit your recommendation.");
+    };
+
+    const handleDoneComment = () => {
+        setHasCompletedComment(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Secondary reviewer comments marked as done. Remember to submit your recommendation.");
     };
 
     const handleDoneEthicalClearance = () => {
@@ -1989,7 +2065,7 @@ export default function ReviewerPage() {
     };
 
     /* Open PDF Template Handler */
-    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
+    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | 'comment') => {
         if (!activeSubmission) return;
         try {
             if (type === 'ethical_clearance' && isEthicalClearanceLocked) {
@@ -2001,7 +2077,7 @@ export default function ReviewerPage() {
                 return;
             }
 
-            if ((type === 'reviewer_assessment' || type === 'informed_consent') && hasRevisionResubmission) {
+            if ((type === 'reviewer_assessment' || type === 'informed_consent' || type === 'comment') && hasRevisionResubmission) {
                 toast.info('Assessment forms are only submitted on the first review cycle. Use follow-up notes for revisions.');
                 return;
             }
@@ -2016,6 +2092,11 @@ export default function ReviewerPage() {
                     toast.error('Only secondary reviewers can fill the Informed Consent Assessment form.');
                     return;
                 }
+
+                if (type === 'comment' && reviewerRoleKey !== 'secondary') {
+                    toast.error('Only secondary reviewers can fill the Comments form.');
+                    return;
+                }
             }
 
             if (type === 'reviewer_assessment' && hasSubmittedProtocolAssessment) {
@@ -2025,6 +2106,11 @@ export default function ReviewerPage() {
 
             if (type === 'informed_consent' && hasSubmittedInformedConsent) {
                 toast.info('Informed Consent Assessment already submitted. Editing is locked.');
+                return;
+            }
+
+            if (type === 'comment' && hasSubmittedComment) {
+                toast.info('Secondary Reviewer Comments already submitted. Editing is locked.');
                 return;
             }
 
@@ -2038,10 +2124,12 @@ export default function ReviewerPage() {
                 templateFilename = 'V2_Protocol-Reviewer-Assessment-Form-1-4.pdf';
             } else if (type === 'informed_consent') {
                 templateFilename = 'V2_INFORMED-CONSENT-ASSESSMENT-FORM-3.pdf';
+            } else if (type === 'comment') {
+                templateFilename = 'comment';
             }
             
             // Get the template URL from public folder
-            const templatePath = `/templates/${templateFilename}`;
+            const templatePath = type === 'comment' ? 'comment' : `/templates/${templateFilename}`;
 
             if (type === 'decision_letter') {
                 const loadingToastId = toast.loading("Loading Decision Letter draft...");
@@ -2798,6 +2886,11 @@ export default function ReviewerPage() {
                                                 if (parts && parts[1]) {
                                                     reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
                                                 }
+                                            } else if (form.name.includes('Secondary_Reviewer_Comment')) {
+                                                const parts = form.name.match(/Secondary_Reviewer_Comment_\d+_([a-f0-9-]+)_/);
+                                                if (parts && parts[1]) {
+                                                    reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
+                                                }
                                             }
                                             
                                             return (
@@ -2809,7 +2902,9 @@ export default function ReviewerPage() {
                                                                 <h3 className="font-medium text-gray-900 break-words">
                                                                     {form.name.includes('Reviewer_Assessment') 
                                                                         ? 'Protocol Reviewer Assessment' 
-                                                                        : 'Informed Consent Assessment'}
+                                                                        : form.name.includes('Secondary_Reviewer_Comment')
+                                                                            ? 'Secondary Reviewer Comments'
+                                                                            : 'Informed Consent Assessment'}
                                                                 </h3>
                                                                 {reviewerInfo && (
                                                                     <p className="text-xs text-purple-600 mt-1">{reviewerInfo}</p>
@@ -3029,7 +3124,8 @@ export default function ReviewerPage() {
                                     </div>
                                 </div>
 
-                                {/* Comments Section */}
+                                {/* Comments Section — hidden for secondary reviewers (they use the Comment form) */}
+                                {!isSecondaryReviewer && (
                                 <div className="space-y-2">
                                     <Label>
                                         {isChairperson ? 'Decision Comments' : 'Review Comments'}
@@ -3065,6 +3161,7 @@ export default function ReviewerPage() {
                                         />
                                     )}
                                 </div>
+                                )}
 
                                 {/* Reviewer Assessment Form Button - For reviewers (and chairperson when assigned) */}
                                 {(!isChairperson || reviewerRoleKey === 'primary' || reviewerRoleKey === 'secondary') && (
@@ -3131,6 +3228,7 @@ export default function ReviewerPage() {
                                                     </div>
                                                 ) : (
                                                     <>
+                                                        {/* Informed Consent Assessment */}
                                                         <div className="relative">
                                                             <Button
                                                                 onClick={() => handleOpenPDFTemplate('informed_consent')}
@@ -3152,8 +3250,32 @@ export default function ReviewerPage() {
                                                                 </div>
                                                             )}
                                                         </div>
+
+                                                        {/* Secondary Reviewer Comments */}
+                                                        <div className="relative">
+                                                            <Button
+                                                                onClick={() => handleOpenPDFTemplate('comment')}
+                                                                disabled={hasSubmittedComment}
+                                                                className={cn(
+                                                                    "w-full flex items-center justify-center gap-2",
+                                                                    (hasSubmittedComment || hasCompletedComment)
+                                                                        ? "bg-green-600 hover:bg-green-700"
+                                                                        : "bg-violet-600 hover:bg-violet-700"
+                                                                )}
+                                                            >
+                                                                {(hasSubmittedComment || hasCompletedComment) && <Check className="w-4 h-4" />}
+                                                                <FileSignature className="w-4 h-4" />
+                                                                Secondary Reviewer Comments
+                                                            </Button>
+                                                            {(hasSubmittedComment || hasCompletedComment) && (
+                                                                <div className="text-xs text-center text-green-600 mt-1">
+                                                                    {hasSubmittedComment ? 'Submitted ✓' : 'Done (Pending submit) ✓'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
                                                         <p className="text-xs text-gray-500 text-center">
-                                                            Secondary reviewers must complete the Informed Consent Assessment.
+                                                            Secondary reviewers must complete the Informed Consent Assessment and the Secondary Reviewer Comments.
                                                         </p>
                                                     </>
                                                 )}
@@ -3868,6 +3990,48 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setInformedConsentData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
+                        ) : templateType === 'comment' ? (
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
+                                    <div className="text-sm font-medium text-gray-700">Secondary Reviewer Comments</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleDoneComment}
+                                            disabled={hasSubmittedComment}
+                                        >
+                                            Done
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <Comment
+                                    savedData={commentData}
+                                    onSave={(patch) => setCommentData((prev) => ({ ...prev, ...patch }))}
+                                />
+                            </div>
                         ) : (
                             <PDFFormFiller
                                 templateUrl={templateUrl}
@@ -3986,6 +4150,8 @@ export default function ReviewerPage() {
                         <div style={{ pointerEvents: 'none' }}>
                             {assessmentPreviewType === 'reviewer_assessment' ? (
                                 <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
+                            ) : assessmentPreviewType === 'comment' ? (
+                                <Comment savedData={assessmentPreviewData} />
                             ) : (
                                 <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
                             )}
