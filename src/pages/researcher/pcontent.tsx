@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { computeDueDate, businessDaysBetween } from "@/lib/turnaround";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RippleButton } from "@/components/animate-ui/buttons/ripple";
@@ -157,6 +158,59 @@ export default function PhaseContent({
         );
     }
 
+    // Chairperson turnaround banner data (for Phase 5)
+    const [chairAssignedAtIso, setChairAssignedAtIso] = useState<string | null>(null);
+    const [chairDueIso, setChairDueIso] = useState<string | null>(null);
+    const [chairDaysLeft, setChairDaysLeft] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (phaseIndex !== 4) return;
+        let mounted = true;
+        const loadAssignmentMeta = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('history')
+                    .select('affected_files, history_date')
+                    .eq('paper_id', submission.proposal_id)
+                    .eq('history_type', 'assignment')
+                    .not('affected_files', 'is', null)
+                    .order('history_date', { ascending: false })
+                    .limit(1)
+                    .single();
+
+                if (error || !data) return;
+
+                const raw = data.affected_files;
+                let parsed: any = null;
+                if (!raw) return;
+                if (typeof raw === 'string') {
+                    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+                } else if (typeof raw === 'object') {
+                    parsed = raw;
+                }
+
+                const assignmentMeta = parsed?.assignmentMeta || parsed?.assignment_meta || null;
+                const assignedAt = assignmentMeta?.assignedAt || data.history_date || null;
+                const due = assignmentMeta?.dueDate || (assignedAt ? computeDueDate(assignedAt, 15, [0,1,6]) : null);
+
+                if (!mounted) return;
+                setChairAssignedAtIso(assignedAt || null);
+                setChairDueIso(due || null);
+                if (due) {
+                    const days = businessDaysBetween(new Date().toISOString(), due, [0,1,6]);
+                    setChairDaysLeft(days);
+                } else {
+                    setChairDaysLeft(null);
+                }
+            } catch (err) {
+                console.error('Failed to load assignment meta for researcher banner', err);
+            }
+        };
+
+        loadAssignmentMeta();
+        return () => { mounted = false; };
+    }, [phaseIndex, submission.proposal_id]);
+
     const handleFileSelect = (docName: string, file: File | null) => {
         onUploadedFilesChange({ ...uploadedFiles, [docName]: file });
     };
@@ -233,6 +287,35 @@ export default function PhaseContent({
         }
 
         return getPhaseDocuments(submission);
+    };
+
+    // Render Phase 5 header indicator for chairperson turnaround started
+    const renderPhase5TurnaroundBanner = () => {
+        if (phaseIndex !== 4) return null;
+        if (!chairAssignedAtIso || !chairDueIso) return null;
+
+        const daysLeft = chairDaysLeft ?? 0;
+        const status = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+        const styles: Record<string, any> = {
+            overdue: { wrap: 'bg-red-50 border-red-200 text-red-800', label: 'Overdue' },
+            'due-soon': { wrap: 'bg-amber-50 border-amber-200 text-amber-800', label: 'Due soon' },
+            ok: { wrap: 'bg-emerald-50 border-emerald-200 text-emerald-800', label: 'In progress' }
+        };
+
+        const s = styles[status];
+        return (
+            <div className={`p-3 rounded-lg border ${s.wrap} mb-4`}>
+                <div className="flex items-center gap-3">
+                    <FileCheck className="w-5 h-5" />
+                    <div>
+                        <div className="text-sm font-semibold">Wait for approximately 14 working days before the UIC REC Chair emails to you the Decision Letter with further instructions</div>
+                        <div className="text-xs">
+                            Started: {new Date(chairAssignedAtIso).toLocaleDateString()} • Due: {new Date(chairDueIso).toLocaleDateString()} • {Math.abs(Math.ceil(daysLeft))} working day{Math.abs(Math.ceil(daysLeft)) !== 1 ? 's' : ''} left
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const uploadAndAdvancePhase = async (submission: Submission) => {
@@ -1661,6 +1744,7 @@ export default function PhaseContent({
 
             {isActive && (
                 <>
+                    {phaseIndex === 4 && renderPhase5TurnaroundBanner()}
                     {["Check Manuscript", "Forms Check"].includes(submission.status) ? (
                         <PastPhaseFilesList phaseIndex={phaseIndex} />
                     ) : (phaseUploadStatus(phaseIndex) || submission.status === "Revise Proposal") && submission.researcher === userId ? (

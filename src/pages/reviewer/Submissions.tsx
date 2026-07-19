@@ -37,6 +37,7 @@ import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
 import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
 import Comment from "@/components/forms/Comment";
 import { createRoot } from "react-dom/client";
+import { computeDueDate, businessDaysBetween } from "@/lib/turnaround";
 
 /* ----------------- types ----------------- */
 interface Submission {
@@ -52,6 +53,7 @@ interface Submission {
     status: string;
     date: string;
     assigned_reviewer: string;
+    reviewer?: string | string[] | null;
 }
 
 interface Profile {
@@ -89,6 +91,7 @@ type AssignmentMeta = {
     reviewerDocs?: Record<string, string[]>;
     reviewerSections?: Record<string, string>;
     assignmentDate?: string | null;
+    rawAssignmentMeta?: any;
 };
 
 const waitForRender = async (ms = 180) => {
@@ -237,10 +240,10 @@ export default function ReviewerPage() {
 
     const parseAssignmentMeta = (raw: any) => {
         if (!raw) return null;
-        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
+        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string>; assignmentMeta?: any };
         if (typeof raw === 'string') {
             try {
-                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
+                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string>; assignmentMeta?: any };
             } catch (error) {
                 return null;
             }
@@ -266,8 +269,10 @@ export default function ReviewerPage() {
             reviewerRoles: parsed?.reviewerRoles,
             reviewerDocs: parsed?.reviewerDocs,
             reviewerSections: parsed?.reviewerSections,
-            assignmentDate: data[0].history_date || null,
-        } as AssignmentMeta;
+            assignmentDate: parsed?.assignmentMeta?.assignedAt || data[0].history_date || null,
+            // include raw assignmentMeta (may contain dueDate and per-reviewer due dates)
+            ...(parsed?.assignmentMeta ? { rawAssignmentMeta: parsed.assignmentMeta } : {}),
+        } as AssignmentMeta & { rawAssignmentMeta?: any };
     };
 
     const fetchLatestSubmissionDate = async (proposalId: number) => {
@@ -1883,20 +1888,23 @@ export default function ReviewerPage() {
         return new Date(first).getTime() >= new Date(second).getTime() ? first : second;
     };
 
-    /** Returns due date (assignmentDate + 5 days) and urgency status */
-    const getDueDateInfo = (assignmentDateStr?: string | null) => {
+    /** Returns due date (assignmentDate + turnaroundDays working days) and urgency status */
+    const getDueDateInfo = (assignmentDateStr?: string | null, turnaroundDays = 15) => {
         if (!assignmentDateStr) return null;
         const assigned = new Date(assignmentDateStr);
         if (isNaN(assigned.getTime())) return null;
-        const due = new Date(assigned.getTime() + 5 * 24 * 60 * 60 * 1000);
-        const now = new Date();
-        const msLeft = due.getTime() - now.getTime();
-        const daysLeft = msLeft / (1000 * 60 * 60 * 24);
-        let status: 'overdue' | 'due-soon' | 'ok';
-        if (daysLeft < 0) status = 'overdue';
-        else if (daysLeft <= 1) status = 'due-soon';
-        else status = 'ok';
-        return { due, daysLeft, status };
+        try {
+            const dueIso = computeDueDate(assigned, turnaroundDays, [0,1,6]);
+            const due = new Date(dueIso);
+            const daysLeft = businessDaysBetween(new Date().toISOString(), dueIso, [0,1,6]);
+            let status: 'overdue' | 'due-soon' | 'ok';
+            if (daysLeft < 0) status = 'overdue';
+            else if (daysLeft <= 1) status = 'due-soon';
+            else status = 'ok';
+            return { due, daysLeft, status };
+        } catch (e) {
+            return null;
+        }
     };
 
     const getActiveReviewWindowStart = () => {
@@ -2536,7 +2544,35 @@ export default function ReviewerPage() {
                                                     <span>Reviewed</span>
                                                 </div>
                                             ) : (() => {
-                                                const info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                // show to chairperson or to the assigned reviewer their own due date
+                                                const assignmentMetaRaw = assignmentMeta?.rawAssignmentMeta || null;
+                                                const reviewerDueIso = userId && assignmentMetaRaw?.reviewerDueDates ? assignmentMetaRaw.reviewerDueDates[userId] : null;
+                                                const showForReviewer = Boolean(reviewerDueIso && userId && (submission.reviewer || '').includes(userId));
+                                                if (!isChairperson && !showForReviewer) return <span className="text-xs text-gray-400">—</span>;
+                                                // If viewer is chairperson, always show chairperson turnaround (15 working days).
+                                                let info: any = null;
+                                                if (isChairperson) {
+                                                    const chairDueIso = assignmentMetaRaw?.dueDate || null;
+                                                    if (chairDueIso) {
+                                                        const due = new Date(chairDueIso);
+                                                        const daysLeft = businessDaysBetween(new Date().toISOString(), chairDueIso, [0,1,6]);
+                                                        const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                                        info = { due, daysLeft, status };
+                                                    } else {
+                                                        info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                    }
+                                                } else {
+                                                    // Non-chair viewers (reviewers): prefer their calendar due date (5 days incl. weekends)
+                                                    if (reviewerDueIso) {
+                                                        const due = new Date(reviewerDueIso);
+                                                        const msLeft = due.getTime() - Date.now();
+                                                        const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+                                                        const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                                        info = { due, daysLeft, status };
+                                                    } else {
+                                                        info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                    }
+                                                }
                                                 if (!info) return <span className="text-xs text-gray-400">—</span>;
                                                 const colorMap = {
                                                     'overdue': 'bg-red-100 text-red-700 border-red-200',
@@ -2549,8 +2585,8 @@ export default function ReviewerPage() {
                                                     'ok': <Calendar className="w-3 h-3" />,
                                                 };
                                                 return (
-                                                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${colorMap[info.status]}`}>
-                                                        {iconMap[info.status]}
+                                                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${colorMap[info.status as 'overdue' | 'due-soon' | 'ok']}`}>
+                                                        {iconMap[info.status as 'overdue' | 'due-soon' | 'ok']}
                                                         <span>{info.due.toLocaleDateString()}</span>
                                                     </div>
                                                 );
@@ -2681,7 +2717,33 @@ export default function ReviewerPage() {
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
                                 {/* Due Date Banner – hidden once the reviewer has submitted */}
                                 {!hasUserSubmittedRecommendation && (() => {
-                                    const info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                    const assignmentMetaRaw = assignmentMeta?.rawAssignmentMeta || null;
+                                    const reviewerDueIso = userId && assignmentMetaRaw?.reviewerDueDates ? assignmentMetaRaw.reviewerDueDates[userId] : null;
+                                    const isAssignedToUser = userId && (activeSubmission.reviewer || '').includes(userId);
+                                    if (!isChairperson && !(isAssignedToUser && reviewerDueIso)) return null;
+                                    // Determine info: chairperson sees chair turnaround; reviewers see their calendar due date when available.
+                                    let info: any = null;
+                                    if (isChairperson) {
+                                        const chairDueIso = assignmentMetaRaw?.dueDate || null;
+                                        if (chairDueIso) {
+                                            const due = new Date(chairDueIso);
+                                            const daysLeft = businessDaysBetween(new Date().toISOString(), chairDueIso, [0,1,6]);
+                                            const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                            info = { due, daysLeft, status };
+                                        } else {
+                                            info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                        }
+                                    } else {
+                                        if (reviewerDueIso) {
+                                            const due = new Date(reviewerDueIso);
+                                            const msLeft = due.getTime() - Date.now();
+                                            const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+                                            const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                            info = { due, daysLeft, status };
+                                        } else {
+                                            info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                        }
+                                    }
                                     if (!info) return null;
                                     const styles = {
                                         'overdue': {
@@ -2709,7 +2771,7 @@ export default function ReviewerPage() {
                                             msg: `${Math.ceil(info.daysLeft)} day${Math.ceil(info.daysLeft) !== 1 ? 's' : ''} remaining`,
                                         },
                                     };
-                                    const s = styles[info.status];
+                                    const s = styles[info.status as 'overdue' | 'due-soon' | 'ok'];
                                     return (
                                         <div className={s.wrap}>
                                             <div className="flex items-start gap-2">

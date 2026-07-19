@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import FormViewer from "@/components/forms/FormViewer";
 import RiskAssessmentForm from "@/components/forms/RiskAssessmentForm";
+import { computeDueDate, businessDaysBetween } from "@/lib/turnaround";
 
 type Status =
   | "Check Manuscript"
@@ -897,6 +898,17 @@ export const SReview = () => {
           }).eq("proposal_id", id)
           ;
 
+        // compute turnaround metadata (exclude Saturday(6), Sunday(0), Monday(1))
+        const assignedAtIso = new Date().toISOString();
+        const turnaroundDays = 15;
+        const dueDateIso = computeDueDate(assignedAtIso, turnaroundDays, [0,1,6]);
+
+        // compute per-reviewer due dates (5 calendar days including weekends)
+        const reviewerDueDates: Record<string, string> = {};
+        for (const rid of selectedReviewers) {
+          reviewerDueDates[rid] = computeDueDate(assignedAtIso, 5, []);
+        }
+
         await supabase.from("history").insert({
           history_type: "assignment",
           paper_id: id,
@@ -904,11 +916,17 @@ export const SReview = () => {
           affected_files: JSON.stringify({
             reviewerDocs,
             reviewerRoles: assignmentRoles,
-            reviewerSections
+            reviewerSections,
+            assignmentMeta: {
+              assignedAt: assignedAtIso,
+              dueDate: dueDateIso,
+              turnaroundDays,
+              reviewerDueDates
+            }
           }),
           actor: actorId,
           action: "Assign Reviewers",
-          history_date: new Date().toISOString(),
+          history_date: assignedAtIso,
         });
 
         toast.success(`Assigned ${selectedReviewers.length} reviewer(s) for ${reviewType} review. Protocol Code: ${protocolCode}`);
@@ -1784,6 +1802,29 @@ export const SReview = () => {
                 <Crown className="h-3 w-3" /> You are automatically assigned as chairperson
               </span>
             </div>
+          </div>
+
+          {/* Turnaround preview (chairperson only) */}
+          <div className="mb-4 p-3 border rounded-lg bg-white">
+            <div className="text-sm font-medium">Turnaround (preview)</div>
+            <div className="text-xs text-gray-600 mt-1">
+              Target due date for the chairperson decision (15 working days; excludes Saturday, Sunday, and Monday).
+            </div>
+            {(() => {
+              try {
+                const nowIso = new Date().toISOString();
+                const dueIso = computeDueDate(nowIso, 15, [0,1,6]);
+                const daysLeft = businessDaysBetween(new Date().toISOString(), dueIso, [0,1,6]);
+                return (
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="text-sm">Due: {new Date(dueIso).toLocaleDateString()}</div>
+                    <div className="text-xs text-gray-500">{daysLeft} working day{Math.abs(daysLeft) !== 1 ? 's' : ''} left</div>
+                  </div>
+                );
+              } catch (e) {
+                return <div className="text-xs text-red-500 mt-2">Unable to compute due date</div>;
+              }
+            })()}
           </div>
 
           <div className="mb-6 p-4 border rounded-lg bg-gray-50">
