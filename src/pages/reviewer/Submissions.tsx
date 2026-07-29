@@ -1492,7 +1492,7 @@ export default function ReviewerPage() {
 
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
-        if (!activeSubmission || !userId || (!isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
+        if (!activeSubmission || !userId || (!isChairperson && !isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
             toast.error("Please provide review comments for revisions");
             return;
         }
@@ -3101,7 +3101,7 @@ export default function ReviewerPage() {
                                                 </Badge>
                                             </div>
                                             {rec.comments && (
-                                                <p className="text-sm text-gray-600 mt-2">{rec.comments}</p>
+                                                <p className="text-sm text-gray-600 mt-2 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{rec.comments}</p>
                                             )}
                                             <div className="text-xs text-gray-400 mt-2">
                                                 {new Date(rec.submitted_at).toLocaleString()}
@@ -3260,15 +3260,18 @@ export default function ReviewerPage() {
                                 <div className="space-y-2">
                                     <Label>
                                         {isChairperson ? 'Decision Comments' : 'Review Comments'}
-                                        {recommendation.recommendation === 'revisions' && (
+                                        {!isChairperson && recommendation.recommendation === 'revisions' && (
                                             <span className="text-red-500 ml-1">(Required)</span>
+                                        )}
+                                        {isChairperson && (
+                                            <span className="text-gray-400 font-normal ml-1">(Optional)</span>
                                         )}
                                     </Label>
                                     {recommendation.recommendation === 'revisions' ? (
                                         <Textarea
                                             id="comments"
                                             placeholder={isChairperson
-                                                ? "Provide detailed comments about required revisions..."
+                                                ? "Provide optional decision comments or notes..."
                                                 : "Please provide detailed comments about required revisions..."
                                             }
                                             value={recommendation.comments}
@@ -3281,7 +3284,7 @@ export default function ReviewerPage() {
                                         <Textarea
                                             id="comments"
                                             placeholder={isChairperson
-                                                ? ""
+                                                ? "Provide optional decision comments or notes..."
                                                 : ""
                                             }
                                             value={recommendation.comments}
@@ -3541,7 +3544,7 @@ export default function ReviewerPage() {
                                                 <RippleButton
                                                     onClick={submitRecommendation}
                                                     disabled={
-                                                        (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
+                                                        (!isChairperson && !isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
                                                         !canSubmitRecommendation ||
                                                         (isChairperson && isDecisionLocked) ||
                                                         (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)

@@ -142,6 +142,7 @@ const recommendationTd: React.CSSProperties = {
 
 const recommendationTextarea: React.CSSProperties = {
   width: "100%",
+  maxWidth: "100%",
   border: "none",
   borderBottom: "1px solid black",
   outline: "none",
@@ -153,4 +154,7 @@ const recommendationTextarea: React.CSSProperties = {
   background: "transparent",
   lineHeight: 2.2,        // mimics the ruled-line look from the PDF
   display: "block",
+  whiteSpace: "pre-wrap",
+  wordBreak: "break-word",
+  overflowWrap: "anywhere",
 };
