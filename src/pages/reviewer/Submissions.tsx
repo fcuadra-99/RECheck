@@ -1996,7 +1996,24 @@ export default function ReviewerPage() {
         toast.success("Secondary reviewer comments marked as done. Remember to submit your recommendation.");
     };
 
-    const handleDoneEthicalClearance = () => {
+    const saveEthicalClearanceDraft = async (dataToSave: Record<string, any>) => {
+        if (!activeSubmission) return;
+        try {
+            const json = JSON.stringify(dataToSave, null, 2);
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/Ethical_Clearance_Draft.json`;
+            await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: true
+                });
+        } catch (err) {
+            console.error("Failed to auto-save ethical clearance draft:", err);
+        }
+    };
+
+    const handleDoneEthicalClearance = async () => {
+        await saveEthicalClearanceDraft(ethicalClearanceData);
         setHasCompletedEthicalClearance(true);
         setShowPDFTemplate(false);
         setTemplateType(null);
@@ -2138,6 +2155,58 @@ export default function ReviewerPage() {
             
             // Get the template URL from public folder
             const templatePath = type === 'comment' ? 'comment' : `/templates/${templateFilename}`;
+
+            if (type === 'ethical_clearance') {
+                const loadingToastId = toast.loading("Loading Ethical Clearance draft...");
+                try {
+                    const { data: fileBlob, error: downloadError } = await supabase.storage
+                        .from('documents')
+                        .download(`${activeSubmission.proposal_id}/Decisions/Ethical_Clearance_Draft.json`);
+
+                    if (!downloadError && fileBlob) {
+                        const text = await fileBlob.text();
+                        const parsed = JSON.parse(text);
+                        setEthicalClearanceData(parsed || {});
+                    } else {
+                        const researcherProfile = profiles.find((x) => x.id === activeSubmission.researcher);
+                        const researcherName = researcherProfile 
+                            ? `${researcherProfile.fname ?? ""} ${researcherProfile.lname ?? ""}`.trim()
+                            : "";
+                        const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+                        const defaultData = {
+                            date: todayStr,
+                            nameOfResearcher: researcherName,
+                            salutationName: researcherName,
+                            protocolCode: activeSubmission.protocol_id || "",
+                            re: activeSubmission.proposal_title || "",
+                            reviewType: activeSubmission.review_type || "",
+                            officeAddress: "University of the Immaculate Conception\nBonifacio St., Davao City",
+                            subject: "Ethical Clearance",
+                            chairName: "GIRLIE MAE P. ZABALA, PhD",
+                            chairTitle: "Chair, UIC-REC",
+                            fields: {
+                                date: todayStr,
+                                nameOfResearcher: researcherName,
+                                salutationName: researcherName,
+                                protocolCode: activeSubmission.protocol_id || "",
+                                re: activeSubmission.proposal_title || "",
+                                reviewType: activeSubmission.review_type || "",
+                                officeAddress: "University of the Immaculate Conception\nBonifacio St., Davao City",
+                                subject: "Ethical Clearance",
+                                chairName: "GIRLIE MAE P. ZABALA, PhD",
+                                chairTitle: "Chair, UIC-REC",
+                            }
+                        };
+                        setEthicalClearanceData(defaultData);
+                    }
+                } catch (err) {
+                    console.error("Error downloading draft ethical clearance:", err);
+                    setEthicalClearanceData({});
+                } finally {
+                    toast.dismiss(loadingToastId);
+                }
+            }
 
             if (type === 'decision_letter') {
                 const loadingToastId = toast.loading("Loading Decision Letter draft...");
@@ -3853,6 +3922,13 @@ export default function ReviewerPage() {
                                 <EthicalClearanceForm
                                     savedData={ethicalClearanceData}
                                     onSave={(patch) => setEthicalClearanceData((prev) => ({ ...prev, ...patch }))}
+                                    protocolCode={activeSubmission?.protocol_id}
+                                    researcherName={(() => {
+                                        const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                        return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                    })()}
+                                    proposalTitle={activeSubmission?.proposal_title}
+                                    reviewType={activeSubmission?.review_type}
                                 />
                             </div>
                         ) : templateType === 'decision_letter' ? (
@@ -4291,7 +4367,17 @@ export default function ReviewerPage() {
                             {chairpersonPreviewFormat === 'json' ? (
                                 <div className="pointer-events-none select-none">
                                     {chairpersonPreviewType === 'ethical_clearance' ? (
-                                        <EthicalClearanceForm savedData={chairpersonPreviewData} />
+                                        <EthicalClearanceForm
+                                            savedData={chairpersonPreviewData}
+                                            protocolCode={activeSubmission?.protocol_id}
+                                            researcherName={(() => {
+                                                const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                                return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                            })()}
+                                            proposalTitle={activeSubmission?.proposal_title}
+                                            reviewType={activeSubmission?.review_type}
+                                            isReadOnly
+                                        />
                                     ) : (
                                         <DecisionLetterForm savedData={chairpersonPreviewData} />
                                     )}

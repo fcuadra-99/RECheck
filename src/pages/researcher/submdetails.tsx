@@ -563,7 +563,17 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
                                 <div className="absolute inset-0 overflow-auto bg-gray-100 p-4 print:static print:inset-auto print:overflow-visible print:bg-white print:p-0">
                                     <div style={{ pointerEvents: "none" }}>
                                         {previewUrl?.startsWith("json-ethical-clearance:") ? (
-                                            <EthicalClearanceForm savedData={ethicalPreviewData} />
+                                            <EthicalClearanceForm
+                                                savedData={ethicalPreviewData}
+                                                protocolCode={activeSubmission?.protocol_id}
+                                                researcherName={(() => {
+                                                    const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                                    return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                                })()}
+                                                proposalTitle={activeSubmission?.proposal_title}
+                                                reviewType={activeSubmission?.review_type}
+                                                isReadOnly
+                                            />
                                         ) : (
                                             <DecisionLetterForm savedData={decisionPreviewData} />
                                         )}

@@ -1,35 +1,89 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import SignatureCell from "./SignatureCell";
 
 interface EthicalClearanceFormProps {
+  proposalId?: number;
+  protocolCode?: string | null;
+  researcherName?: string;
+  proposalTitle?: string;
+  reviewType?: string | null;
+  date?: string;
   savedData?: Record<string, any>;
   onSave?: (patch: Record<string, any>) => void;
   isReadOnly?: boolean;
 }
 
-export default function EthicalClearanceForm({ savedData = {}, onSave, isReadOnly = false }: EthicalClearanceFormProps) {
+export default function EthicalClearanceForm({
+  protocolCode,
+  researcherName,
+  proposalTitle,
+  reviewType,
+  date,
+  savedData = {},
+  onSave,
+  isReadOnly = false,
+}: EthicalClearanceFormProps) {
   const s = savedData;
   const save = (patch: Record<string, any>) => onSave?.(patch);
 
-  const [fields, setFields] = useState<Record<string, string>>({
-    date: s.fields?.date ?? s.date ?? "",
-    nameOfResearcher: s.fields?.nameOfResearcher ?? s.nameOfResearcher ?? "",
-    officeAddress: s.fields?.officeAddress ?? s.officeAddress ?? "University of the Immaculate Conception\nBonifacio St., Davao City",
-    re: s.fields?.re ?? s.re ?? "",
-    protocolCode: s.fields?.protocolCode ?? s.protocolCode ?? "",
-    subject: s.fields?.subject ?? s.subject ?? "Ethical Clearance",
-    salutationName: s.fields?.salutationName ?? s.salutationName ?? "",
-    protocolVersion: s.fields?.protocolVersion ?? s.protocolVersion ?? "",
-    informedConsentVersion: s.fields?.informedConsentVersion ?? s.informedConsentVersion ?? "",
-    reviewType: s.fields?.reviewType ?? s.reviewType ?? "",
-    reviewMeetingDate: s.fields?.reviewMeetingDate ?? s.reviewMeetingDate ?? "",
-    receiptDate: s.fields?.receiptDate ?? s.receiptDate ?? "",
-    grantedFrom: s.fields?.grantedFrom ?? s.grantedFrom ?? "",
-    grantedTo: s.fields?.grantedTo ?? s.grantedTo ?? "",
-    chairName: s.fields?.chairName ?? s.chairName ?? "GIRLIE MAE P. ZABALA, PhD",
-    chairTitle: s.fields?.chairTitle ?? s.chairTitle ?? "Chair, UIC-REC",
-    dateSigned: s.fields?.dateSigned ?? s.dateSigned ?? "",
+  const todayFormatted = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
+
+  const getInitialFields = () => {
+    const resName = s.fields?.nameOfResearcher ?? s.nameOfResearcher ?? s.fields?.researcherName ?? s.researcherName ?? researcherName ?? "";
+    return {
+      date: s.fields?.date ?? s.date ?? date ?? todayFormatted,
+      nameOfResearcher: resName,
+      officeAddress: s.fields?.officeAddress ?? s.officeAddress ?? "University of the Immaculate Conception\nBonifacio St., Davao City",
+      re: s.fields?.re ?? s.re ?? proposalTitle ?? "",
+      protocolCode: s.fields?.protocolCode ?? s.protocolCode ?? protocolCode ?? "",
+      subject: s.fields?.subject ?? s.subject ?? "Ethical Clearance",
+      salutationName: s.fields?.salutationName ?? s.salutationName ?? s.fields?.dearName ?? s.dearName ?? resName,
+      protocolVersion: s.fields?.protocolVersion ?? s.protocolVersion ?? "",
+      informedConsentVersion: s.fields?.informedConsentVersion ?? s.informedConsentVersion ?? "",
+      reviewType: s.fields?.reviewType ?? s.reviewType ?? reviewType ?? "",
+      reviewMeetingDate: s.fields?.reviewMeetingDate ?? s.reviewMeetingDate ?? "",
+      receiptDate: s.fields?.receiptDate ?? s.receiptDate ?? "",
+      grantedFrom: s.fields?.grantedFrom ?? s.grantedFrom ?? "",
+      grantedTo: s.fields?.grantedTo ?? s.grantedTo ?? "",
+      chairName: s.fields?.chairName ?? s.chairName ?? "GIRLIE MAE P. ZABALA, PhD",
+      chairTitle: s.fields?.chairTitle ?? s.chairTitle ?? "Chair, UIC-REC",
+      dateSigned: s.fields?.dateSigned ?? s.dateSigned ?? "",
+    };
+  };
+
+  const [fields, setFields] = useState<Record<string, string>>(getInitialFields);
+
+  useEffect(() => {
+    setFields((prev) => {
+      let updated = false;
+      const next = { ...prev };
+
+      const resName = s.fields?.nameOfResearcher ?? s.nameOfResearcher ?? s.fields?.researcherName ?? s.researcherName ?? researcherName;
+      const pCode = s.fields?.protocolCode ?? s.protocolCode ?? protocolCode;
+      const title = s.fields?.re ?? s.re ?? proposalTitle;
+      const dDate = s.fields?.date ?? s.date ?? date;
+      const rType = s.fields?.reviewType ?? s.reviewType ?? reviewType;
+
+      if (!next.date && dDate) { next.date = dDate; updated = true; }
+      else if (!next.date) { next.date = todayFormatted; updated = true; }
+
+      if (!next.nameOfResearcher && resName) { next.nameOfResearcher = resName; updated = true; }
+      if (!next.protocolCode && pCode) { next.protocolCode = pCode; updated = true; }
+      if (!next.re && title) { next.re = title; updated = true; }
+      if (!next.salutationName && (resName || next.nameOfResearcher)) { next.salutationName = resName || next.nameOfResearcher; updated = true; }
+      if (!next.reviewType && rType) { next.reviewType = rType; updated = true; }
+
+      if (updated) {
+        save({ ...next, fields: next });
+        return next;
+      }
+      return prev;
+    });
+  }, [savedData, protocolCode, researcherName, proposalTitle, reviewType, date]);
 
   const [chairSignature, setChairSignature] = useState<string>(s.fields?.chairSignature ?? s.chairSignature ?? "");
 
