@@ -1049,14 +1049,167 @@ export default function ReviewerPage() {
         setSplitSelectedDoc(null);
     };
 
+    const openFormDataInNewTab = async (proposalId: number, formName: string) => {
+        try {
+            let actualFormName = formName;
+            let explicitRevision = 1;
+            const match = formName.match(/^v(\d+)_(.+)$/);
+            if (match) {
+                explicitRevision = parseInt(match[1], 10);
+                actualFormName = match[2];
+            }
+
+            const { data, error } = await supabase
+                .from("form_data")
+                .select("data")
+                .eq("proposal_id", proposalId)
+                .eq("form_name", actualFormName)
+                .eq("revision_number", explicitRevision)
+                .single();
+
+            if (error || !data) {
+                toast.error(`Could not fetch saved data for ${formName}.`);
+                return;
+            }
+
+            const FormComponent = DOC_COMPONENT_MAP[actualFormName];
+            if (!FormComponent) {
+                toast.error(`No form renderer found for ${actualFormName}.`);
+                return;
+            }
+
+            const { data: proposalData } = await supabase
+                .from("proposals")
+                .select("protocol_id, proposal_title, review_type, researcher, advisor")
+                .eq("proposal_id", proposalId)
+                .single();
+
+            let researcherName = "";
+            if (proposalData?.researcher) {
+                const { data: researcherProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.researcher)
+                    .single();
+
+                researcherName = researcherProfile
+                    ? `${researcherProfile.fname || ""} ${researcherProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            let advisorName = "";
+            if (proposalData?.advisor) {
+                const { data: advisorProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.advisor)
+                    .single();
+
+                advisorName = advisorProfile
+                    ? `${advisorProfile.fname || ""} ${advisorProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            const newWindow = window.open("", "_blank");
+            if (!newWindow) {
+                toast.error("Popup was blocked. Please allow popups and try again.");
+                return;
+            }
+
+            newWindow.document.open();
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>${formName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 24px;
+                                background: #f9fafb;
+                                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                            }
+                            #view-root {
+                                width: 100%;
+                                max-width: 1000px;
+                                margin: 0 auto;
+                                background: white;
+                                box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+                                border-radius: 8px;
+                                padding: 24px;
+                                box-sizing: border-box;
+                            }
+                            #view-root input,
+                            #view-root textarea,
+                            #view-root select,
+                            #view-root button {
+                                pointer-events: none !important;
+                                cursor: default !important;
+                            }
+                            .read-only-view {
+                                pointer-events: none;
+                                user-select: text;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="view-root"></div>
+                    </body>
+                </html>
+            `);
+            newWindow.document.close();
+
+            copyDocumentStyles(newWindow.document);
+
+            const viewRootEl = newWindow.document.getElementById("view-root");
+            if (viewRootEl) {
+                const root = createRoot(viewRootEl);
+                root.render(
+                    <div className="read-only-view">
+                        <FormComponent
+                            proposalId={proposalId}
+                            protocolCode={proposalData?.protocol_id || ""}
+                            proposalTitle={proposalData?.proposal_title || ""}
+                            reviewType={proposalData?.review_type || ""}
+                            researcherName={researcherName}
+                            advisorName={advisorName}
+                            formName={actualFormName}
+                            savedData={data.data || {}}
+                            readOnlyAdvisor
+                        />
+                    </div>
+                );
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to open form.");
+        }
+    };
+
     const openDocument = async (doc: DocumentItem) => {
-        setPreviewUrl(doc.url);
-        setPreviewTitle(doc.name);
-        setActiveFormName(isFormDataUrl(doc.url) ? doc.name : null);
-        setPreviewActiveTab(doc.phase === 'phase1' ? 'manuscript' : 'forms');
-        setIsSplitScreen(false);
-        setSplitSelectedDoc(null);
-        setPreviewOpen(true);
+        if (isFormDataUrl(doc.url)) {
+            if (activeSubmission) {
+                await openFormDataInNewTab(activeSubmission.proposal_id, doc.name);
+            }
+            return;
+        }
+
+        let targetUrl = doc.url;
+        if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+            const { data: signed, error } = await supabase.storage
+                .from("documents")
+                .createSignedUrl(targetUrl, 60 * 60);
+            if (!error && signed?.signedUrl) {
+                targetUrl = signed.signedUrl;
+            }
+        }
+
+        if (targetUrl) {
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        } else {
+            toast.error("Could not open document");
+        }
     };
 
     const renderSplitScreenDocumentViewer = () => {
