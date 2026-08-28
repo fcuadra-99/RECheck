@@ -1,0 +1,70 @@
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm;
+  background: white;
+  margin: auto;
+  font-size: 12px;
+}
+
+.center {
+  text-align: center;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.control-box {
+  border: 1px solid black;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.form-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.form-table td {
+  border: 1px solid black;
+  padding: 5px;
+}
+
+.checklist {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.checklist th,
+.checklist td {
+  border: 1px solid black;
+  padding: 4px;
+}
+
+.line-input {
+  border: none;
+  border-bottom: 1px solid black;
+  width: 100%;
+}
+
+.small {
+  width: 100px;
+}
+
+.auto-expand {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid black;
+  resize: none;
+}
+
+.signature-table {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}

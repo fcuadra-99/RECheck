@@ -1,4 +1,4 @@
-import { ChartLineMultiple } from "@/components/parts/chart-line-multi";
+import { ChartLineMulti } from "@/components/parts/dashboard";
 import { data as Data } from "@/Data"
 
 const STrends = () => {
@@ -6,11 +6,11 @@ const STrends = () => {
         <>
             <div className="flex-1 [&>*]:my-3">
                 <h1 className="text-[30px] font-medium">Trends</h1>
-                <ChartLineMultiple
+                <ChartLineMulti
                     title="Proposals" desc="..." data={Data.subm} />
-                <ChartLineMultiple
+                <ChartLineMulti
                     title="Pending" desc="..." data={Data.subm} />
-                <ChartLineMultiple
+                <ChartLineMulti
                     title="Approved" desc="..." data={Data.subm} />
             </div>
         </>

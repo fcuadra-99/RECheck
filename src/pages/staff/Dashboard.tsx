@@ -1,22 +1,20 @@
-import { RippleButton } from "@/components/animate-ui/buttons/ripple";
-import { ScrollProgress } from "@/components/animate-ui/components/scroll-progress";
-import { ChartLineMultiple } from "@/components/parts/chart-line-multi";
-import { data as Data } from "@/Data"
+import { AnnouncementsPage, type StatsLoader } from '@/components/parts/dashboard';
+import { supabase } from '@/DB';
+import { memo } from 'react';
 
-const SDashboard = () => {
-    return (
-        <>
-            <div className="flex-1 [&>*]:my-3">
-                <h1 className="text-[30px] font-medium">Dashboard</h1>
-                <ChartLineMultiple
-                    title="Applications" desc="..." data={Data.subm} />
-                <ChartLineMultiple
-                    title="Pending" desc="..." data={Data.subm} />
-                <ChartLineMultiple
-                    title="Approved" desc="..." data={Data.subm} />
-            </div>
-        </>
-    );
+const staffStatsLoader: StatsLoader = async () => {
+  const [totalR, completedR] = await Promise.all([
+    supabase.from('proposals').select('proposal_id', { count: 'exact', head: true }),
+    supabase
+      .from('final_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Approved'),
+  ]);
+  const total = totalR.count ?? 0;
+  const completed = completedR.count ?? 0;
+  return { total, pending: total - completed, completed };
 };
 
-export default SDashboard;
+export default memo(function SDashboard({ user, profile }: { user: any; profile: any }) {
+  return <AnnouncementsPage user={user} profile={profile} statsLoader={staffStatsLoader} />;
+});
