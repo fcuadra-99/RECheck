@@ -13,6 +13,7 @@ export interface FinalReport {
   attachments: string[]; // storage object paths
   remarks?: string | null; // internal chairperson remarks
   metadata?: {
+    chairSignature?: string;
     assignedStaffIds?: string[];
     assignedById?: string;
     assignedByName?: string;
@@ -28,6 +29,7 @@ export interface FinalReport {
       comments?: string;
       submittedAt: string;
     }>;
+    [key: string]: any;
   };
 }
 
@@ -53,4 +55,5 @@ export interface UpdateFinalReportPayload {
   status?: FinalReportStatus;
   outcome?: string | null;
   remarks?: string | null;
+  metadata?: Record<string, any>;
 }

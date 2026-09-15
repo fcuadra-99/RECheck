@@ -532,6 +532,7 @@ const FinalReportSubmission: React.FC = () => {
         month: 'long',
         day: 'numeric'
       }),
+      chairSignature: selectedReport.metadata?.chairSignature || '',
     };
 
     return (

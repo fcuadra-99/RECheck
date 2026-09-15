@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import SignatureCell from "./SignatureCell";
 
 interface DecisionLetterFormProps {
   savedData?: Record<string, any>;
@@ -32,6 +33,8 @@ export default function DecisionLetterForm({ savedData = {}, onSave, isReadOnly 
     chairTitle: s.fields?.chairTitle ?? s.chairTitle ?? "Chair, UIC-REC",
     signedDate: s.fields?.signedDate ?? s.signedDate ?? "",
   });
+
+  const [chairSignature, setChairSignature] = useState<string>(s.fields?.chairSignature ?? s.chairSignature ?? "");
 
   const [proposalRows, setProposalRows] = useState<Array<{ section: string; satisfactory: boolean; notSatisfactory: boolean }>>(
     Array.isArray(s.fields?.proposalRows) && s.fields.proposalRows.length > 0
@@ -735,16 +738,25 @@ export default function DecisionLetterForm({ savedData = {}, onSave, isReadOnly 
                   Very truly yours,
                 </div>
 
-                {/* Chairperson Name & Title without drawing signature box */}
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <tbody>
                     <tr>
                       <td style={{ width: "300px", verticalAlign: "top" }}>
+                        <div style={{ minHeight: "80px", height: "auto", display: "block", marginBottom: "10px" }}>
+                          <SignatureCell
+                            value={chairSignature}
+                            onChange={(val) => {
+                              setChairSignature(val);
+                              save({ chairSignature: val, fields: { ...fields, chairSignature: val } });
+                            }}
+                            readOnly={isReadOnly}
+                          />
+                        </div>
                         <input 
                           type="text" 
                           value={fields.chairName}
                           onChange={(e) => setField("chairName", e.target.value)}
-                          style={{...inputStyle, fontWeight: "bold", width: "250px", borderBottom: isReadOnly ? "none" : "1px solid black"}} 
+                          style={{...inputStyle, fontWeight: "bold", width: "250px"}} 
                           readOnly={isReadOnly}
                         />
                         <div style={{ marginTop: "2px", fontSize: "10pt" }}>
@@ -752,7 +764,7 @@ export default function DecisionLetterForm({ savedData = {}, onSave, isReadOnly 
                             type="text" 
                             value={fields.chairTitle}
                             onChange={(e) => setField("chairTitle", e.target.value)}
-                            style={{...inputStyle, width: "250px", borderBottom: isReadOnly ? "none" : "1px solid black"}} 
+                            style={{...inputStyle, width: "250px"}} 
                             readOnly={isReadOnly}
                           />
                         </div>

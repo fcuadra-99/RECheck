@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import SignatureCell from './SignatureCell';
 
 interface EndorsementProps {
   initialData?: {
@@ -11,11 +12,14 @@ interface EndorsementProps {
     receiptDate?: string;
     chairName?: string;
     chairTitle?: string;
+    chairSignature?: string;
   };
   isReadOnly?: boolean;
+  onSignatureChange?: (signature: string) => void;
+  proposalId?: number;
 }
 
-const PreFinalEndorsement: React.FC<EndorsementProps> = ({ initialData, isReadOnly = false }) => {
+const PreFinalEndorsement: React.FC<EndorsementProps> = ({ initialData, isReadOnly = false, onSignatureChange, proposalId }) => {
   const [formData, setFormData] = useState({
     date: initialData?.date || '',
     name: initialData?.name || '',
@@ -25,8 +29,20 @@ const PreFinalEndorsement: React.FC<EndorsementProps> = ({ initialData, isReadOn
     salutation: initialData?.salutation || '',
     receiptDate: initialData?.receiptDate || '',
     chairName: initialData?.chairName || 'GIRLIE MAE P. ZABALA, PhD',
-    chairTitle: initialData?.chairTitle || 'Chair, UIC-REC'
+    chairTitle: initialData?.chairTitle || 'Chair, UIC-REC',
+    chairSignature: initialData?.chairSignature || ''
   });
+
+  useEffect(() => {
+    if (initialData?.chairSignature !== undefined) {
+      setFormData(prev => ({ ...prev, chairSignature: initialData.chairSignature || '' }));
+    }
+  }, [initialData?.chairSignature]);
+
+  const handleSignatureChange = (sig: string) => {
+    setFormData(prev => ({ ...prev, chairSignature: sig }));
+    onSignatureChange?.(sig);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (isReadOnly) return;
@@ -298,6 +314,15 @@ const PreFinalEndorsement: React.FC<EndorsementProps> = ({ initialData, isReadOn
                 </div>
 
                 <div>
+                  <div style={{ minHeight: '80px', height: 'auto', display: 'block', marginBottom: '10px', width: '250px' }}>
+                    <SignatureCell
+                      value={formData.chairSignature}
+                      onChange={handleSignatureChange}
+                      readOnly={isReadOnly}
+                      proposalId={proposalId}
+                      formName="PreFinalEndorsement"
+                    />
+                  </div>
                   <textarea 
                     name="chairName"
                     value={formData.chairName}

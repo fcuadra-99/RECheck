@@ -11,6 +11,7 @@ import { useTemplateFields } from '@/hooks/useTemplateFields';
 import FinalReportForm from '@/components/forms/FinalReportForm';
 import UndergradFinalEndorsement from '@/components/forms/UndergradFinalEndorsement';
 import PreFinalEndorsement from '@/components/forms/PreFinalEndorsement';
+import SignatureCell from '@/components/forms/SignatureCell';
 
 const statusBadge: Record<FinalReportStatus, string> = {
   'Pending Review': 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -46,9 +47,10 @@ const FinalReportDetail: React.FC = () => {
   const [proposalDetails, setProposalDetails] = useState<ProposalDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editStatus, setEditStatus] = useState<FinalReportStatus | undefined>(undefined);
+  const [editStatus, setEditStatus] = useState<FinalReportStatus | ''>('');
   const [editOutcome, setEditOutcome] = useState('');
   const [editRemarks, setEditRemarks] = useState('');
+  const [chairSignature, setChairSignature] = useState('');
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfName, setSelectedPdfName] = useState<string>('');
   const [activeAttachmentPath, setActiveAttachmentPath] = useState<string | null>(null);
@@ -150,6 +152,7 @@ const FinalReportDetail: React.FC = () => {
         setEditStatus(reportData.status);
         setEditOutcome(reportData.outcome || '');
         setEditRemarks(reportData.remarks || '');
+        setChairSignature(reportData.metadata?.chairSignature || '');
 
         const assignmentResult = await getFinalReportAssignments(reportData.id);
         if (assignmentResult.success) {
@@ -257,6 +260,10 @@ const FinalReportDetail: React.FC = () => {
         status: newStatus,
         outcome: editOutcome,
         remarks: editRemarks,
+        metadata: {
+          ...(report.metadata || {}),
+          chairSignature: chairSignature,
+        },
       });
       
       // If status is being changed to Approved, show success message with certificate info
@@ -706,6 +713,7 @@ const FinalReportDetail: React.FC = () => {
         month: 'long',
         day: 'numeric'
       }),
+      chairSignature: chairSignature || report.metadata?.chairSignature || '',
     };
 
     return (
@@ -734,10 +742,18 @@ const FinalReportDetail: React.FC = () => {
         <div className="py-6 px-2 sm:px-4 print:py-0 print:px-0 print:bg-white form-print-shell">
           <div className="max-w-7xl mx-auto print:mx-0 print:max-w-none">
             {isUndergrad && (
-              <UndergradFinalEndorsement initialData={endorsementData} isReadOnly={true} />
+              <UndergradFinalEndorsement
+                initialData={endorsementData}
+                isReadOnly={report.status === 'Approved' || report.status === 'Rejected'}
+                onSignatureChange={(sig) => setChairSignature(sig)}
+              />
             )}
             {isGraduate && (
-              <PreFinalEndorsement initialData={endorsementData} isReadOnly={true} />
+              <PreFinalEndorsement
+                initialData={endorsementData}
+                isReadOnly={report.status === 'Approved' || report.status === 'Rejected'}
+                onSignatureChange={(sig) => setChairSignature(sig)}
+              />
             )}
           </div>
         </div>
@@ -1059,6 +1075,22 @@ const FinalReportDetail: React.FC = () => {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                       placeholder="Internal notes for committee tracking..."
                     />
+                  </div>
+
+                  {/* Chairperson Signature */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Chairperson Signature
+                      <span className="text-xs text-gray-500 ml-2">(Signs endorsement form for researcher)</span>
+                    </label>
+                    <div className="p-3 border border-gray-300 rounded-lg bg-gray-50">
+                      <SignatureCell
+                        value={chairSignature}
+                        onChange={(val) => setChairSignature(val)}
+                        proposalId={Number(report.id) || undefined}
+                        formName="EndorsementForm"
+                      />
+                    </div>
                   </div>
 
                   {/* Save Button */}

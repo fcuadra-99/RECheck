@@ -34,6 +34,8 @@ export interface FormProps {
     onSave?: (data: Record<string, any>) => void;
     /** Whether advisor-only fields should be locked */
     readOnlyAdvisor?: boolean;
+    /** Advisor signing mode — all non-advisor fields are locked, only signature/name are editable */
+    advisorMode?: boolean;
 }
 export type FormComponent = React.ComponentType<FormProps>;
 export declare const DOC_COMPONENT_MAP: Record<string, FormComponent>;
@@ -46,9 +48,11 @@ interface FormViewerProps {
     proposalTitle?: string;
     reviewType?: string | null;
     readOnlyAdvisor?: boolean;
+    /** Advisor signing mode — all non-advisor fields are locked, only signature/name are editable */
+    advisorMode?: boolean;
     /** Fully read-only mode — no editing, no Done button */
     readOnly?: boolean;
     onDone: () => void;
 }
-export default function FormViewer({ documentName, proposalId, protocolCode, researcherName, advisorId, proposalTitle, reviewType, readOnlyAdvisor, readOnly, onDone, }: FormViewerProps): import("react/jsx-runtime").JSX.Element;
+export default function FormViewer({ documentName, proposalId, protocolCode, researcherName, advisorId, proposalTitle, reviewType, readOnlyAdvisor, advisorMode, readOnly, onDone, }: FormViewerProps): import("react/jsx-runtime").JSX.Element;
 export {};

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive, Columns2 } from "lucide-react";
+import { FileText, Download, Eye, Check, X, User, Calendar, MessageSquare, Send, FileStack, Crown, FileSignature, ChevronDown, Archive, Columns2, Clock, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,9 @@ import ProtocolReviewerAssessmentForm from "@/components/forms/ProtocolReviewerA
 import InformedConsentAssessmentForm from "@/components/forms/InformedConsentAssessmentForm";
 import EthicalClearanceForm from "@/components/forms/EthicalClearanceForm";
 import DecisionLetterForm from "@/components/forms/DecisionLetterForm";
+import Comment from "@/components/forms/Comment";
 import { createRoot } from "react-dom/client";
+import { computeDueDate, businessDaysBetween } from "@/lib/turnaround";
 
 /* ----------------- types ----------------- */
 interface Submission {
@@ -51,6 +53,7 @@ interface Submission {
     status: string;
     date: string;
     assigned_reviewer: string;
+    reviewer?: string | string[] | null;
 }
 
 interface Profile {
@@ -88,6 +91,7 @@ type AssignmentMeta = {
     reviewerDocs?: Record<string, string[]>;
     reviewerSections?: Record<string, string>;
     assignmentDate?: string | null;
+    rawAssignmentMeta?: any;
 };
 
 const waitForRender = async (ms = 180) => {
@@ -160,7 +164,7 @@ export default function ReviewerPage() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [previewTitle, setPreviewTitle] = useState<string>("");
     const [showAssessmentPreview, setShowAssessmentPreview] = useState(false);
-    const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | null>(null);
+    const [assessmentPreviewType, setAssessmentPreviewType] = useState<'reviewer_assessment' | 'informed_consent' | 'comment' | null>(null);
     const [assessmentPreviewData, setAssessmentPreviewData] = useState<Record<string, any>>({});
     const [printAssessmentOnOpen, setPrintAssessmentOnOpen] = useState(false);
     const [archivedOpen, setArchivedOpen] = useState(false);
@@ -173,12 +177,13 @@ export default function ReviewerPage() {
 
     // PDF template states
     const [showPDFTemplate, setShowPDFTemplate] = useState(false);
-    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | null>(null);
+    const [templateType, setTemplateType] = useState<'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | 'comment' | null>(null);
     const [templateUrl, setTemplateUrl] = useState<string>('');
     const [ethicalClearanceData, setEthicalClearanceData] = useState<Record<string, any>>({});
     const [decisionLetterData, setDecisionLetterData] = useState<Record<string, any>>({});
     const [reviewerAssessmentData, setReviewerAssessmentData] = useState<Record<string, any>>({});
     const [informedConsentData, setInformedConsentData] = useState<Record<string, any>>({});
+    const [commentData, setCommentData] = useState<Record<string, any>>({});
     const [revisionTargets, setRevisionTargets] = useState<string[]>([]);
     
     // Preload template fields based on current template type
@@ -193,6 +198,7 @@ export default function ReviewerPage() {
     // Assessment form tracking
     const [hasSubmittedProtocolAssessment, setHasSubmittedProtocolAssessment] = useState(false);
     const [hasSubmittedInformedConsent, setHasSubmittedInformedConsent] = useState(false);
+    const [hasSubmittedComment, setHasSubmittedComment] = useState(false);
     const [submittedAssessmentForms, setSubmittedAssessmentForms] = useState<DocumentItem[]>([]);
     const [revisionSubmissionsCount, setRevisionSubmissionsCount] = useState(0);
     const [decisionLetterSentCount, setDecisionLetterSentCount] = useState(0);
@@ -202,6 +208,7 @@ export default function ReviewerPage() {
     // Local form completion tracking (before final submission)
     const [hasCompletedProtocolAssessment, setHasCompletedProtocolAssessment] = useState(false);
     const [hasCompletedInformedConsent, setHasCompletedInformedConsent] = useState(false);
+    const [hasCompletedComment, setHasCompletedComment] = useState(false);
     const [hasCompletedEthicalClearance, setHasCompletedEthicalClearance] = useState(false);
     const [hasCompletedDecisionLetter, setHasCompletedDecisionLetter] = useState(false);
     const [isPassingToAdmin, setIsPassingToAdmin] = useState(false);
@@ -211,10 +218,12 @@ export default function ReviewerPage() {
     useEffect(() => {
         setHasCompletedProtocolAssessment(false);
         setHasCompletedInformedConsent(false);
+        setHasCompletedComment(false);
         setHasCompletedEthicalClearance(false);
         setHasCompletedDecisionLetter(false);
         setHasPassedToAdmin(false);
         setIsEditingRecommendation(false);
+        setCommentData({});
     }, [activeSubmission?.proposal_id]);
 
     const [activeFormName, setActiveFormName] = useState<string | null>(null);
@@ -231,10 +240,10 @@ export default function ReviewerPage() {
 
     const parseAssignmentMeta = (raw: any) => {
         if (!raw) return null;
-        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
+        if (typeof raw === 'object') return raw as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string>; assignmentMeta?: any };
         if (typeof raw === 'string') {
             try {
-                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string> };
+                return JSON.parse(raw) as { reviewerRoles?: Record<string, string>; reviewerDocs?: Record<string, string[]>; reviewerSections?: Record<string, string>; assignmentMeta?: any };
             } catch (error) {
                 return null;
             }
@@ -260,8 +269,10 @@ export default function ReviewerPage() {
             reviewerRoles: parsed?.reviewerRoles,
             reviewerDocs: parsed?.reviewerDocs,
             reviewerSections: parsed?.reviewerSections,
-            assignmentDate: data[0].history_date || null,
-        } as AssignmentMeta;
+            assignmentDate: parsed?.assignmentMeta?.assignedAt || data[0].history_date || null,
+            // include raw assignmentMeta (may contain dueDate and per-reviewer due dates)
+            ...(parsed?.assignmentMeta ? { rawAssignmentMeta: parsed.assignmentMeta } : {}),
+        } as AssignmentMeta & { rawAssignmentMeta?: any };
     };
 
     const fetchLatestSubmissionDate = async (proposalId: number) => {
@@ -755,6 +766,7 @@ export default function ReviewerPage() {
                 }
                 setHasSubmittedProtocolAssessment(false);
                 setHasSubmittedInformedConsent(false);
+                setHasSubmittedComment(false);
                 setSubmittedAssessmentForms([]);
                 return;
             }
@@ -763,6 +775,7 @@ export default function ReviewerPage() {
                 console.log("No assessment forms found in storage");
                 setHasSubmittedProtocolAssessment(false);
                 setHasSubmittedInformedConsent(false);
+                setHasSubmittedComment(false);
                 setSubmittedAssessmentForms([]);
                 return;
             }
@@ -778,9 +791,14 @@ export default function ReviewerPage() {
                 f.name.includes(`Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}`) &&
                 isWithinWindow(f.name, (f as any).created_at)
             );
+            const userComment = data.find(f =>
+                f.name.includes(`Secondary_Reviewer_Comment_${activeSubmission.proposal_id}_${userId}`) &&
+                isWithinWindow(f.name, (f as any).created_at)
+            );
 
             setHasSubmittedProtocolAssessment(!!userProtocolAssessment);
             setHasSubmittedInformedConsent(!!userInformedConsent);
+            setHasSubmittedComment(!!userComment);
 
             // Load all assessment forms with signed URLs (for chairperson and reviewer view)
             const assessmentForms = await Promise.all(
@@ -809,6 +827,7 @@ export default function ReviewerPage() {
             console.error("Error loading assessment forms:", err);
             setHasSubmittedProtocolAssessment(false);
             setHasSubmittedInformedConsent(false);
+            setHasSubmittedComment(false);
             setSubmittedAssessmentForms([]);
         }
     };
@@ -1030,14 +1049,167 @@ export default function ReviewerPage() {
         setSplitSelectedDoc(null);
     };
 
+    const openFormDataInNewTab = async (proposalId: number, formName: string) => {
+        try {
+            let actualFormName = formName;
+            let explicitRevision = 1;
+            const match = formName.match(/^v(\d+)_(.+)$/);
+            if (match) {
+                explicitRevision = parseInt(match[1], 10);
+                actualFormName = match[2];
+            }
+
+            const { data, error } = await supabase
+                .from("form_data")
+                .select("data")
+                .eq("proposal_id", proposalId)
+                .eq("form_name", actualFormName)
+                .eq("revision_number", explicitRevision)
+                .single();
+
+            if (error || !data) {
+                toast.error(`Could not fetch saved data for ${formName}.`);
+                return;
+            }
+
+            const FormComponent = DOC_COMPONENT_MAP[actualFormName];
+            if (!FormComponent) {
+                toast.error(`No form renderer found for ${actualFormName}.`);
+                return;
+            }
+
+            const { data: proposalData } = await supabase
+                .from("proposals")
+                .select("protocol_id, proposal_title, review_type, researcher, advisor")
+                .eq("proposal_id", proposalId)
+                .single();
+
+            let researcherName = "";
+            if (proposalData?.researcher) {
+                const { data: researcherProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.researcher)
+                    .single();
+
+                researcherName = researcherProfile
+                    ? `${researcherProfile.fname || ""} ${researcherProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            let advisorName = "";
+            if (proposalData?.advisor) {
+                const { data: advisorProfile } = await supabase
+                    .from("profiles")
+                    .select("fname, lname")
+                    .eq("id", proposalData.advisor)
+                    .single();
+
+                advisorName = advisorProfile
+                    ? `${advisorProfile.fname || ""} ${advisorProfile.lname || ""}`.trim()
+                    : "";
+            }
+
+            const newWindow = window.open("", "_blank");
+            if (!newWindow) {
+                toast.error("Popup was blocked. Please allow popups and try again.");
+                return;
+            }
+
+            newWindow.document.open();
+            newWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <meta charset="utf-8" />
+                        <title>${formName.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</title>
+                        <style>
+                            html, body {
+                                margin: 0;
+                                padding: 24px;
+                                background: #f9fafb;
+                                font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+                            }
+                            #view-root {
+                                width: 100%;
+                                max-width: 1000px;
+                                margin: 0 auto;
+                                background: white;
+                                box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+                                border-radius: 8px;
+                                padding: 24px;
+                                box-sizing: border-box;
+                            }
+                            #view-root input,
+                            #view-root textarea,
+                            #view-root select,
+                            #view-root button {
+                                pointer-events: none !important;
+                                cursor: default !important;
+                            }
+                            .read-only-view {
+                                pointer-events: none;
+                                user-select: text;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div id="view-root"></div>
+                    </body>
+                </html>
+            `);
+            newWindow.document.close();
+
+            copyDocumentStyles(newWindow.document);
+
+            const viewRootEl = newWindow.document.getElementById("view-root");
+            if (viewRootEl) {
+                const root = createRoot(viewRootEl);
+                root.render(
+                    <div className="read-only-view">
+                        <FormComponent
+                            proposalId={proposalId}
+                            protocolCode={proposalData?.protocol_id || ""}
+                            proposalTitle={proposalData?.proposal_title || ""}
+                            reviewType={proposalData?.review_type || ""}
+                            researcherName={researcherName}
+                            advisorName={advisorName}
+                            formName={actualFormName}
+                            savedData={data.data || {}}
+                            readOnlyAdvisor
+                        />
+                    </div>
+                );
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error("Failed to open form.");
+        }
+    };
+
     const openDocument = async (doc: DocumentItem) => {
-        setPreviewUrl(doc.url);
-        setPreviewTitle(doc.name);
-        setActiveFormName(isFormDataUrl(doc.url) ? doc.name : null);
-        setPreviewActiveTab(doc.phase === 'phase1' ? 'manuscript' : 'forms');
-        setIsSplitScreen(false);
-        setSplitSelectedDoc(null);
-        setPreviewOpen(true);
+        if (isFormDataUrl(doc.url)) {
+            if (activeSubmission) {
+                await openFormDataInNewTab(activeSubmission.proposal_id, doc.name);
+            }
+            return;
+        }
+
+        let targetUrl = doc.url;
+        if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+            const { data: signed, error } = await supabase.storage
+                .from("documents")
+                .createSignedUrl(targetUrl, 60 * 60);
+            if (!error && signed?.signedUrl) {
+                targetUrl = signed.signedUrl;
+            }
+        }
+
+        if (targetUrl) {
+            window.open(targetUrl, '_blank', 'noopener,noreferrer');
+        } else {
+            toast.error("Could not open document");
+        }
     };
 
     const renderSplitScreenDocumentViewer = () => {
@@ -1320,8 +1492,9 @@ export default function ReviewerPage() {
         const lowerName = filename.toLowerCase();
         const isReviewerAssessment = lowerName.includes('reviewer_assessment');
         const isInformedConsent = lowerName.includes('informed_consent_assessment');
+        const isComment = lowerName.includes('secondary_reviewer_comment');
 
-        if (!isReviewerAssessment && !isInformedConsent) {
+        if (!isReviewerAssessment && !isInformedConsent && !isComment) {
             openPreview(url, filename);
             return;
         }
@@ -1335,7 +1508,13 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setAssessmentPreviewType(
+                isReviewerAssessment
+                    ? 'reviewer_assessment'
+                    : isComment
+                        ? 'comment'
+                        : 'informed_consent'
+            );
             setShowAssessmentPreview(true);
         } catch {
             // Legacy submissions are PDFs; keep existing preview behavior.
@@ -1347,7 +1526,8 @@ export default function ReviewerPage() {
         const lowerName = filename.toLowerCase();
         const isReviewerAssessment = lowerName.includes('reviewer_assessment');
         const isInformedConsent = lowerName.includes('informed_consent_assessment');
-        const isAssessmentJson = lowerName.endsWith('.json') && (isReviewerAssessment || isInformedConsent);
+        const isComment = lowerName.includes('secondary_reviewer_comment');
+        const isAssessmentJson = lowerName.endsWith('.json') && (isReviewerAssessment || isInformedConsent || isComment);
 
         if (!isAssessmentJson) {
             try {
@@ -1380,7 +1560,13 @@ export default function ReviewerPage() {
             if (!parsed || typeof parsed !== 'object') throw new Error('Invalid assessment JSON');
 
             setAssessmentPreviewData(parsed);
-            setAssessmentPreviewType(isReviewerAssessment ? 'reviewer_assessment' : 'informed_consent');
+            setAssessmentPreviewType(
+                isReviewerAssessment
+                    ? 'reviewer_assessment'
+                    : isComment
+                        ? 'comment'
+                        : 'informed_consent'
+            );
             setPrintAssessmentOnOpen(true);
             setShowAssessmentPreview(true);
         } catch (error) {
@@ -1459,7 +1645,7 @@ export default function ReviewerPage() {
 
     /* Submit review recommendation - WORKING CHAIRPERSON SOLUTION */
     const submitRecommendation = async () => {
-        if (!activeSubmission || !userId || (recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
+        if (!activeSubmission || !userId || (!isChairperson && !isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim())) {
             toast.error("Please provide review comments for revisions");
             return;
         }
@@ -1486,9 +1672,15 @@ export default function ReviewerPage() {
                 return;
             }
 
-            if (isSecondaryReviewer && !hasSubmittedInformedConsent && !hasCompletedInformedConsent) {
-                toast.error("Please fill and complete the Informed Consent Assessment before submitting");
-                return;
+            if (isSecondaryReviewer) {
+                if (!hasSubmittedInformedConsent && !hasCompletedInformedConsent) {
+                    toast.error("Please fill and complete the Informed Consent Assessment before submitting");
+                    return;
+                }
+                if (!hasSubmittedComment && !hasCompletedComment) {
+                    toast.error("Please fill and complete the Secondary Reviewer Comments before submitting");
+                    return;
+                }
             }
         }
 
@@ -1540,7 +1732,38 @@ export default function ReviewerPage() {
                 setHasSubmittedProtocolAssessment(true);
             }
 
-            // 2. Upload Informed Consent Assessment if completed locally
+            // 2. Upload Secondary Reviewer Comment if completed locally
+            if (hasCompletedComment) {
+                const filename = `Secondary_Reviewer_Comment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
+                const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
+                const json = JSON.stringify(commentData, null, 2);
+
+                const { error: uploadError } = await supabase.storage
+                    .from('documents')
+                    .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                        contentType: 'application/json',
+                        upsert: false
+                    });
+
+                if (uploadError) throw uploadError;
+
+                const commHistoryData = {
+                    history_type: 'secondary_reviewer_comment_submitted',
+                    paper_id: activeSubmission.proposal_id,
+                    comment: 'Secondary reviewer comments submitted',
+                    actor: userId,
+                    action: 'SECONDARY_REVIEWER_COMMENT_SUBMITTED',
+                    history_date: new Date().toISOString(),
+                };
+
+                const { error: commHistoryError } = await supabase.from("history").insert(commHistoryData);
+                if (commHistoryError) throw commHistoryError;
+
+                setHasCompletedComment(false);
+                setHasSubmittedComment(true);
+            }
+
+            // 3. Upload Informed Consent Assessment if completed locally
             if (hasCompletedInformedConsent) {
                 const filename = `Informed_Consent_Assessment_${activeSubmission.proposal_id}_${userId}_${Date.now()}.json`;
                 const uploadPath = `${activeSubmission.proposal_id}/Assessments/${filename}`;
@@ -1818,6 +2041,25 @@ export default function ReviewerPage() {
         return new Date(first).getTime() >= new Date(second).getTime() ? first : second;
     };
 
+    /** Returns due date (assignmentDate + turnaroundDays working days) and urgency status */
+    const getDueDateInfo = (assignmentDateStr?: string | null, turnaroundDays = 15) => {
+        if (!assignmentDateStr) return null;
+        const assigned = new Date(assignmentDateStr);
+        if (isNaN(assigned.getTime())) return null;
+        try {
+            const dueIso = computeDueDate(assigned, turnaroundDays, [0,1,6]);
+            const due = new Date(dueIso);
+            const daysLeft = businessDaysBetween(new Date().toISOString(), dueIso, [0,1,6]);
+            let status: 'overdue' | 'due-soon' | 'ok';
+            if (daysLeft < 0) status = 'overdue';
+            else if (daysLeft <= 1) status = 'due-soon';
+            else status = 'ok';
+            return { due, daysLeft, status };
+        } catch (e) {
+            return null;
+        }
+    };
+
     const getActiveReviewWindowStart = () => {
         if (!activeSubmission) return null;
         return reviewWindowStartByProposal[activeSubmission.proposal_id]
@@ -1839,14 +2081,17 @@ export default function ReviewerPage() {
     const isPrimaryReviewer = reviewerRoleKey === 'primary';
     const isSecondaryReviewer = reviewerRoleKey === 'secondary';
     const needsProtocolAssessment = !isChairperson && isPrimaryReviewer;
-    const needsInformedConsent = !isChairperson && isSecondaryReviewer;
-    const needsAnyAssessment = needsProtocolAssessment || needsInformedConsent;
+    const needsComment = !isChairperson && isSecondaryReviewer;
+    const needsAnyAssessment = needsProtocolAssessment || needsComment;
     const isRoleAssigned = isChairperson || reviewerRoleKey !== null;
 
     const hasCompletedRequiredReviewerForms = hasRevisionResubmission
         ? true
         : (isPrimaryReviewer ? (hasSubmittedProtocolAssessment || hasCompletedProtocolAssessment) : true) &&
-          (isSecondaryReviewer ? (hasSubmittedInformedConsent || hasCompletedInformedConsent) : true);
+          (isSecondaryReviewer
+              ? (hasSubmittedInformedConsent || hasCompletedInformedConsent) &&
+                (hasSubmittedComment || hasCompletedComment)
+              : true);
 
     const canSubmitRecommendation = isRoleAssigned && (
         isChairperson
@@ -1896,7 +2141,32 @@ export default function ReviewerPage() {
         toast.success("Informed consent assessment marked as done. Remember to submit your recommendation.");
     };
 
-    const handleDoneEthicalClearance = () => {
+    const handleDoneComment = () => {
+        setHasCompletedComment(true);
+        setShowPDFTemplate(false);
+        setTemplateType(null);
+        setTemplateUrl('');
+        toast.success("Secondary reviewer comments marked as done. Remember to submit your recommendation.");
+    };
+
+    const saveEthicalClearanceDraft = async (dataToSave: Record<string, any>) => {
+        if (!activeSubmission) return;
+        try {
+            const json = JSON.stringify(dataToSave, null, 2);
+            const uploadPath = `${activeSubmission.proposal_id}/Decisions/Ethical_Clearance_Draft.json`;
+            await supabase.storage
+                .from('documents')
+                .upload(uploadPath, new Blob([json], { type: 'application/json' }), {
+                    contentType: 'application/json',
+                    upsert: true
+                });
+        } catch (err) {
+            console.error("Failed to auto-save ethical clearance draft:", err);
+        }
+    };
+
+    const handleDoneEthicalClearance = async () => {
+        await saveEthicalClearanceDraft(ethicalClearanceData);
         setHasCompletedEthicalClearance(true);
         setShowPDFTemplate(false);
         setTemplateType(null);
@@ -1973,7 +2243,7 @@ export default function ReviewerPage() {
     };
 
     /* Open PDF Template Handler */
-    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent') => {
+    const handleOpenPDFTemplate = async (type: 'ethical_clearance' | 'decision_letter' | 'reviewer_assessment' | 'informed_consent' | 'comment') => {
         if (!activeSubmission) return;
         try {
             if (type === 'ethical_clearance' && isEthicalClearanceLocked) {
@@ -1985,7 +2255,7 @@ export default function ReviewerPage() {
                 return;
             }
 
-            if ((type === 'reviewer_assessment' || type === 'informed_consent') && hasRevisionResubmission) {
+            if ((type === 'reviewer_assessment' || type === 'informed_consent' || type === 'comment') && hasRevisionResubmission) {
                 toast.info('Assessment forms are only submitted on the first review cycle. Use follow-up notes for revisions.');
                 return;
             }
@@ -2000,6 +2270,11 @@ export default function ReviewerPage() {
                     toast.error('Only secondary reviewers can fill the Informed Consent Assessment form.');
                     return;
                 }
+
+                if (type === 'comment' && reviewerRoleKey !== 'secondary') {
+                    toast.error('Only secondary reviewers can fill the Comments form.');
+                    return;
+                }
             }
 
             if (type === 'reviewer_assessment' && hasSubmittedProtocolAssessment) {
@@ -2009,6 +2284,11 @@ export default function ReviewerPage() {
 
             if (type === 'informed_consent' && hasSubmittedInformedConsent) {
                 toast.info('Informed Consent Assessment already submitted. Editing is locked.');
+                return;
+            }
+
+            if (type === 'comment' && hasSubmittedComment) {
+                toast.info('Secondary Reviewer Comments already submitted. Editing is locked.');
                 return;
             }
 
@@ -2022,10 +2302,64 @@ export default function ReviewerPage() {
                 templateFilename = 'V2_Protocol-Reviewer-Assessment-Form-1-4.pdf';
             } else if (type === 'informed_consent') {
                 templateFilename = 'V2_INFORMED-CONSENT-ASSESSMENT-FORM-3.pdf';
+            } else if (type === 'comment') {
+                templateFilename = 'comment';
             }
             
             // Get the template URL from public folder
-            const templatePath = `/templates/${templateFilename}`;
+            const templatePath = type === 'comment' ? 'comment' : `/templates/${templateFilename}`;
+
+            if (type === 'ethical_clearance') {
+                const loadingToastId = toast.loading("Loading Ethical Clearance draft...");
+                try {
+                    const { data: fileBlob, error: downloadError } = await supabase.storage
+                        .from('documents')
+                        .download(`${activeSubmission.proposal_id}/Decisions/Ethical_Clearance_Draft.json`);
+
+                    if (!downloadError && fileBlob) {
+                        const text = await fileBlob.text();
+                        const parsed = JSON.parse(text);
+                        setEthicalClearanceData(parsed || {});
+                    } else {
+                        const researcherProfile = profiles.find((x) => x.id === activeSubmission.researcher);
+                        const researcherName = researcherProfile 
+                            ? `${researcherProfile.fname ?? ""} ${researcherProfile.lname ?? ""}`.trim()
+                            : "";
+                        const todayStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+                        const defaultData = {
+                            date: todayStr,
+                            nameOfResearcher: researcherName,
+                            salutationName: researcherName,
+                            protocolCode: activeSubmission.protocol_id || "",
+                            re: activeSubmission.proposal_title || "",
+                            reviewType: activeSubmission.review_type || "",
+                            officeAddress: "University of the Immaculate Conception\nBonifacio St., Davao City",
+                            subject: "Ethical Clearance",
+                            chairName: "GIRLIE MAE P. ZABALA, PhD",
+                            chairTitle: "Chair, UIC-REC",
+                            fields: {
+                                date: todayStr,
+                                nameOfResearcher: researcherName,
+                                salutationName: researcherName,
+                                protocolCode: activeSubmission.protocol_id || "",
+                                re: activeSubmission.proposal_title || "",
+                                reviewType: activeSubmission.review_type || "",
+                                officeAddress: "University of the Immaculate Conception\nBonifacio St., Davao City",
+                                subject: "Ethical Clearance",
+                                chairName: "GIRLIE MAE P. ZABALA, PhD",
+                                chairTitle: "Chair, UIC-REC",
+                            }
+                        };
+                        setEthicalClearanceData(defaultData);
+                    }
+                } catch (err) {
+                    console.error("Error downloading draft ethical clearance:", err);
+                    setEthicalClearanceData({});
+                } finally {
+                    toast.dismiss(loadingToastId);
+                }
+            }
 
             if (type === 'decision_letter') {
                 const loadingToastId = toast.loading("Loading Decision Letter draft...");
@@ -2348,6 +2682,7 @@ export default function ReviewerPage() {
                             <TableHead className="border min-w-[120px]">Researcher</TableHead>
                             <TableHead className="border min-w-[100px]">Category</TableHead>
                             <TableHead className="border min-w-[100px]">Date</TableHead>
+                            <TableHead className="border min-w-[130px]">Due Date</TableHead>
                             <TableHead className="border min-w-[110px] text-center">Status</TableHead>
                             <TableHead className="border w-1 whitespace-nowrap text-center min-w-[100px]">
                                 Action
@@ -2424,6 +2759,61 @@ export default function ReviewerPage() {
                                                 {new Date(submission.date).toLocaleDateString()}
                                             </div>
                                         </TableCell>
+                                        <TableCell className="border">
+                                            {isReviewed ? (
+                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium bg-gray-100 text-gray-500 border-gray-200">
+                                                    <Check className="w-3 h-3" />
+                                                    <span>Reviewed</span>
+                                                </div>
+                                            ) : (() => {
+                                                // show to chairperson or to the assigned reviewer their own due date
+                                                const assignmentMetaRaw = assignmentMeta?.rawAssignmentMeta || null;
+                                                const reviewerDueIso = userId && assignmentMetaRaw?.reviewerDueDates ? assignmentMetaRaw.reviewerDueDates[userId] : null;
+                                                const showForReviewer = Boolean(reviewerDueIso && userId && (submission.reviewer || '').includes(userId));
+                                                if (!isChairperson && !showForReviewer) return <span className="text-xs text-gray-400">—</span>;
+                                                // If viewer is chairperson, always show chairperson turnaround (15 working days).
+                                                let info: any = null;
+                                                if (isChairperson) {
+                                                    const chairDueIso = assignmentMetaRaw?.dueDate || null;
+                                                    if (chairDueIso) {
+                                                        const due = new Date(chairDueIso);
+                                                        const daysLeft = businessDaysBetween(new Date().toISOString(), chairDueIso, [0,1,6]);
+                                                        const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                                        info = { due, daysLeft, status };
+                                                    } else {
+                                                        info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                    }
+                                                } else {
+                                                    // Non-chair viewers (reviewers): prefer their calendar due date (5 days incl. weekends)
+                                                    if (reviewerDueIso) {
+                                                        const due = new Date(reviewerDueIso);
+                                                        const msLeft = due.getTime() - Date.now();
+                                                        const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+                                                        const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                                        info = { due, daysLeft, status };
+                                                    } else {
+                                                        info = getDueDateInfo(assignmentDatesByProposal[submission.proposal_id]);
+                                                    }
+                                                }
+                                                if (!info) return <span className="text-xs text-gray-400">—</span>;
+                                                const colorMap = {
+                                                    'overdue': 'bg-red-100 text-red-700 border-red-200',
+                                                    'due-soon': 'bg-amber-100 text-amber-700 border-amber-200',
+                                                    'ok': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                                                };
+                                                const iconMap = {
+                                                    'overdue': <AlertTriangle className="w-3 h-3" />,
+                                                    'due-soon': <Clock className="w-3 h-3" />,
+                                                    'ok': <Calendar className="w-3 h-3" />,
+                                                };
+                                                return (
+                                                    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md border text-xs font-medium ${colorMap[info.status as 'overdue' | 'due-soon' | 'ok']}`}>
+                                                        {iconMap[info.status as 'overdue' | 'due-soon' | 'ok']}
+                                                        <span>{info.due.toLocaleDateString()}</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                        </TableCell>
                                         <TableCell className="border text-center">
                                             {isReviewed ? (
                                                 <Badge variant="default" className="bg-green-100 text-green-800">
@@ -2472,6 +2862,7 @@ export default function ReviewerPage() {
                                                 <span>Available Slot</span>
                                             </div>
                                         </TableCell>
+                                        <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
                                         <TableCell className="border text-gray-400">—</TableCell>
@@ -2546,6 +2937,78 @@ export default function ReviewerPage() {
                                     </div>
                                 )}
                                 <div className="text-xs text-gray-400 mt-2">Submitted {new Date(activeSubmission.date).toLocaleDateString()}</div>
+                                {/* Due Date Banner – hidden once the reviewer has submitted */}
+                                {!hasUserSubmittedRecommendation && (() => {
+                                    const assignmentMetaRaw = assignmentMeta?.rawAssignmentMeta || null;
+                                    const reviewerDueIso = userId && assignmentMetaRaw?.reviewerDueDates ? assignmentMetaRaw.reviewerDueDates[userId] : null;
+                                    const isAssignedToUser = userId && (activeSubmission.reviewer || '').includes(userId);
+                                    if (!isChairperson && !(isAssignedToUser && reviewerDueIso)) return null;
+                                    // Determine info: chairperson sees chair turnaround; reviewers see their calendar due date when available.
+                                    let info: any = null;
+                                    if (isChairperson) {
+                                        const chairDueIso = assignmentMetaRaw?.dueDate || null;
+                                        if (chairDueIso) {
+                                            const due = new Date(chairDueIso);
+                                            const daysLeft = businessDaysBetween(new Date().toISOString(), chairDueIso, [0,1,6]);
+                                            const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                            info = { due, daysLeft, status };
+                                        } else {
+                                            info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                        }
+                                    } else {
+                                        if (reviewerDueIso) {
+                                            const due = new Date(reviewerDueIso);
+                                            const msLeft = due.getTime() - Date.now();
+                                            const daysLeft = msLeft / (1000 * 60 * 60 * 24);
+                                            const status: 'overdue' | 'due-soon' | 'ok' = daysLeft < 0 ? 'overdue' : daysLeft <= 1 ? 'due-soon' : 'ok';
+                                            info = { due, daysLeft, status };
+                                        } else {
+                                            info = getDueDateInfo(assignmentDatesByProposal[activeSubmission.proposal_id]);
+                                        }
+                                    }
+                                    if (!info) return null;
+                                    const styles = {
+                                        'overdue': {
+                                            wrap: 'bg-red-50 border border-red-200 rounded-lg p-3 mt-3',
+                                            label: 'text-red-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-red-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-red-500 text-xs mt-0.5',
+                                            icon: <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />,
+                                            msg: `Overdue by ${Math.abs(Math.floor(info.daysLeft))} day${Math.abs(Math.floor(info.daysLeft)) !== 1 ? 's' : ''}`,
+                                        },
+                                        'due-soon': {
+                                            wrap: 'bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3',
+                                            label: 'text-amber-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-amber-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-amber-500 text-xs mt-0.5',
+                                            icon: <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />,
+                                            msg: info.daysLeft < 1 ? 'Due today!' : 'Due tomorrow!',
+                                        },
+                                        'ok': {
+                                            wrap: 'bg-emerald-50 border border-emerald-200 rounded-lg p-3 mt-3',
+                                            label: 'text-emerald-800 font-semibold text-xs uppercase tracking-wide',
+                                            date: 'text-emerald-700 font-bold text-sm mt-0.5',
+                                            sub: 'text-emerald-500 text-xs mt-0.5',
+                                            icon: <Clock className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />,
+                                            msg: `${Math.ceil(info.daysLeft)} day${Math.ceil(info.daysLeft) !== 1 ? 's' : ''} remaining`,
+                                        },
+                                    };
+                                    const s = styles[info.status as 'overdue' | 'due-soon' | 'ok'];
+                                    return (
+                                        <div className={s.wrap}>
+                                            <div className="flex items-start gap-2">
+                                                {s.icon}
+                                                <div>
+                                                    <div className={s.label}>Review Due Date</div>
+                                                    <div className={s.date}>
+                                                        {info.due.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                                                    </div>
+                                                    <div className={s.sub}>{s.msg}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
 
@@ -2707,6 +3170,11 @@ export default function ReviewerPage() {
                                                 if (parts && parts[1]) {
                                                     reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
                                                 }
+                                            } else if (form.name.includes('Secondary_Reviewer_Comment')) {
+                                                const parts = form.name.match(/Secondary_Reviewer_Comment_\d+_([a-f0-9-]+)_/);
+                                                if (parts && parts[1]) {
+                                                    reviewerInfo = `Reviewer ID: ${parts[1].substring(0, 8)}...`;
+                                                }
                                             }
                                             
                                             return (
@@ -2718,7 +3186,9 @@ export default function ReviewerPage() {
                                                                 <h3 className="font-medium text-gray-900 break-words">
                                                                     {form.name.includes('Reviewer_Assessment') 
                                                                         ? 'Protocol Reviewer Assessment' 
-                                                                        : 'Informed Consent Assessment'}
+                                                                        : form.name.includes('Secondary_Reviewer_Comment')
+                                                                            ? 'Secondary Reviewer Comments'
+                                                                            : 'Informed Consent Assessment'}
                                                                 </h3>
                                                                 {reviewerInfo && (
                                                                     <p className="text-xs text-purple-600 mt-1">{reviewerInfo}</p>
@@ -2784,7 +3254,7 @@ export default function ReviewerPage() {
                                                 </Badge>
                                             </div>
                                             {rec.comments && (
-                                                <p className="text-sm text-gray-600 mt-2">{rec.comments}</p>
+                                                <p className="text-sm text-gray-600 mt-2 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">{rec.comments}</p>
                                             )}
                                             <div className="text-xs text-gray-400 mt-2">
                                                 {new Date(rec.submitted_at).toLocaleString()}
@@ -2938,19 +3408,23 @@ export default function ReviewerPage() {
                                     </div>
                                 </div>
 
-                                {/* Comments Section */}
+                                {/* Comments Section — hidden for secondary reviewers (they use the Comment form) */}
+                                {!isSecondaryReviewer && (
                                 <div className="space-y-2">
                                     <Label>
                                         {isChairperson ? 'Decision Comments' : 'Review Comments'}
-                                        {recommendation.recommendation === 'revisions' && (
+                                        {!isChairperson && recommendation.recommendation === 'revisions' && (
                                             <span className="text-red-500 ml-1">(Required)</span>
+                                        )}
+                                        {isChairperson && (
+                                            <span className="text-gray-400 font-normal ml-1">(Optional)</span>
                                         )}
                                     </Label>
                                     {recommendation.recommendation === 'revisions' ? (
                                         <Textarea
                                             id="comments"
                                             placeholder={isChairperson
-                                                ? "Provide detailed comments about required revisions..."
+                                                ? "Provide optional decision comments or notes..."
                                                 : "Please provide detailed comments about required revisions..."
                                             }
                                             value={recommendation.comments}
@@ -2963,7 +3437,7 @@ export default function ReviewerPage() {
                                         <Textarea
                                             id="comments"
                                             placeholder={isChairperson
-                                                ? ""
+                                                ? "Provide optional decision comments or notes..."
                                                 : ""
                                             }
                                             value={recommendation.comments}
@@ -2974,6 +3448,7 @@ export default function ReviewerPage() {
                                         />
                                     )}
                                 </div>
+                                )}
 
                                 {/* Reviewer Assessment Form Button - For reviewers (and chairperson when assigned) */}
                                 {(!isChairperson || reviewerRoleKey === 'primary' || reviewerRoleKey === 'secondary') && (
@@ -3040,6 +3515,7 @@ export default function ReviewerPage() {
                                                     </div>
                                                 ) : (
                                                     <>
+                                                        {/* Informed Consent Assessment */}
                                                         <div className="relative">
                                                             <Button
                                                                 onClick={() => handleOpenPDFTemplate('informed_consent')}
@@ -3061,8 +3537,32 @@ export default function ReviewerPage() {
                                                                 </div>
                                                             )}
                                                         </div>
+
+                                                        {/* Secondary Reviewer Comments */}
+                                                        <div className="relative">
+                                                            <Button
+                                                                onClick={() => handleOpenPDFTemplate('comment')}
+                                                                disabled={hasSubmittedComment}
+                                                                className={cn(
+                                                                    "w-full flex items-center justify-center gap-2",
+                                                                    (hasSubmittedComment || hasCompletedComment)
+                                                                        ? "bg-green-600 hover:bg-green-700"
+                                                                        : "bg-violet-600 hover:bg-violet-700"
+                                                                )}
+                                                            >
+                                                                {(hasSubmittedComment || hasCompletedComment) && <Check className="w-4 h-4" />}
+                                                                <FileSignature className="w-4 h-4" />
+                                                                Secondary Reviewer Comments
+                                                            </Button>
+                                                            {(hasSubmittedComment || hasCompletedComment) && (
+                                                                <div className="text-xs text-center text-green-600 mt-1">
+                                                                    {hasSubmittedComment ? 'Submitted ✓' : 'Done (Pending submit) ✓'}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
                                                         <p className="text-xs text-gray-500 text-center">
-                                                            Secondary reviewers must complete the Informed Consent Assessment.
+                                                            Secondary reviewers must complete the Informed Consent Assessment and the Secondary Reviewer Comments.
                                                         </p>
                                                     </>
                                                 )}
@@ -3197,7 +3697,7 @@ export default function ReviewerPage() {
                                                 <RippleButton
                                                     onClick={submitRecommendation}
                                                     disabled={
-                                                        (recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
+                                                        (!isChairperson && !isSecondaryReviewer && recommendation.recommendation === 'revisions' && !recommendation.comments.trim()) ||
                                                         !canSubmitRecommendation ||
                                                         (isChairperson && isDecisionLocked) ||
                                                         (isChairperson && recommendation.recommendation === 'revisions' && isDecisionLetterLocked && hasSubmittedChairpersonRevisionNote)
@@ -3578,6 +4078,13 @@ export default function ReviewerPage() {
                                 <EthicalClearanceForm
                                     savedData={ethicalClearanceData}
                                     onSave={(patch) => setEthicalClearanceData((prev) => ({ ...prev, ...patch }))}
+                                    protocolCode={activeSubmission?.protocol_id}
+                                    researcherName={(() => {
+                                        const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                        return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                    })()}
+                                    proposalTitle={activeSubmission?.proposal_title}
+                                    reviewType={activeSubmission?.review_type}
                                 />
                             </div>
                         ) : templateType === 'decision_letter' ? (
@@ -3777,6 +4284,48 @@ export default function ReviewerPage() {
                                     onSave={(patch) => setInformedConsentData((prev) => ({ ...prev, ...patch }))}
                                 />
                             </div>
+                        ) : templateType === 'comment' ? (
+                            <div className="max-w-[1000px] mx-auto">
+                                <div className="sticky top-0 z-30 bg-white border border-gray-200 rounded-md px-4 py-3 mb-4 flex items-center justify-between shadow-sm">
+                                    <div className="text-sm font-medium text-gray-700">Secondary Reviewer Comments</div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant={isSplitScreen ? "default" : "outline"}
+                                            onClick={() => {
+                                                setIsSplitScreen(!isSplitScreen);
+                                                if (!isSplitScreen) {
+                                                    setSplitSelectedDoc(null);
+                                                }
+                                            }}
+                                            className="flex items-center gap-2"
+                                        >
+                                            <FileText className="h-4 w-4" />
+                                            {isSplitScreen ? "Hide Documents" : "View Documents"}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                setShowPDFTemplate(false);
+                                                setTemplateType(null);
+                                                setTemplateUrl('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            onClick={handleDoneComment}
+                                            disabled={hasSubmittedComment}
+                                        >
+                                            Done
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <Comment
+                                    savedData={commentData}
+                                    onSave={(patch) => setCommentData((prev) => ({ ...prev, ...patch }))}
+                                />
+                            </div>
                         ) : (
                             <PDFFormFiller
                                 templateUrl={templateUrl}
@@ -3895,6 +4444,8 @@ export default function ReviewerPage() {
                         <div style={{ pointerEvents: 'none' }}>
                             {assessmentPreviewType === 'reviewer_assessment' ? (
                                 <ProtocolReviewerAssessmentForm savedData={assessmentPreviewData} />
+                            ) : assessmentPreviewType === 'comment' ? (
+                                <Comment savedData={assessmentPreviewData} />
                             ) : (
                                 <InformedConsentAssessmentForm savedData={assessmentPreviewData} />
                             )}
@@ -3972,7 +4523,17 @@ export default function ReviewerPage() {
                             {chairpersonPreviewFormat === 'json' ? (
                                 <div className="pointer-events-none select-none">
                                     {chairpersonPreviewType === 'ethical_clearance' ? (
-                                        <EthicalClearanceForm savedData={chairpersonPreviewData} />
+                                        <EthicalClearanceForm
+                                            savedData={chairpersonPreviewData}
+                                            protocolCode={activeSubmission?.protocol_id}
+                                            researcherName={(() => {
+                                                const p = profiles.find((x) => x.id === activeSubmission?.researcher);
+                                                return p ? `${p.fname ?? ""} ${p.lname ?? ""}`.trim() : "";
+                                            })()}
+                                            proposalTitle={activeSubmission?.proposal_title}
+                                            reviewType={activeSubmission?.review_type}
+                                            isReadOnly
+                                        />
                                     ) : (
                                         <DecisionLetterForm savedData={chairpersonPreviewData} />
                                     )}

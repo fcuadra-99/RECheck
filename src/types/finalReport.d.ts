@@ -12,6 +12,7 @@ export interface FinalReport {
     attachments: string[];
     remarks?: string | null;
     metadata?: {
+        chairSignature?: string;
         assignedStaffIds?: string[];
         assignedById?: string;
         assignedByName?: string;
@@ -27,6 +28,7 @@ export interface FinalReport {
             comments?: string;
             submittedAt: string;
         }>;
+        [key: string]: any;
     };
 }
 export type FinalReportStatus = 'Pending Review' | 'Under Review' | 'Requires Revision' | 'Approved' | 'Rejected';
@@ -43,4 +45,5 @@ export interface UpdateFinalReportPayload {
     status?: FinalReportStatus;
     outcome?: string | null;
     remarks?: string | null;
+    metadata?: Record<string, any>;
 }
