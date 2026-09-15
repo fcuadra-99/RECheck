@@ -364,6 +364,42 @@ export default function ReviewerPage() {
         setArchivedProposalIds(nextArchived);
     };
 
+    const isAssignedReviewer = (reviewer: Submission["reviewer"], uid: string) => {
+        if (Array.isArray(reviewer)) return reviewer.includes(uid);
+        if (typeof reviewer !== "string") return false;
+
+        try {
+            const parsed = JSON.parse(reviewer);
+            if (Array.isArray(parsed)) return parsed.includes(uid);
+        } catch {
+            // PostgreSQL array values may be returned as {id1,id2} strings.
+        }
+
+        return reviewer.replace(/[{}]/g, "").split(",").some((id) => id.trim() === uid);
+    };
+
+    const refreshReviewerProposals = async (uid: string) => {
+        const { data, error } = await supabase
+            .from("proposals")
+            .select("*")
+            .in("status", ["Proposal Review", "Data Collection", "Revise Proposal", "Archive Files"])
+            .order("date", { ascending: false });
+
+        if (error) {
+            console.error("Failed to refresh reviewer submissions:", error);
+            return;
+        }
+
+        await loadReviewerArchives(uid);
+        const refreshed = (data || []).filter((proposal) =>
+            isAssignedReviewer((proposal as Submission).reviewer, uid)
+        ) as Submission[];
+        setSubmissions(refreshed);
+        setActiveSubmission((current) =>
+            current ? refreshed.find((submission) => submission.proposal_id === current.proposal_id) || current : refreshed[0] || null
+        );
+    };
+
     /* fetch initial data - only proposals assigned to current reviewer */
     useEffect(() => {
         let mounted = true;
@@ -401,11 +437,12 @@ export default function ReviewerPage() {
                     .from("proposals")
                     .select("*")
                     .in("status", ["Proposal Review", "Data Collection", "Revise Proposal", "Archive Files"])
-                    .like("reviewer", `%${uid}%`)
                     .order("date", { ascending: false });
 
                 if (error) throw error;
-                let projs = (proposals || []) as Submission[];
+                let projs = (proposals || []).filter((proposal) =>
+                    isAssignedReviewer((proposal as Submission).reviewer, uid)
+                ) as Submission[];
 
                 if (mounted) setSubmissions(projs);
 
@@ -521,6 +558,24 @@ export default function ReviewerPage() {
             mounted = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (!userId) return;
+
+        const refreshWhenActive = () => {
+            if (document.visibilityState === "visible") void refreshReviewerProposals(userId);
+        };
+
+        window.addEventListener("focus", refreshWhenActive);
+        document.addEventListener("visibilitychange", refreshWhenActive);
+        const intervalId = window.setInterval(refreshWhenActive, 30000);
+
+        return () => {
+            window.removeEventListener("focus", refreshWhenActive);
+            document.removeEventListener("visibilitychange", refreshWhenActive);
+            window.clearInterval(intervalId);
+        };
+    }, [userId]);
 
     /* When active submission changes, load its documents and recommendations */
     useEffect(() => {
@@ -1978,6 +2033,8 @@ export default function ReviewerPage() {
                     )
                 );
 
+                await refreshReviewerProposals(userId);
+
                 toast.success(
                     `Proposal ${recommendation.recommendation === 'approve' ? 'approved and moved to Data Collection' : 'sent for revisions'}`,
                     { id: loadingId }
@@ -2609,6 +2666,8 @@ export default function ReviewerPage() {
                             : sub
                     )
                 );
+
+                await refreshReviewerProposals(userId);
 
                 toast.success(
                     `${templateType === 'ethical_clearance' ? 'Ethical Clearance sent - Proposal approved and moved to Data Collection' : 'Decision Letter sent - Proposal sent for revisions'}`,

@@ -48,6 +48,20 @@ const saveReadNotifications = (readIds: Set<number>) => {
     }
 };
 
+const isAssignedReviewer = (reviewer: unknown, userId: string): boolean => {
+    if (Array.isArray(reviewer)) return reviewer.includes(userId);
+    if (typeof reviewer !== "string") return false;
+
+    try {
+        const parsed = JSON.parse(reviewer);
+        if (Array.isArray(parsed)) return parsed.includes(userId);
+    } catch {
+        // PostgreSQL array values may be returned as {id1,id2} strings.
+    }
+
+    return reviewer.replace(/[{}]/g, "").split(",").some((id) => id.trim() === userId);
+};
+
 export function NotificationBell({ userId }: NotificationBellProps) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [hasUnread, setHasUnread] = useState(false);
@@ -159,6 +173,27 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                         .in("proposal_id", uniquePaperIds);
                     proposalsData = proposals || [];
                 }
+            } else if (role === "Reviewer" || role === "reviewer") {
+                const { data: assignedProposals } = await supabase
+                    .from("proposals")
+                    .select("proposal_id, proposal_title, status, reviewer")
+                    .in("status", ["Proposal Review", "Data Collection", "Revise Proposal", "Archive Files"]);
+
+                proposalsData = (assignedProposals || []).filter((proposal) =>
+                    isAssignedReviewer(proposal.reviewer, userId)
+                );
+
+                const proposalIds = proposalsData.map(p => p.proposal_id);
+                if (proposalIds.length > 0) {
+                    const { data: history } = await supabase
+                        .from("history")
+                        .select("*")
+                        .in("paper_id", proposalIds)
+                        .eq("history_type", "assignment")
+                        .order("history_date", { ascending: false })
+                        .limit(50);
+                    historyData = history || [];
+                }
             } else {
                 // Researcher workflow
                 const { data: proposals } = await supabase
@@ -259,6 +294,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
         }
         if (action === "Submit Revisions") {
             return { main: "Revisions submitted", subtext: `Moved to: ${status}` };
+        }
+        if (notification.history_type === "assignment") {
+            return { main: "You were assigned a proposal to review", subtext: "New review assignment" };
         }
         if (action.includes("APPROVE") || action.includes("approve")) {
             return { main: "Submission approved", subtext: status ? `Moved to: ${status}` : "" };

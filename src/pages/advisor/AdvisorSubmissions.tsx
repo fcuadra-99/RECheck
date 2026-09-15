@@ -160,6 +160,43 @@ export default function AdvisorSubmissions() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!userId) return;
+
+        const refreshProposals = async () => {
+            const { data, error } = await supabase
+                .from("proposals")
+                .select("*")
+                .eq("advisor_id", userId)
+                .order("date", { ascending: false });
+
+            if (error) {
+                console.error("Failed to refresh advisor submissions:", error);
+                return;
+            }
+
+            const refreshed = (data || []) as Submission[];
+            setSubmissions(refreshed);
+            setActiveSubmission((current) =>
+                current ? refreshed.find((submission) => submission.proposal_id === current.proposal_id) || current : refreshed[0] || null
+            );
+        };
+
+        const refreshWhenActive = () => {
+            if (document.visibilityState === "visible") void refreshProposals();
+        };
+
+        window.addEventListener("focus", refreshWhenActive);
+        document.addEventListener("visibilitychange", refreshWhenActive);
+        const intervalId = window.setInterval(refreshWhenActive, 30000);
+
+        return () => {
+            window.removeEventListener("focus", refreshWhenActive);
+            document.removeEventListener("visibilitychange", refreshWhenActive);
+            window.clearInterval(intervalId);
+        };
+    }, [userId]);
+
     /* When active submission changes, load its documents */
     useEffect(() => {
         loadSubmissionData();

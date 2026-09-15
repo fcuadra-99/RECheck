@@ -19,28 +19,19 @@ export default function ProposalsTable() {
     }
   }, [])
 
-  // Set up real-time subscription for proposals table
   useEffect(() => {
-    const channel = supabase
-      .channel('proposals-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'proposals'
-        },
-        (payload) => {
-          console.log('Proposals change detected:', payload)
-          // Refetch data when any change occurs
-          getSubm()
-        }
-      )
-      .subscribe()
+    const refreshWhenActive = () => {
+      if (document.visibilityState === "visible") void getSubm()
+    }
 
-    // Cleanup subscription on unmount
+    window.addEventListener("focus", refreshWhenActive)
+    document.addEventListener("visibilitychange", refreshWhenActive)
+    const intervalId = window.setInterval(refreshWhenActive, 30000)
+
     return () => {
-      supabase.removeChannel(channel)
+      window.removeEventListener("focus", refreshWhenActive)
+      document.removeEventListener("visibilitychange", refreshWhenActive)
+      window.clearInterval(intervalId)
     }
   }, [])
 

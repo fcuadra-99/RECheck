@@ -124,6 +124,40 @@ export default function SubmissionsPage() {
         };
     }, []);
 
+    useEffect(() => {
+        const refreshProposals = async () => {
+            const { data, error } = await supabase
+                .from("proposals")
+                .select("*")
+                .order("date", { ascending: false });
+
+            if (error) {
+                console.error("Failed to refresh submissions:", error);
+                return;
+            }
+
+            const refreshed = (data || []) as Submission[];
+            setSubmissions(refreshed);
+            setActiveSubmission((current) =>
+                current ? refreshed.find((submission) => submission.proposal_id === current.proposal_id) || current : current
+            );
+        };
+
+        const refreshWhenActive = () => {
+            if (document.visibilityState === "visible") void refreshProposals();
+        };
+
+        window.addEventListener("focus", refreshWhenActive);
+        document.addEventListener("visibilitychange", refreshWhenActive);
+        const intervalId = window.setInterval(refreshWhenActive, 30000);
+
+        return () => {
+            window.removeEventListener("focus", refreshWhenActive);
+            document.removeEventListener("visibilitychange", refreshWhenActive);
+            window.clearInterval(intervalId);
+        };
+    }, []);
+
     /* derived: user's submissions and displayed (max 3) */
     const userSubmissions = submissions
         .filter((s) => {
