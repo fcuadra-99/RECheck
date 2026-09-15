@@ -1,9 +1,14 @@
 import {
   BookCopy,
+  BookDashed,
+  ClipboardCheck,
+  ClipboardEditIcon,
+  FileCheck,
   GalleryVerticalEnd,
   LayoutDashboard,
-  PencilRuler,
   Settings,
+  UserCheck,
+  History,
   type LucideIcon,
 } from "lucide-react"
 
@@ -12,14 +17,17 @@ export type {
   Organization,
   NavItem,
   Submissions,
-  AppData
+  AppData,
+  SubmTable,
 };
 
 type User = {
-  name: string;
+  fname: string;
+  lname: string;
   role: string;
   email: string;
   avatar: string;
+  org: string;
 };
 
 type Organization = {
@@ -36,110 +44,201 @@ type NavItem = {
   items?: {
     title: string;
     url: string;
+    role: string;
   }[];
 };
 
-type Submissions = {
-  month: string;
-  desktop: number;
-  mobile: number;
+type SubmTable = {
+  proposal_id: string;
+  proposal_title: string;
+  status: string;
 };
-type SubmConf = {
-    desktop: {
-        label: "Desktop",
-        color: "var(--chart-1)",
-    },
-    mobile: {
-        label: "Mobile",
-        color: "var(--chart-2)",
-    },
-} 
+
+type Submissions = {
+    month: string;
+    External: number;
+    Graduate: number;
+    Undergraduate: number;
+};
 
 type AppData = {
   user: User;
   main: Organization[];
   navMain: NavItem[];
   navSecondary: NavItem[];
-  subm: Submissions[]
-  projects: any[];
+  subm: Submissions[];
+  projects: unknown[];
 };
 
+// ====== BASE NAV CONFIG ======
+const navConfig = {
+  dashboard: {
+    title: "Dashboard",
+    url: "/sdash",
+    icon: LayoutDashboard,
+    items: [
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Admin Assistant" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Researcher" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Reviewer" },
+      { title: "My Dashboard", url: "/sdash/sub1", role: "Chairperson" },
+    ],
+  },
+  submissions: {
+    title: "Submissions",
+    url: "/ssubm",
+    icon: BookCopy,
+    items: [
+      { title: "Manage Submissions", url: "/ssubm/sub1", role: "Admin Assistant" },
+      { title: "Manage Submissions", url: "/ssubm/sub1", role: "Chairperson" },
+      { title: "My Submissions", url: "/ssubm/sub2", role: "Researcher" },
+      { title: "Review Submissions", url: "/ssubm/sub3", role: "Reviewer" },
+      { title: "Review Submissions", url: "/ssubm/sub3", role: "Chairperson" },
+      { title: "Advisor Submissions", url: "/ssubm/sub4", role: "Advisor" },
+      { title: "Advisor Submissions", url: "/ssubm/sub4", role: "Admin" },
+    ],
+  },
+  deviations: {
+    title: "Deviations",
+    url: "/sdevi",
+    icon: BookDashed,
+    items: [
+      { title: "Deviations", url: "/chairperson/deviations", role: "Chairperson" },
+      { title: "Resolution Reviews", url: "/chairperson/resolution-reviews", role: "Chairperson" },
+    ],
+  },
+  postApproval: {
+    title: "Post Approval",
+    url: "/researcher/post-approval-forms",
+    icon: ClipboardEditIcon,
+    items: [
+      { title: "New Form", url: "/researcher/post-approval-forms", role: "Researcher" },
+      { title: "Forms Submitted", url: "/researcher/template-submissions", role: "Researcher" },
+    ],
+  },
+  finalReports: {
+    title: "Final Reports",
+    url: "/researcher/final-report",
+    icon: FileCheck,
+    items: [
+      { title: "Manage Reports", url: "/chairperson/final-reports", role: "Chairperson" },
+      { title: "Assigned Reports", url: "/reviewer/final-reports", role: "Reviewer" },
+      { title: "Assigned Reports", url: "/staff/final-reports", role: "Admin Assistant" },
+    ],
+  },
+  formsReview: {
+    title: "Post Approval Forms",
+    url: "/chairperson/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Submissions", url: "/chairperson/template-submissions", role: "Chairperson" },
+    ],
+  },
+  reviewerFormsReview: {
+    title: "Assigned Forms (Reviewer)",
+    url: "/reviewer/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Assigned Forms", url: "/reviewer/template-submissions", role: "Reviewer" },
+    ],
+  },
+  staffFormsReview: {
+    title: "Assigned Forms (Staff)",
+    url: "/staff/template-submissions",
+    icon: ClipboardCheck,
+    items: [
+      { title: "Assigned Forms", url: "/staff/template-submissions", role: "Admin Assistant" },
+    ],
+  },
+  researcherHistory: {
+    title: "Researcher History",
+    url: "/chairperson/researcher-history",
+    icon: History,
+    items: [
+      { title: "View History", url: "/chairperson/researcher-history", role: "Chairperson" },
+    ],
+  },
+  admin: {
+    title: "Admin",
+    url: "/admin",
+    icon: UserCheck,
+    items: [
+      { title: "User Management", url: "/admin/userroles", role: "Admin" },
+      { title: "Document Management", url: "/admin/documents", role: "Admin" },
+      { title: "Document Prototype", url: "/admin/documents-prototype", role: "Admin" },
+      { title: "Phase Management", url: "/admin/phases", role: "Admin" },
+    ],
+  },
+};
+
+// ====== NAV FILTER FUNCTION ======
+export function generateNav(role: string): NavItem[] {
+  const roleIsAdmin = role === "Admin";
+  const roleIsChair = role === "Chairperson";
+
+  const filteredNav = Object.values(navConfig)
+    .map((section) => {
+      let items = section.items ?? [];
+
+      // Admin sees everything
+      if (roleIsAdmin) {
+        // Remove duplicate child items by title within this section
+        const uniqueItems = new Map();
+        items.forEach(item => {
+          if (!uniqueItems.has(item.title)) {
+            uniqueItems.set(item.title, item);
+          }
+        });
+        items = Array.from(uniqueItems.values());
+
+        return {
+          ...section,
+          isActive: true,
+          items,
+        };
+      }
+
+      // Chairperson sees ONLY Chairperson items
+      if (roleIsChair) {
+        if (section.title === "Admin") {
+          return null; // skip Admin section entirely
+        }
+        items = items.filter((i) => i.role === "Chairperson");
+
+        return items.length > 0
+          ? { ...section, isActive: true, items }
+          : null;
+      }
+
+      // Everyone else gets only their allowed sub-items
+      items = items.filter((i) => i.role === role);
+
+      return items.length > 0
+        ? { ...section, isActive: true, items }
+        : null;
+    })
+    .filter(Boolean) as NavItem[];
+
+  return filteredNav;
+}
+
+// ====== APP DATA ======
 export const data: AppData = {
   user: {
-    name: "shadcn",
-    role: "Researcher",
+    fname: "shad",
+    lname: "cn",
+    role: "Chairperson", // change dynamically
     email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+    avatar: "/avatars/avatar.png",
+    org: "",
   },
   main: [
     {
-      name: 'Acme Inc',
+      name: "Acme Inc",
       logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    }
-  ],
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "/sdash",
-      icon: LayoutDashboard,
-      isActive: true,
-      items: [
-        {
-          title: "Dash Sub1",
-          url: "/sdash/sub1",
-        },
-        {
-          title: "Dash Sub2",
-          url: "/sdash/sub2",
-        },
-        {
-          title: "Dash Sub3",
-          url: "/sdash/sub3",
-        },
-      ],
-    },
-    {
-      title: "Submissions",
-      url: "/ssubm",
-      icon: BookCopy,
-      isActive: true,
-      items: [
-        {
-          title: "Subm Sub1",
-          url: "/ssubm/sub1",
-        },
-        {
-          title: "Subm Sub2",
-          url: "/ssubm/sub2",
-        },
-        {
-          title: "Subm Sub3",
-          url: "/ssubm/sub3",
-        },
-      ],
-    },
-    {
-      title: "Deviations",
-      url: "/sdevi",
-      icon: PencilRuler,
-      isActive: true,
-      items: [
-        {
-          title: "Devi Sub1",
-          url: "/sdevi/sub1",
-        },
-        {
-          title: "Devi Sub2",
-          url: "/sdevi/sub2",
-        },
-        {
-          title: "Devi Sub3",
-          url: "/sdevi/sub3",
-        },
-      ],
+      plan: "Enterprise",
     },
   ],
+  navMain: generateNav("Admin"),
   navSecondary: [
     {
       title: "Settings",
@@ -147,13 +246,6 @@ export const data: AppData = {
       icon: Settings,
     },
   ],
-  subm: [
-    { month: "January", desktop: 186, mobile: 80 },
-    { month: "February", desktop: 305, mobile: 200 },
-    { month: "March", desktop: 237, mobile: 120 },
-    { month: "April", desktop: 73, mobile: 190 },
-    { month: "May", desktop: 209, mobile: 130 },
-    { month: "June", desktop: 214, mobile: 140 },
-  ],
+  subm: [],
   projects: [],
 };

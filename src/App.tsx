@@ -1,91 +1,339 @@
-import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router-dom';
-import { AppBreadcrumb } from './components/parts/app-breadcrumb';
-import { SidebarProvider } from './components/ui/sidebar';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from "react-router-dom";
+import { useEffect, useState, memo, type JSX } from "react";
+import { toast } from "sonner";
+import { supabase } from "./DB";
+import { type User } from "@supabase/supabase-js";
 
-import './App.css';
-import { data } from "@/Data"
+import { AppBreadcrumb, NeoSidebar as AppSidebar } from "./components/parts/navigation";
+import { SidebarProvider } from "./components/ui/sidebar";
+import { ChatPopup } from "./pages/researcher/ChatComp";
 
-import SDashboard from './pages/staff/Dashboard';
-import SSubmissions from './pages/staff/Submissions';
-import SDeviations from './pages/staff/Deviations';
-import LoginPage from './pages/Login';
-import SignupPage from './pages/Signup';
-import { MessageCircle } from 'lucide-react';
-import { RadixSidebarDemo as AppSidebar } from './components/parts/neo-sidebar';
-import { RippleButton } from './components/animate-ui/buttons/ripple';
-import STrends from './pages/staff/Trends';
+import SDashboard from "./pages/staff/Dashboard";
+import SSubmissions from "./pages/staff/Submissions";
+import TemplateFieldEditor from "./pages/staff/TemplateFieldEditor";
+import ChairpersonDeviations from "./pages/chairperson/Deviations";
+import DeviationDetail from "./pages/chairperson/DeviationDetail";
+import CorrectiveActionRequest from "./pages/chairperson/CorrectiveActionRequest";
+import ResolutionReviews from "./pages/chairperson/ResolutionReviews";
+import ResolutionDetail from "./pages/chairperson/ResolutionDetail";
+import ChairpersonTemplateSubmissions from "./pages/chairperson/TemplateSubmissions";
+import ChairpersonTemplateSubmissionDetail from "./pages/chairperson/TemplateSubmissionDetail";
+import ManageFinalReports from "./pages/chairperson/ManageFinalReport";
+import FinalReportDetail from "./pages/chairperson/FinalReportDetail";
+import ResearcherHistory from "./pages/chairperson/ResearcherHistory";
+import ResearcherHistoryDetail from "./pages/chairperson/ResearcherHistoryDetail";
+import { SReview } from "./pages/staff/Submissions/Review";
+import RDashboard from "./pages/researcher/Dashboard";
+import RSubmissions from "./pages/researcher/Submissions";
+import FeedbackDetail from "./pages/researcher/FeedbackDetail";
+import DeviationReportForm from "./pages/researcher/Deviation";
+import RDeviationSubmissions from "./pages/researcher/DeviationSubmitted";
+import PostApprovalForms from "./pages/researcher/PostApprovalForms";
+import TemplateSubmissions from "./pages/researcher/TemplateSubmissions";
+import TemplateSubmissionDetail from "./pages/researcher/TemplateSubmissionDetail";
+import FinalReportSubmission from "./pages/researcher/FinalReportSubmission";
+import ReviewerPage from "./pages/reviewer/Submissions";
+import ReviewerTemplateSubmissions from "./pages/reviewer/TemplateSubmissions";
+import ReviewerTemplateSubmissionDetail from "./pages/reviewer/TemplateSubmissionDetail";
+import AssignedFinalReports from "./pages/reviewer/AssignedFinalReports";
+import AssignedFinalReportDetail from "./pages/reviewer/AssignedFinalReportDetail";
+import AdvisorSubmissions from "./pages/advisor/AdvisorSubmissions";
+import AdminUsersPage from "./pages/AdminUsersPage";
+import DocumentManagement from "./pages/admin/DocumentManagement";
+import OfficeJsPrototype from "./pages/admin/skibidi";
+import PhaseManagement from "./pages/admin/PhaseManagement";
+import Profile from "./pages/Profile";
+import LoginPage from "./pages/Login";
+import SignupPage from "./pages/Signup";
+import ConfirmEmailPage from "./pages/ConfirmEmail";
+import ResetPasswordPage from "./pages/ResetPassword";
+import NotFoundPage from "./pages/NotFound";
 
+import "./App.css";
 
-function App() {
+// ----------------------------
+// Session Profile Interface
+// ----------------------------
+interface SessionProfile {
+  fname: string;
+  lname: string;
+  email: string;
+  org: string;
+  avatar: string;
+  role: string;
+}
+
+//awdawd
+// ----------------------------
+// Redirect wrapper for login/signup
+// ----------------------------
+function AuthRedirect({
+  user,
+  children,
+}: {
+  user: User | null;
+  children: JSX.Element;
+}) {
+  const isVerified = user?.email_confirmed_at || user?.user_metadata?.email_confirmed;
+
+  if (user && !isVerified) {
+    toast.error("Please verify your email first!");
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user && isVerified) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+// ----------------------------
+// Role-based redirect for "/"
+// ----------------------------
+function DefaultRedirect({ profile }: { profile: SessionProfile }) {
   return (
-    <>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signu" element={<SignupPage />} />
-
-          <Route element={
-            <SidebarProvider className='overflow-x-hidden'>
-              <div className='w-64 fixed h-screen overflow-x-clip'>
-                <AppSidebar />
-              </div>
-              <div className='flex-1 pl-0 md:pl-64 min-w-screen bg-background'>
-                <div className='py-3 px-5 pb-3 border-b-2 fixed w-full z-10 pointer-events-none'>
-                  <AppBreadcrumb items={data.navMain} />
-                </div>
-                <div className='pl-7 pr-7 py-12 min-w-full scroll-mx-0'>
-                  <Outlet />
-                </div>
-              </div>
-
-              <RippleButton variant="secondary" size="icon" className="size-10 fixed bg-muted hover:bg-accent bottom-0 right-0 m-5">
-                <MessageCircle />
-              </RippleButton>
-            </SidebarProvider>
-
-          }>
-            <Route path="/" element={<SDashboard />} />
-            <Route path="/sdash" element={<SDashboard />} />
-            <Route path="/sdash/sub1" element={<STrends />} />
-            <Route path="/sdevi" element={<SDeviations />} />
-            <Route path="/ssubm" element={<SSubmissions />} />
-            <Route path="/ssubm/sub1" element={<SSubmissions />} />
-            <Route path="*" element={<SDashboard />} />
-          </Route>
-        </Routes>
-      </Router>
-
-    </>
+    <Navigate
+      to={profile.role === "researcher" ? "/sdash/sub2" : "/sdash/sub1"}
+      replace
+    />
   );
 }
 
-// function App() {
-//   return (
-//     <>
-//       <Router>
-//         <SidebarProvider>
-//           <RadixSidebarDemo/>
-//           <div className='bg-background w-screen'>
-//             <div className='mt-3 ml-4'>
-//             </div>
-//             <div className='px-10 py-3'>
-//               <Routes>
-//                   <Route path="/" element={<SDashboard />} />
-//                   <Route path="/sdash" element={<SDashboard />} />
-//                   <Route path="/sdevi" element={<SDeviations />} />
-//                   <Route path="/ssubm" element={<SSubmissions />} />
-//                   <Route path="/login" element={<LoginPage />} />
-//                   <Route path="/signu" element={<SignupPage />} />
-//               </Routes>
-//             </div>
-//           </div>
-//         </SidebarProvider>
-//       </Router>
-//       <Button variant="secondary" size="icon" className="size-8 fixed bg-muted hover:bg-sidebar bottom-0 right-0 m-5">
-//         <ChevronRightIcon />
-//       </Button>
-//     </>
-//   );
-// }
+// ----------------------------
+// Sidebar Layout
+// ----------------------------
+const SidebarLayout = memo(function SidebarLayout({
+  profile,
+  user,
+}: {
+  profile: SessionProfile | null;
+  user: User | null;
+}) {
+  return (
+    <SidebarProvider className="overflow-x-clip">
+      <div className="w-64 fixed h-screen">
+        <AppSidebar
+          fname={profile?.fname ?? ""}
+          lname={profile?.lname ?? ""}
+          email={profile?.email ?? ""}
+          org={profile?.org ?? ""}
+          role={profile?.role ?? ""}
+          userId={user?.id ?? ""}
+        />
+      </div>
 
-export default App;
+      <div className="flex-1 pl-0 md:pl-64 min-w-screen bg-background">
+        <AppBreadcrumb userId={user?.id} />
+        <div className="pl-7 pr-7 py-16 min-w-full z-50 bg-red-50">
+          <Outlet />
+        </div>
+      </div>
+
+      <ChatPopup userId={user?.id ?? ""} />
+    </SidebarProvider>
+  );
+});
+
+// ----------------------------
+// App Component
+// ----------------------------
+export default function App() {
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<SessionProfile | null>(null);
+
+  // Get Supabase session and listen for changes
+  useEffect(() => {
+    let mounted = true;
+
+    const getUserSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      setUser(data.session?.user ?? null);
+      setLoading(false);
+    };
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (mounted) setUser(session?.user ?? null);
+    });
+
+    getUserSession();
+
+    return () => {
+      mounted = false;
+      listener.subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Fetch user profile if logged in
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchProfile = async () => {
+      if (!user) {
+        setProfile(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("fname,lname,email,org,avatar,role")
+          .eq("id", user.id)
+          .single();
+
+        if (error) throw error;
+
+        if (mounted) {
+          setProfile({
+            fname: data?.fname ?? user.user_metadata?.fname ?? "",
+            lname: data?.lname ?? user.user_metadata?.lname ?? "",
+            email: data?.email ?? user.email ?? "",
+            org: data?.org ?? "",
+            avatar: data?.avatar ?? user.user_metadata?.avatar ?? "",
+            role: data?.role ?? user.user_metadata?.role ?? "",
+          });
+        }
+      } catch {
+        if (mounted) {
+          setProfile({
+            fname: user.user_metadata?.fname ?? "",
+            lname: user.user_metadata?.lname ?? "",
+            email: user.email ?? "",
+            org: "",
+            avatar: user.user_metadata?.avatar ?? "",
+            role: user.user_metadata?.role ?? "",
+          });
+        }
+      }
+    };
+
+    fetchProfile();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  // Loading state
+  if (loading || (user && !profile)) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <Router>
+      <Routes>
+        {/* Public pages */}
+        <Route
+          path="/login"
+          element={
+            <AuthRedirect user={user}>
+              <LoginPage />
+            </AuthRedirect>
+          }
+        />
+        <Route
+          path="/signu"
+          element={
+            <AuthRedirect user={user}>
+              <SignupPage />
+            </AuthRedirect>
+          }
+        />
+        <Route
+          path="/confirm-email"
+          element={<ConfirmEmailPage />}
+        />
+        <Route
+          path="/reset"
+          element={user ? <ResetPasswordPage /> : <Navigate to="/login" replace />}
+        />
+
+        {/* If not logged in → always redirect to /login */}
+        {!user && (
+          <>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/not-found" element={<NotFoundPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </>
+        )}
+
+        {/* Authenticated layout */}
+        {user && (
+          <Route
+            element={
+              !(user.email_confirmed_at || user.user_metadata?.email_confirmed) ? (
+                <Navigate to="/login" replace />
+              ) : (
+                <SidebarLayout profile={profile} user={user} />
+              )
+            }
+          >
+            {profile && (
+              <Route path="/" element={<DefaultRedirect profile={profile} />} />
+            )}
+
+            {/* Dashboard */}
+            <Route path="/sdash" element={<SDashboard user={user} profile={profile} />} />
+            <Route path="/sdash/sub1" element={<SDashboard user={user} profile={profile} />} />
+            <Route path="/sdash/sub2" element={<RDashboard user={user} profile={profile} />} />
+
+            {/* Profile */}
+            <Route path="/profile" element={<Profile />} />
+
+            {/* Deviations */}
+            <Route path="/researcher/deviations/feedback/:id" element={<FeedbackDetail />} />
+            <Route path="/researcher/post-approval-forms" element={<PostApprovalForms />} />
+            <Route path="/researcher/template-submissions" element={<TemplateSubmissions />} />
+            <Route path="/researcher/template-submissions/:id" element={<TemplateSubmissionDetail />} />
+            <Route path="/researcher/final-report" element={<FinalReportSubmission />} />
+            <Route path="/chairperson/corrective-action-request" element={<CorrectiveActionRequest />} />
+            <Route path="/chairperson/deviations/:id" element={<DeviationDetail />} />
+            <Route path="/chairperson/deviations" element={<ChairpersonDeviations />} />
+            <Route path="/chairperson/resolution-reviews" element={<ResolutionReviews />} />
+            <Route path="/chairperson/resolution-detail/:id" element={<ResolutionDetail />} />
+            <Route path="/chairperson/template-submissions" element={<ChairpersonTemplateSubmissions />} />
+            <Route path="/chairperson/template-submissions/:id" element={<ChairpersonTemplateSubmissionDetail />} />
+            <Route path="/reviewer/template-submissions" element={<ReviewerTemplateSubmissions />} />
+            <Route path="/reviewer/template-submissions/:id" element={<ReviewerTemplateSubmissionDetail />} />
+            <Route path="/staff/template-submissions" element={<ReviewerTemplateSubmissions />} />
+            <Route path="/staff/template-submissions/:id" element={<ReviewerTemplateSubmissionDetail />} />
+            <Route path="/reviewer/final-reports" element={<AssignedFinalReports />} />
+            <Route path="/reviewer/final-reports/:id" element={<AssignedFinalReportDetail />} />
+            <Route path="/staff/final-reports" element={<AssignedFinalReports />} />
+            <Route path="/staff/final-reports/:id" element={<AssignedFinalReportDetail />} />
+            <Route path="/chairperson/final-reports" element={<ManageFinalReports />} />
+            <Route path="/chairperson/final-reports/:id" element={<FinalReportDetail />} />
+            <Route path="/chairperson/researcher-history" element={<ResearcherHistory />} />
+            <Route path="/chairperson/researcher-history/:id" element={<ResearcherHistoryDetail />} />
+            <Route path="/sdevi/report" element={<DeviationReportForm />} />
+            <Route path="/sdevi/submitted" element={<RDeviationSubmissions />} />
+
+            {/* Submissions */}
+            <Route path="/ssubm" element={<SSubmissions />} />
+            <Route path="/ssubm/sub1" element={<SSubmissions />} />
+            <Route path="/ssubm/sub1/sreview" element={<SReview />} />
+            <Route path="/ssubm/sub2" element={<RSubmissions />} />
+            <Route path="/ssubm/sub3" element={<ReviewerPage />} />
+            <Route path="/ssubm/sub4" element={<AdvisorSubmissions />} />
+
+            {/* Admin */}
+            <Route path="/admin/userroles" element={<AdminUsersPage />} />
+            <Route path="/admin/documents" element={<DocumentManagement />} />
+            <Route path="/admin/documents-prototype" element={<OfficeJsPrototype />} />
+            <Route path="/admin/phases" element={<PhaseManagement />} />
+            <Route path="/staff/template-config" element={<TemplateFieldEditor />} />
+
+            {/* Fallback */}
+            <Route path="/not-found" element={<NotFoundPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        )}
+      </Routes>
+    </Router>
+  );
+}
