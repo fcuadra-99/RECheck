@@ -494,18 +494,6 @@ export default function AdminPhases() {
               />
             </div>
 
-            {/* Description */}
-            <div>
-              <Label>Description</Label>
-              <Textarea
-                className="mt-1"
-                value={editingPhase?.description || ""}
-                onChange={(e: any) =>
-                  editingPhase && setEditingPhase({ ...editingPhase, description: e.target.value })
-                }
-              />
-            </div>
-
             {/* Statuses */}
             <div>
               <Label>Statuses</Label>
