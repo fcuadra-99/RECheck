@@ -1,0 +1,59 @@
+// Final Report domain types
+export interface FinalReport {
+  id: string;
+  proposal_date: string; // link to original proposal (using date as primary key)
+  title: string;
+  researcher_id: string;
+  researcher_name?: string;
+  reviewer_id?: string | null;
+  status: FinalReportStatus;
+  outcome?: string | null; // textual outcome / decision summary
+  submitted_at: string; // ISO timestamp
+  last_updated_at: string; // ISO timestamp
+  attachments: string[]; // storage object paths
+  remarks?: string | null; // internal chairperson remarks
+  metadata?: {
+    chairSignature?: string;
+    assignedStaffIds?: string[];
+    assignedById?: string;
+    assignedByName?: string;
+    assignedAt?: string;
+    sharedFormPath?: string;
+    staffSharedFormData?: Record<string, any>;
+    staffSubmissions?: Record<string, {
+      staffId: string;
+      staffName: string;
+      role?: string;
+      filePath: string;
+      fileName: string;
+      comments?: string;
+      submittedAt: string;
+    }>;
+    [key: string]: any;
+  };
+}
+
+export type FinalReportStatus =
+  | 'Pending Review'
+  | 'Under Review'
+  | 'Requires Revision'
+  | 'Approved'
+  | 'Rejected';
+
+export interface FinalReportWithMeta extends FinalReport {
+  submission_code?: string;
+  protocol_code?: string;
+}
+
+export interface FinalReportFilter {
+  status?: FinalReportStatus | 'All';
+  search?: string; // matches title / researcher
+}
+
+export interface UpdateFinalReportPayload {
+  id: string;
+  status?: FinalReportStatus;
+  outcome?: string | null;
+  remarks?: string | null;
+  metadata?: Record<string, any>;
+}

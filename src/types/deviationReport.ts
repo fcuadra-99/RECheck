@@ -1,0 +1,38 @@
+export interface ResearcherDeviationReport {
+  id: string;
+  protocol_title: string;
+  protocol_code: string;
+  ethical_clearance_effectivity: string;
+  study_site: string;
+  telephone: string;
+  mobile: string;
+  deviation_date: string;
+  deviation_description: string;
+  rationale: string;
+  impact: string;
+  corrective_action: string;
+  supporting_documents: string[];
+  reported_by: string;
+  report_submission_date: string;
+  type: string;
+  status: string;
+  severity?: string;
+  investigator_corrective_action?: string; // Description of investigator corrective action
+  severity_assessment?: string; // Investigator assessment of severity (Minor/Major)
+  review?: string; // Feedback from chairperson
+  corrective_action_feedback?: string; // Feedback for major deviations
+  corrective_action_required?: string;
+  corrective_action_details?: string;
+  corrective_action_docs?: string;
+  corrective_action_docs_details?: string;
+  corrective_action_deadline?: string;
+  // Resolution fields
+  resolution_status?: 'pending' | 'in_progress' | 'resolved' | 'rejected';
+  researcher_response?: string;
+  resolution_actions_taken?: string;
+  resolution_supporting_documents?: string[];
+  resolution_submission_date?: string;
+  resolution_notes?: string;
+  chairperson_acknowledgment?: string;
+  chairperson_acknowledgment_date?: string;
+}

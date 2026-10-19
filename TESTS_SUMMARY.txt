@@ -1,0 +1,41 @@
+Latest Unit/Integration Test Run
+
+| Date/Time | Files | Tests | Passed | Failed | Duration |
+| --- | --- | --- | --- | --- | --- |
+| 2025-10-28 22:01 (local) | 4 | 18 | 18 | 0 | ~6.3s |
+
+Per-test Results (latest run)
+
+Unit
+
+fileUploadService.test.ts
+- validates file size and type: PASS
+- uploads a file and returns public url: PASS
+- handles upload error: PASS
+- uploads multiple files and aggregates results: PASS
+- deletes a file: PASS
+- gets file info: PASS
+- uses predefined config: PASS
+
+templateSubmissionService.test.ts
+- creates submission when user authenticated: PASS
+- fails to create submission when unauthenticated: PASS
+- gets all submissions with filters: PASS
+- signs as researcher updates record: PASS
+- review submission updates status: PASS
+- chairperson signature updates record and status: PASS
+- verify signatures fetches and compares hashes: PASS
+- creates download url from file url: PASS
+
+Integration
+
+useAuth.test.ts
+- initially loads user and updates on auth changes: PASS
+
+login-form.test.tsx
+- submits credentials and blocks unverified users: PASS
+- sends reset password email with cooldown: PASS
+
+Notes
+- E2E specs are excluded from Vitest and should be run via `npm run e2e`.
+- Console logs in services are expected during tests (e.g., upload and submission debug output).
