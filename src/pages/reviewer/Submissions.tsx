@@ -395,9 +395,21 @@ export default function ReviewerPage() {
             isAssignedReviewer((proposal as Submission).reviewer, uid)
         ) as Submission[];
         setSubmissions(refreshed);
-        setActiveSubmission((current) =>
-            current ? refreshed.find((submission) => submission.proposal_id === current.proposal_id) || current : refreshed[0] || null
-        );
+        setActiveSubmission((current) => {
+            if (!current) return refreshed[0] || null;
+            const next = refreshed.find((submission) => submission.proposal_id === current.proposal_id);
+            if (!next) return current;
+            if (
+                next.status === current.status &&
+                next.review_type === current.review_type &&
+                next.protocol_id === current.protocol_id &&
+                next.proposal_title === current.proposal_title &&
+                next.category === current.category
+            ) {
+                return current;
+            }
+            return next;
+        });
     };
 
     /* fetch initial data - only proposals assigned to current reviewer */
@@ -678,60 +690,61 @@ export default function ReviewerPage() {
 
             const isChair = isChairperson || (userProfile?.role === 'Chairperson' || userProfile?.role === 'Admin');
 
-            // Load recommendations from history table - EXCLUDE current user's recommendations
-            let recommendationsQuery = supabase
-                .from("history")
-                .select("*")
-                .eq("paper_id", activeSubmission.proposal_id)
-                .eq("history_type", "review_recommendation")
-                .order("history_date", { ascending: false });
-            if (reviewWindowStart && !isChair) {
-                recommendationsQuery = recommendationsQuery.gte("history_date", reviewWindowStart);
-            }
-            const { data: recommendations, error } = await recommendationsQuery;
+            if (isChair) {
+                // Load recommendations from history table - EXCLUDE current user's recommendations
+                let recommendationsQuery = supabase
+                    .from("history")
+                    .select("*")
+                    .eq("paper_id", activeSubmission.proposal_id)
+                    .eq("history_type", "review_recommendation")
+                    .order("history_date", { ascending: false });
+                const { data: recommendations, error } = await recommendationsQuery;
 
-            if (error) throw error;
+                if (error) throw error;
 
-            // Filter out current user's recommendations to get only OTHER reviewers
-            const otherReviewersRecommendations = recommendations?.filter(rec => rec.actor !== userId) || [];
+                // Filter out current user's recommendations to get only OTHER reviewers
+                const otherReviewersRecommendations = recommendations?.filter(rec => rec.actor !== userId) || [];
 
-            if (otherReviewersRecommendations.length === 0) {
-                setExistingRecommendations([]);
-            } else {
-                // Get unique reviewer IDs from OTHER reviewers
-                const reviewerIds = [...new Set(otherReviewersRecommendations.map(rec => rec.actor).filter(Boolean))];
+                if (otherReviewersRecommendations.length === 0) {
+                    setExistingRecommendations([]);
+                } else {
+                    // Get unique reviewer IDs from OTHER reviewers
+                    const reviewerIds = [...new Set(otherReviewersRecommendations.map(rec => rec.actor).filter(Boolean))];
 
-                // Fetch all reviewer profiles in one query
-                let reviewerProfiles: Profile[] = [];
-                if (reviewerIds.length > 0) {
-                    const { data: profilesData, error: profilesError } = await supabase
-                        .from("profiles")
-                        .select("id, fname, lname")
-                        .in("id", reviewerIds);
+                    // Fetch all reviewer profiles in one query
+                    let reviewerProfiles: Profile[] = [];
+                    if (reviewerIds.length > 0) {
+                        const { data: profilesData, error: profilesError } = await supabase
+                            .from("profiles")
+                            .select("id, fname, lname")
+                            .in("id", reviewerIds);
 
-                    if (!profilesError && profilesData) {
-                        reviewerProfiles = profilesData;
+                        if (!profilesError && profilesData) {
+                            reviewerProfiles = profilesData;
+                        }
                     }
+
+                    // Transform history data to ReviewRecommendation format with proper names
+                    const transformedRecommendations: ReviewRecommendation[] = otherReviewersRecommendations.map(rec => {
+                        const reviewerProfile = reviewerProfiles.find(p => p.id === rec.actor);
+                        const reviewerName = reviewerProfile
+                            ? `${reviewerProfile.fname} ${reviewerProfile.lname}`.trim()
+                            : 'Unknown Reviewer';
+
+                        return {
+                            recommendation: rec.action?.includes('APPROVE') ? 'approve' : 'revisions',
+                            comments: rec.comment || '',
+                            reviewer_id: rec.actor || '',
+                            reviewer_name: reviewerName,
+                            submitted_at: rec.history_date,
+                            history_id: rec.history_id
+                        };
+                    });
+
+                    setExistingRecommendations(transformedRecommendations);
                 }
-
-                // Transform history data to ReviewRecommendation format with proper names
-                const transformedRecommendations: ReviewRecommendation[] = otherReviewersRecommendations.map(rec => {
-                    const reviewerProfile = reviewerProfiles.find(p => p.id === rec.actor);
-                    const reviewerName = reviewerProfile
-                        ? `${reviewerProfile.fname} ${reviewerProfile.lname}`.trim()
-                        : 'Unknown Reviewer';
-
-                    return {
-                        recommendation: rec.action?.includes('APPROVE') ? 'approve' : 'revisions',
-                        comments: rec.comment || '',
-                        reviewer_id: rec.actor || '',
-                        reviewer_name: reviewerName,
-                        submitted_at: rec.history_date,
-                        history_id: rec.history_id
-                    };
-                });
-
-                setExistingRecommendations(transformedRecommendations);
+            } else {
+                setExistingRecommendations([]);
             }
 
             // Set current user's recommendation separately
@@ -3283,7 +3296,7 @@ export default function ReviewerPage() {
                         )}
 
                         {/* Review Recommendations Summary */}
-                        {existingRecommendations.length > 0 && (
+                        {isChairperson && existingRecommendations.length > 0 && (
                             <div className="space-y-4 mb-6 border-t pt-6">
                                 <div className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
                                     <MessageSquare className="w-3.5 h-3.5" />

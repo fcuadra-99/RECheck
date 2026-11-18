@@ -265,13 +265,16 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
         setAnsweredDocuments({});
         setHistoryFiles(null);
         setLatestComment(null);
-        setActiveTab(0);
         setIsPhase3Approval(false);
 
+        if (!activeSubmission) {
+            setActiveTab(0);
+            return;
+        }
+        const idx = phases.findIndex((p) => p.statuses.includes(activeSubmission.status));
+        setActiveTab(idx === -1 ? 0 : idx);
+
         const prepare = async () => {
-            if (!activeSubmission) return;
-            const idx = phases.findIndex((p) => p.statuses.includes(activeSubmission.status));
-            setActiveTab(idx === -1 ? 0 : idx);
 
             // Check if this is Phase 3 approval by looking at history
             if (activeSubmission.status === "Pending Advisor Approval") {
@@ -352,7 +355,7 @@ export default function SubmissionDetails({ activeSubmission, profiles, userId, 
         };
 
         prepare();
-    }, [activeSubmission]);
+    }, [activeSubmission?.proposal_id, activeSubmission?.status]);
 
     const getProfileName = (id: string | null) => {
         if (!id) return "Unknown";

@@ -138,9 +138,21 @@ export default function SubmissionsPage() {
 
             const refreshed = (data || []) as Submission[];
             setSubmissions(refreshed);
-            setActiveSubmission((current) =>
-                current ? refreshed.find((submission) => submission.proposal_id === current.proposal_id) || current : current
-            );
+            setActiveSubmission((current) => {
+                if (!current) return current;
+                const next = refreshed.find((submission) => submission.proposal_id === current.proposal_id);
+                if (!next) return current;
+                if (
+                    next.status === current.status &&
+                    next.review_type === current.review_type &&
+                    next.protocol_id === current.protocol_id &&
+                    next.proposal_title === current.proposal_title &&
+                    next.category === current.category
+                ) {
+                    return current;
+                }
+                return next;
+            });
         };
 
         const refreshWhenActive = () => {

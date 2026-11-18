@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '../../DB';
-import { TemplateSubmissionService, type ReviewerProfile } from '../../services/templateSubmissionService';
+import { TemplateSubmissionService } from '../../services/templateSubmissionService';
 import PDFFormFiller from '../../components/PDFFormFiller';
 import EthicsStudyProgressReport from '@/components/forms/REC_FO_0019';
 import EthicsStudyReportableNegativeEventReport from '@/components/forms/REC_FO_0021';
@@ -56,8 +56,6 @@ interface TemplateSubmission {
   };
 }
 
-type ReviewerRole = 'primary_1' | 'primary_2' | 'secretariat';
-
 export default function TemplateSubmissionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -73,10 +71,6 @@ export default function TemplateSubmissionDetail() {
   const [customFormData, setCustomFormData] = useState<Record<string, any>>({});
   const [customFormLoading, setCustomFormLoading] = useState(false);
   const [printOnViewOpen, setPrintOnViewOpen] = useState(false);
-  const [reviewers, setReviewers] = useState<ReviewerProfile[]>([]);
-  const [selectedReviewerIds, setSelectedReviewerIds] = useState<string[]>([]);
-  const [selectedReviewerRoles, setSelectedReviewerRoles] = useState<Record<string, ReviewerRole>>({});
-  const [assigningReviewers, setAssigningReviewers] = useState(false);
   const [terminationInfo, setTerminationInfo] = useState<{ protocolCode: string; proposalTitle: string } | null>(null);
   const [terminationInfoLoading, setTerminationInfoLoading] = useState(false);
   const [terminatingProposal, setTerminatingProposal] = useState(false);
@@ -94,17 +88,11 @@ export default function TemplateSubmissionDetail() {
       submission?.status === 'rejected' ||
       submission?.status === 'needs_revision'
   );
-  const isReviewComplete = Boolean(submission && (
-    submission.status === 'approved' ||
-    submission.status === 'rejected' ||
-    submission.status === 'needs_revision'
-  ));
   const { fields: predefinedFields } = useTemplateFields(template?.id || null);
   const autoOpenView = searchParams.get('view') === '1';
 
   useEffect(() => {
     fetchSubmission();
-    fetchReviewers();
   }, [id]);
 
   const loadTerminationInfo = async () => {
@@ -137,19 +125,6 @@ export default function TemplateSubmissionDetail() {
       return null;
     } finally {
       setTerminationInfoLoading(false);
-    }
-  };
-
-  const fetchReviewers = async () => {
-    const templateService = new TemplateSubmissionService();
-    const result = await templateService.getReviewerProfiles();
-    if (result.success) {
-      setReviewers(result.reviewers || []);
-      if ((result.reviewers || []).length === 0) {
-        console.warn('No reviewer profiles available for assignment.');
-      }
-    } else {
-      console.error('Failed to fetch reviewer profiles:', result.error);
     }
   };
 
@@ -205,8 +180,6 @@ export default function TemplateSubmissionDetail() {
         };
 
         setSubmission(transformedSubmission);
-        setSelectedReviewerIds((data.metadata?.assignedReviewerIds || []).slice(0, 4));
-        setSelectedReviewerRoles((data.metadata?.assignedReviewerRoles || {}) as Record<string, ReviewerRole>);
       }
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -263,97 +236,6 @@ export default function TemplateSubmissionDetail() {
       toast.error('Failed to submit review. Please try again.');
     } finally {
       setReviewing(false);
-    }
-  };
-
-  const toggleReviewerSelection = (reviewerId: string) => {
-    setSelectedReviewerIds((prev) => {
-      if (prev.includes(reviewerId)) {
-        setSelectedReviewerRoles((roles) => {
-          const next = { ...roles };
-          delete next[reviewerId];
-          return next;
-        });
-        return prev.filter((id) => id !== reviewerId);
-      }
-
-      if (prev.length >= 4) {
-        return prev;
-      }
-
-      return [...prev, reviewerId];
-    });
-  };
-
-  const updateReviewerRole = (reviewerId: string, role: ReviewerRole | '') => {
-    setSelectedReviewerRoles((prev) => {
-      const next = { ...prev };
-      if (!role) {
-        delete next[reviewerId];
-      } else {
-        next[reviewerId] = role;
-      }
-      return next;
-    });
-  };
-
-  const getReviewerRoleLabel = (role?: ReviewerRole) => {
-    if (role === 'primary_1') return 'Primary Reviewer 1';
-    if (role === 'primary_2') return 'Primary Reviewer 2';
-    if (role === 'secretariat') return 'Secretariat Staff';
-    return 'Unassigned';
-  };
-
-  const getReviewerName = (reviewerId: string) => {
-    const reviewer = reviewers.find((item) => item.id === reviewerId);
-    return reviewer?.name || reviewerId;
-  };
-
-  const handleAssignReviewers = async () => {
-    if (!submission) return;
-
-    if (isReviewComplete) {
-      toast.error('Review is already complete. Reviewers cannot be assigned.');
-      return;
-    }
-
-    if (selectedReviewerIds.length < 1 || selectedReviewerIds.length > 4) {
-      toast.error('Please select 1 to 4 staff members.');
-      return;
-    }
-
-    const activeRoles = selectedReviewerIds
-      .map((id) => selectedReviewerRoles[id])
-      .filter(Boolean) as ReviewerRole[];
-    const uniqueRoles = new Set(activeRoles);
-    if (activeRoles.length !== uniqueRoles.size) {
-      toast.error('Assigned roles must be unique.');
-      return;
-    }
-
-    const rolesForSelected = Object.fromEntries(
-      selectedReviewerIds
-        .filter((id) => selectedReviewerRoles[id])
-        .map((id) => [id, selectedReviewerRoles[id]])
-    ) as Record<string, ReviewerRole>;
-
-    const loadingId = toast.loading('Assigning reviewers...');
-    try {
-      setAssigningReviewers(true);
-      const templateService = new TemplateSubmissionService();
-      const result = await templateService.assignReviewers(submission.id, selectedReviewerIds, rolesForSelected);
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to assign reviewers');
-      }
-
-      toast.success('Submission successfully passed to reviewers.', { id: loadingId });
-      await fetchSubmission();
-    } catch (error) {
-      console.error('Error assigning reviewers:', error);
-      toast.error(`Failed to assign reviewers: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
-    } finally {
-      setAssigningReviewers(false);
     }
   };
 
@@ -941,82 +823,6 @@ export default function TemplateSubmissionDetail() {
 
           {/* Sidebar - Review Actions */}
           <div className="space-y-6">
-            {/* Review Actions */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h4 className="text-base font-medium text-gray-900 mb-3">Pass to Assigned Staff</h4>
-              <p className="text-xs text-gray-600 mb-3">Select 1 to 4 reviewers or admin assistants for this submission.</p>
-              <div className="space-y-2 max-h-44 overflow-y-auto border border-gray-200 rounded p-2 mb-3">
-                {reviewers.length === 0 ? (
-                  <p className="text-xs text-gray-500">No reviewers found.</p>
-                ) : (
-                  reviewers.map((reviewer) => (
-                    <label key={reviewer.id} className="flex items-start gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={selectedReviewerIds.includes(reviewer.id)}
-                        onChange={() => toggleReviewerSelection(reviewer.id)}
-                        disabled={isReviewComplete || (!selectedReviewerIds.includes(reviewer.id) && selectedReviewerIds.length >= 4)}
-                      />
-                      <span>
-                        <span className="block font-medium text-gray-900">{reviewer.name}</span>
-                        <span className="block text-xs text-gray-500">
-                          {reviewer.email}{reviewer.role ? ` • ${reviewer.role}` : ''}
-                        </span>
-                        {selectedReviewerIds.includes(reviewer.id) && (
-                          <span className="mt-1 block">
-                            <select
-                              value={selectedReviewerRoles[reviewer.id] || ''}
-                              onChange={(e) => updateReviewerRole(reviewer.id, e.target.value as ReviewerRole | '')}
-                              disabled={isReviewComplete}
-                              className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:ring-1 focus:ring-indigo-500"
-                            >
-                              <option value="">Select role</option>
-                              <option value="primary_1">Primary Reviewer 1</option>
-                              <option value="primary_2">Primary Reviewer 2</option>
-                              <option value="secretariat">Secretariat Staff</option>
-                            </select>
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                  ))
-                )}
-              </div>
-              <button
-                onClick={handleAssignReviewers}
-                disabled={assigningReviewers || selectedReviewerIds.length < 1 || isReviewComplete}
-                className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition"
-              >
-                {assigningReviewers ? 'Passing...' : 'Pass to Selected Staff'}
-              </button>
-
-              {isReviewComplete && (
-                <div className="mt-3 rounded border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800 font-medium">
-                  This submission review is complete ({submission.status.replace('_', ' ')}). Assigned reviewers cannot be updated.
-                </div>
-              )}
-
-              {submission.metadata?.assignedReviewerIds && submission.metadata.assignedReviewerIds.length > 0 && (
-                <div className="mt-3 bg-indigo-50 border border-indigo-100 rounded p-2">
-                  <p className="text-xs text-indigo-900 font-medium">
-                    Assigned: {submission.metadata.assignedReviewerIds.length} reviewer{submission.metadata.assignedReviewerIds.length > 1 ? 's' : ''}
-                  </p>
-                  {submission.metadata?.assignedReviewerRoles && Object.keys(submission.metadata.assignedReviewerRoles).length > 0 && (
-                    <div className="mt-1 text-xs text-indigo-700">
-                      {submission.metadata.assignedReviewerIds.map((reviewerId) => (
-                        <div key={reviewerId}>
-                          {getReviewerName(reviewerId)}: {getReviewerRoleLabel(submission.metadata?.assignedReviewerRoles?.[reviewerId])}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {submission.metadata.assignedAt && (
-                    <p className="text-xs text-indigo-700">{formatDate(submission.metadata.assignedAt)}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
             {isEarlyTerminationTemplate && submission.status === 'approved' && (
               <div className="bg-white rounded-lg border border-gray-200 p-5">
                 <h4 className="text-base font-medium text-gray-900 mb-2">Terminate Proposal</h4>

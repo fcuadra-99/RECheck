@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '../../DB';
-import { assignFinalReportToStaff, getAssignableFinalReportStaff, getFinalReport, getFinalReportAssignments, updateFinalReport, type AssignableStaffProfile, type FinalReportAssignment } from '../../services/finalReportService';
+import { getFinalReport, updateFinalReport } from '../../services/finalReportService';
 import type { FinalReport, FinalReportStatus } from '../../types/finalReport';
 import { ArrowLeft, FileText, Calendar, User, Download, Eye, CheckCircle, Clock, AlertCircle, Save, Award } from 'lucide-react';
 import PDFFormFiller from '../../components/PDFFormFiller';
@@ -61,10 +61,6 @@ const FinalReportDetail: React.FC = () => {
   const [finalReportFormLoading, setFinalReportFormLoading] = useState(false);
   const [printOnFormViewOpen, setPrintOnFormViewOpen] = useState(false);
   const [showCertificatePreview, setShowCertificatePreview] = useState(false);
-  const [assignableStaff, setAssignableStaff] = useState<AssignableStaffProfile[]>([]);
-  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([]);
-  const [assigningStaff, setAssigningStaff] = useState(false);
-  const [reportAssignments, setReportAssignments] = useState<FinalReportAssignment[]>([]);
   
   // Load predefined fields based on selected PDF
   const template = selectedPdfName ? TemplateDownloadService.getTemplateByName(selectedPdfName) : null;
@@ -90,15 +86,8 @@ const FinalReportDetail: React.FC = () => {
   useEffect(() => {
     if (id) {
       loadReport();
-      loadAssignableStaff();
     }
   }, [id]);
-
-  useEffect(() => {
-    if (assignableStaff.length === 0) return;
-    const validIds = new Set(assignableStaff.map((staff) => staff.id));
-    setSelectedStaffIds((prev) => prev.filter((staffId) => validIds.has(staffId)));
-  }, [assignableStaff]);
 
   useEffect(() => {
     if (!showFinalReportFormView || !printOnFormViewOpen) return;
@@ -134,13 +123,6 @@ const FinalReportDetail: React.FC = () => {
     };
   }, [showFinalReportFormView]);
 
-  async function loadAssignableStaff() {
-    const result = await getAssignableFinalReportStaff();
-    if (result.success) {
-      setAssignableStaff(result.staff || []);
-    }
-  }
-
   async function loadReport() {
     if (!id) return;
     
@@ -153,15 +135,6 @@ const FinalReportDetail: React.FC = () => {
         setEditOutcome(reportData.outcome || '');
         setEditRemarks(reportData.remarks || '');
         setChairSignature(reportData.metadata?.chairSignature || '');
-
-        const assignmentResult = await getFinalReportAssignments(reportData.id);
-        if (assignmentResult.success) {
-          setReportAssignments(assignmentResult.assignments || []);
-          setSelectedStaffIds((assignmentResult.assignments || []).map((assignment) => assignment.assignee_id).slice(0, 4));
-        } else {
-          setReportAssignments([]);
-          setSelectedStaffIds([]);
-        }
 
         // Load proposal details
         if (reportData.proposal_date) {
@@ -181,50 +154,6 @@ const FinalReportDetail: React.FC = () => {
       toast.error('Failed to load final report details');
     } finally {
       setLoading(false);
-    }
-  }
-
-  function toggleStaffSelection(staffId: string) {
-    setSelectedStaffIds((prev) => {
-      if (prev.includes(staffId)) {
-        return prev.filter((id) => id !== staffId);
-      }
-
-      if (prev.length >= 4) {
-        return prev;
-      }
-
-      return [...prev, staffId];
-    });
-  }
-
-  async function handleAssignStaff() {
-    if (!report) return;
-
-    if (report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') {
-      toast.error('Reviewers cannot be assigned to a finalized or revision-pending report.');
-      return;
-    }
-
-    if (selectedStaffIds.length < 1 || selectedStaffIds.length > 4) {
-      toast.warning('Please select 1 to 4 staff members.');
-      return;
-    }
-
-    const loadingId = toast.loading('Passing to selected staff...');
-    try {
-      setAssigningStaff(true);
-      const result = await assignFinalReportToStaff(report.id, selectedStaffIds);
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to assign staff');
-      }
-      toast.success('Final report passed to assigned staff successfully.', { id: loadingId });
-      await loadReport();
-    } catch (error) {
-      console.error('Error assigning final report staff:', error);
-      toast.error(`Failed to assign staff: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: loadingId });
-    } finally {
-      setAssigningStaff(false);
     }
   }
 
@@ -969,63 +898,6 @@ const FinalReportDetail: React.FC = () => {
           {/* Right Column - Review Actions */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 sticky top-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Pass to Assigned Staff</h2>
-              <p className="text-xs text-gray-600 mb-3">Select 1 to 4 reviewers or admin assistants.</p>
-
-              <div className="space-y-2 max-h-44 overflow-y-auto border border-gray-200 rounded p-2 mb-3">
-                {assignableStaff.length === 0 ? (
-                  <p className="text-xs text-gray-500">No assignable staff found.</p>
-                ) : (
-                  assignableStaff.map((staff) => {
-                    const isAssignDisabled = report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision';
-                    return (
-                      <label key={staff.id} className="flex items-start gap-2 text-sm text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedStaffIds.includes(staff.id)}
-                          onChange={() => toggleStaffSelection(staff.id)}
-                          disabled={isAssignDisabled || (!selectedStaffIds.includes(staff.id) && selectedStaffIds.length >= 4)}
-                        />
-                        <span>
-                          <span className="block font-medium text-gray-900">{staff.name}</span>
-                          <span className="block text-xs text-gray-500">
-                            {staff.email}{staff.role ? ` • ${staff.role}` : ''}
-                          </span>
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
-              <button
-                onClick={handleAssignStaff}
-                disabled={assigningStaff || selectedStaffIds.length < 1 || report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision'}
-                className="w-full px-4 py-2 rounded text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 transition mb-6"
-              >
-                {assigningStaff ? 'Passing...' : 'Pass to Selected Staff'}
-              </button>
-
-              {(report.status === 'Approved' || report.status === 'Rejected' || report.status === 'Requires Revision') && (
-                <div className="mb-6 rounded border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800 font-medium">
-                  {report.status === 'Approved'
-                    ? 'This report is approved. Reviewers cannot be assigned.'
-                    : report.status === 'Rejected'
-                    ? 'This report is rejected. Reviewers cannot be assigned.'
-                    : 'This report is awaiting revision from researcher. Reviewers cannot be assigned.'}
-                </div>
-              )}
-
-              {reportAssignments.length > 0 && (
-                <div className="mb-6 bg-indigo-50 border border-indigo-100 rounded p-2">
-                  <p className="text-xs text-indigo-900 font-medium">
-                    Assigned: {reportAssignments.length} staff member{reportAssignments.length > 1 ? 's' : ''}
-                  </p>
-                  {reportAssignments[0]?.assigned_at && (
-                    <p className="text-xs text-indigo-700">{formatDate(reportAssignments[0].assigned_at)}</p>
-                  )}
-                </div>
-              )}
-
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Review & Update</h2>
               
               {/* Show review form for chairperson while report is still in active review */}
